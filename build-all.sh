@@ -20,7 +20,7 @@ step "ScadaServer"
 dotnet build ScadaServer/ScadaServer/ScadaServer.sln -c "$CONFIG"
 
 step "ScadaWeb"
-dotnet build ScadaWeb/ScadaWeb/ScadaWeb.sln -c "$CONFIG"
+dotnet build ScadaWeb/ScadaWeb/ScadaWeb.sln -c "$CONFIG" -p:AllowMissingPrunePackageData=true
 
 step "ScadaAdmin"
 dotnet build ScadaAdmin/ScadaAdmin/ScadaAdmin.sln -c "$CONFIG"
@@ -38,10 +38,10 @@ step "OpenModules"
 dotnet build ScadaServer/OpenModules/OpenModules.sln -c "$CONFIG"
 
 step "Mimics"
-dotnet build ScadaWeb/Mimics/Mimics.sln -c "$CONFIG"
+dotnet build ScadaWeb/Mimics/Mimics.sln -c "$CONFIG" -p:AllowMissingPrunePackageData=true
 
 step "OpenPlugins"
-dotnet build ScadaWeb/OpenPlugins/OpenPlugins.sln -c "$CONFIG"
+dotnet build ScadaWeb/OpenPlugins/OpenPlugins.sln -c "$CONFIG" -p:AllowMissingPrunePackageData=true
 
 step "OpenExtensions"
 dotnet build ScadaAdmin/OpenExtensions/OpenExtensions.sln -c "$CONFIG"
