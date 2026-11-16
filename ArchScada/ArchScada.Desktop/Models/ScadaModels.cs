@@ -37,6 +37,9 @@ public enum PlantSection
     CrushingConveyors,
     ThickenerCircuit,
     MagnetitePrep,
+    FineCoalFlotation,
+    DewateringTailings,
+    RomLoadoutQuality,
     DigitalTwin3D,
     EquipmentAssets,
     TrendsHistorian,
@@ -101,6 +104,23 @@ public partial class EquipmentItem : ObservableObject
 
     [ObservableProperty]
     public partial bool IsStale { get; set; }
+
+    [ObservableProperty]
+    public partial bool PullCordOk { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool BeltAlignmentOk { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool BeltSlipOk { get; set; } = true;
+
+    public string TripCascadeTarget { get; init; } = string.Empty;
+
+    public bool HasConveyorSafety => string.Equals(Type, "Conveyor", StringComparison.OrdinalIgnoreCase);
+
+    public string ConveyorSafetySummary =>
+        $"Pull-Cord: {(PullCordOk ? "OK" : "TRIPPED")} · Align: {(BeltAlignmentOk ? "OK" : "MISALIGNED")} · Slip: {(BeltSlipOk ? "OK" : "SLIP")}" +
+        (string.IsNullOrWhiteSpace(TripCascadeTarget) ? string.Empty : $" · Cascade -> {TripCascadeTarget}");
 
     public List<TelemetryTag> Tags { get; init; } = new();
 

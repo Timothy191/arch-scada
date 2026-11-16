@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfCommLine xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <CommLine>
+    <CommLineNum>1</CommLineNum>
+    <Name>Modbus TCP - Field PLCs</Name>
+    <Descr>Crushing, Conveyors, Thickener, and Magnetite Preparation PLCs over Modbus TCP</Descr>
+  </CommLine>
+  <CommLine>
+    <CommLineNum>2</CommLineNum>
+    <Name>OPC UA - Analyzers &amp; Centrifuge</Name>
+    <Descr>PGNAA Online Coal Analyzer (AN-601) and Fine Coal Centrifuge (CF-501) over OPC UA</Descr>
+  </CommLine>
+  <CommLine>
+    <CommLineNum>3</CommLineNum>
+    <Name>MQTT - Field Dust, Belt-Rip &amp; Env</Name>
+    <Descr>Wireless/field dust, belt-rip, and gas environmental sensors via MQTT broker</Descr>
+  </CommLine>
+</ArrayOfCommLine>

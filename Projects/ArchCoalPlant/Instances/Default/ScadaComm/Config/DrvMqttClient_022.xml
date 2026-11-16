@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MqttClientDeviceConfig>
+  <DeviceOptions>
+    <RootTopic>arch/coal/safety/belt_rip</RootTopic>
+  </DeviceOptions>
+  <Subscriptions>
+    <Subscription topic="arch/coal/safety/belt_rip/cv101" displayName="CV-101 Belt-Rip Trip Status" qosLevel="1" retain="true" tagCode="CV101_RIP" readOnly="true" jsEnabled="false" jsFileName="" />
+    <Subscription topic="arch/coal/safety/belt_rip/cv102" displayName="CV-102 Belt-Rip Trip Status" qosLevel="1" retain="true" tagCode="CV102_RIP" readOnly="true" jsEnabled="false" jsFileName="" />
+  </Subscriptions>
+  <Commands />
+</MqttClientDeviceConfig>

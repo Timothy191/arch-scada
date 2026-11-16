@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Threading;
+using ArchScada.CoreIntegration;
 using ArchScada.Desktop.Models;
 
 namespace ArchScada.Desktop.Services;
@@ -13,12 +17,17 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     private readonly Dictionary<string, List<double>> _history = new();
     private DispatcherTimer? _timer;
 
+    public LocalHistorianStore HistorianStore { get; }
+    public LocalConfigCache ConfigCache { get; }
+    public ScadaServerClient ServerClient { get; }
+
     public ObservableCollection<EquipmentItem> Equipment { get; } = new();
     public ObservableCollection<AlarmItem> Alarms { get; } = new();
     public ObservableCollection<TelemetryTag> AllTags { get; } = new();
 
     public bool IsServerConnected { get; private set; }
     public bool IsOfflineDemoMode { get; private set; } = true;
+    public string LastServerHealthStatus { get; private set; } = "Not probed (Local Cache Active)";
     public string ConnectionModeLabel => IsServerConnected
         ? "ScadaServer Connected (Read-Only)"
         : "Offline Demo / Local Cache (Read-Only)";
@@ -34,7 +43,21 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public event EventHandler? TelemetryUpdated;
 
     public SimulatedTelemetryService()
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchScada"))
     {
+    }
+
+    public SimulatedTelemetryService(string storageDirectory, ScadaServerClient? serverClient = null)
+    {
+        if (string.IsNullOrWhiteSpace(storageDirectory))
+        {
+            throw new ArgumentException("Storage directory must not be empty.", nameof(storageDirectory));
+        }
+
+        HistorianStore = new LocalHistorianStore(Path.Combine(storageDirectory, "historian"));
+        ConfigCache = new LocalConfigCache(Path.Combine(storageDirectory, "plant-config-cache.json"));
+        ServerClient = serverClient ?? new ScadaServerClient();
+
         SeedPlantModel();
         SeedInitialAlarms();
     }
@@ -42,7 +65,17 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public void Start(bool offlineDemoMode)
     {
         IsOfflineDemoMode = offlineDemoMode;
-        IsServerConnected = !offlineDemoMode;
+        IsServerConnected = false;
+
+        _ = PersistConfigurationSnapshotAsync();
+        if (!offlineDemoMode)
+        {
+            _ = ProbeServerHealthAsync();
+        }
+        else
+        {
+            LastServerHealthStatus = "Offline Demo Mode (Local Cache Active)";
+        }
 
         if (_timer is not null)
         {
@@ -70,6 +103,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         {
             alarm.IsAcknowledged = true;
             alarm.AcknowledgedAt = DateTime.Now;
+            _ = PersistAlarmEventAsync(alarm, "Acknowledged");
             TelemetryUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -81,6 +115,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         {
             alarm.IsAcknowledged = true;
             alarm.AcknowledgedAt = now;
+            _ = PersistAlarmEventAsync(alarm, "Acknowledged");
         }
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
     }
@@ -90,6 +125,126 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         return _history.TryGetValue(tagId, out var list)
             ? list.AsReadOnly()
             : Array.Empty<double>();
+    }
+
+    public async Task PersistConfigurationSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var areas = Equipment
+                .Select(e => e.Area)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select((name, idx) => new PlantAreaConfig
+                {
+                    AreaId = name.ToLowerInvariant().Replace(" ", "-").Replace("&", "and"),
+                    Name = name,
+                    Description = $"{name} CHPP process circuit",
+                    SortOrder = idx + 1
+                })
+                .ToList();
+
+            var equipmentDefs = Equipment.Select(e => new EquipmentDefinition
+            {
+                EquipmentId = e.Id,
+                AreaId = e.Area,
+                Name = e.Name,
+                EquipmentType = e.Type,
+                InterlockSummary = e.InterlockSummary
+            }).ToList();
+
+            var tagDefs = Equipment.SelectMany(e => e.Tags.Select(t => new TagMetadata
+            {
+                TagId = t.TagId,
+                EquipmentId = e.Id,
+                Name = t.Name,
+                Unit = t.Unit,
+                MinLimit = t.MinLimit,
+                MaxLimit = t.MaxLimit
+            })).ToList();
+
+            var snapshot = new PlantConfigurationSnapshot
+            {
+                PlantId = "arch-chpp-01",
+                Version = "2.0",
+                SavedAtUtc = DateTimeOffset.UtcNow,
+                Areas = areas,
+                Equipment = equipmentDefs,
+                Tags = tagDefs
+            };
+
+            await ConfigCache.SaveConfigAsync(snapshot, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Non-fatal local cache persistence failure in UI/demo mode.
+        }
+    }
+
+    public async Task PersistCurrentSamplesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            var samples = AllTags.Select(t => new TelemetrySample
+            {
+                TagId = t.TagId,
+                Value = t.Value,
+                TimestampUtc = nowUtc,
+                Quality = t.IsStale ? "Stale" : "Good"
+            });
+
+            await HistorianStore.AppendSamplesAsync(samples, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Non-fatal local historian persistence failure.
+        }
+    }
+
+    public async Task PersistAlarmEventAsync(AlarmItem alarm, string eventType = "Raised", CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var entry = new AlarmJournalEntry
+            {
+                AlarmId = alarm.Id,
+                TimestampUtc = new DateTimeOffset(alarm.Timestamp.ToUniversalTime(), TimeSpan.Zero),
+                Severity = alarm.Severity.ToString(),
+                AreaId = alarm.Area,
+                EquipmentId = alarm.EquipmentId,
+                Message = alarm.Message,
+                EventType = eventType,
+                IsAcknowledged = alarm.IsAcknowledged,
+                AcknowledgedAtUtc = alarm.AcknowledgedAt.HasValue
+                    ? new DateTimeOffset(alarm.AcknowledgedAt.Value.ToUniversalTime(), TimeSpan.Zero)
+                    : null,
+                AcknowledgedBy = alarm.IsAcknowledged ? "HMI_OPERATOR" : null
+            };
+
+            await HistorianStore.AppendAlarmEventAsync(entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Non-fatal local alarm journal persistence failure.
+        }
+    }
+
+    public async Task<bool> ProbeServerHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await ServerClient.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+        if (result.IsSuccess && result.Data is not null && result.Data.IsOnline)
+        {
+            IsServerConnected = true;
+            LastServerHealthStatus = $"Online (v{result.Data.ServerVersion}, {result.Data.ActiveChannelCount} channels)";
+        }
+        else
+        {
+            IsServerConnected = false;
+            LastServerHealthStatus = result.ErrorMessage ?? "ScadaServer unreachable (using local cache)";
+        }
+
+        TelemetryUpdated?.Invoke(this, EventArgs.Empty);
+        return IsServerConnected;
     }
 
     private void SeedPlantModel()
@@ -145,6 +300,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             PrimaryMetric = 2.85,
             PrimaryMetricLabel = "Belt Speed",
             PrimaryMetricUnit = "m/s",
+            TripCascadeTarget = "CR-101",
             Tags =
             {
                 CreateTag("CV101_SPD", "Belt Speed", 2.85, "m/s", 0, 4.0),
@@ -164,6 +320,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             PrimaryMetric = 2.60,
             PrimaryMetricLabel = "Belt Speed",
             PrimaryMetricUnit = "m/s",
+            TripCascadeTarget = "SC-102",
             Tags =
             {
                 CreateTag("CV102_SPD", "Belt Speed", 2.60, "m/s", 0, 4.0),
@@ -301,6 +458,238 @@ public sealed class SimulatedTelemetryService : ITelemetryService
                 CreateTag("DM301_PRS", "Cyclone Inlet Pressure", 185.0, "kPa", 0, 260)
             }
         });
+
+        // --- FINE COAL & FROTH FLOTATION ---
+        AddEquipment(new EquipmentItem
+        {
+            Id = "SP-401",
+            Name = "Spiral Bank",
+            Area = "Fine Coal & Froth Flotation",
+            Type = "Spiral",
+            Status = EquipmentStatus.Running,
+            PowerKw = 18.5,
+            LoadPercent = 68.0,
+            PrimaryMetric = 28.4,
+            PrimaryMetricLabel = "Feed Solids",
+            PrimaryMetricUnit = "%",
+            Tags =
+            {
+                CreateTag("SP401_SOL", "Spiral Feed Solids", 28.4, "%", 10, 45),
+                CreateTag("SP401_FLW", "Spiral Slurry Flow", 310.0, "m³/h", 0, 450)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "FC-401",
+            Name = "Flotation Column",
+            Area = "Fine Coal & Froth Flotation",
+            Type = "FlotationColumn",
+            Status = EquipmentStatus.Running,
+            PowerKw = 42.0,
+            LoadPercent = 73.0,
+            PrimaryMetric = 78.5,
+            PrimaryMetricLabel = "Pulp Level",
+            PrimaryMetricUnit = "%",
+            Tags =
+            {
+                CreateTag("FC401_LVL", "Column Pulp Level", 78.5, "%", 0, 100),
+                CreateTag("FC401_REC", "Combustible Recovery", 86.2, "%", 50, 100)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "AB-401",
+            Name = "Flotation Air Blower",
+            Area = "Fine Coal & Froth Flotation",
+            Type = "Blower",
+            Status = EquipmentStatus.Running,
+            PowerKw = 88.4,
+            LoadPercent = 74.0,
+            PrimaryMetric = 1420.0,
+            PrimaryMetricLabel = "Airflow",
+            PrimaryMetricUnit = "Nm³/h",
+            Tags =
+            {
+                CreateTag("AB401_FLW", "Sparger Airflow", 1420.0, "Nm³/h", 0, 2000),
+                CreateTag("AB401_PRS", "Header Pressure", 165.0, "kPa", 0, 250)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "PP-401",
+            Name = "Collector Dosing Pump",
+            Area = "Fine Coal & Froth Flotation",
+            Type = "Pump",
+            Status = EquipmentStatus.Running,
+            PowerKw = 6.2,
+            LoadPercent = 52.0,
+            PrimaryMetric = 14.8,
+            PrimaryMetricLabel = "Collector Dose",
+            PrimaryMetricUnit = "L/min",
+            Tags =
+            {
+                CreateTag("PP401_DOS", "Collector Flow", 14.8, "L/min", 0, 35)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "PP-402",
+            Name = "Frother Dosing Pump",
+            Area = "Fine Coal & Froth Flotation",
+            Type = "Pump",
+            Status = EquipmentStatus.Running,
+            PowerKw = 4.8,
+            LoadPercent = 48.0,
+            PrimaryMetric = 9.4,
+            PrimaryMetricLabel = "Frother Dose",
+            PrimaryMetricUnit = "L/min",
+            Tags =
+            {
+                CreateTag("PP402_DOS", "Frother Flow", 9.4, "L/min", 0, 25)
+            }
+        });
+
+        // --- DEWATERING & TAILINGS ---
+        AddEquipment(new EquipmentItem
+        {
+            Id = "CF-501",
+            Name = "Screen-Bowl Centrifuge",
+            Area = "Dewatering & Tailings",
+            Type = "Centrifuge",
+            Status = EquipmentStatus.Running,
+            PowerKw = 195.0,
+            LoadPercent = 79.0,
+            PrimaryMetric = 9.8,
+            PrimaryMetricLabel = "Cake Moisture",
+            PrimaryMetricUnit = "%",
+            Tags =
+            {
+                CreateTag("CF501_MOIST", "Product Cake Moisture", 9.8, "%", 4, 18),
+                CreateTag("CF501_AMP", "Bowl Drive Amps", 242.0, "A", 0, 340),
+                CreateTag("CF501_VIB", "Frame Vibration", 6.4, "mm/s", 0, 20)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "FP-501",
+            Name = "Tailings Filter Press",
+            Area = "Dewatering & Tailings",
+            Type = "FilterPress",
+            Status = EquipmentStatus.Running,
+            PowerKw = 64.0,
+            LoadPercent = 65.0,
+            PrimaryMetric = 12.4,
+            PrimaryMetricLabel = "Squeeze Pressure",
+            PrimaryMetricUnit = "bar",
+            Tags =
+            {
+                CreateTag("FP501_PRS", "Hydraulic Squeeze Pressure", 12.4, "bar", 0, 18),
+                CreateTag("FP501_MOIST", "Tailings Cake Moisture", 19.2, "%", 10, 32)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "CV-501",
+            Name = "Tailings Conveyor",
+            Area = "Dewatering & Tailings",
+            Type = "Conveyor",
+            Status = EquipmentStatus.Running,
+            PowerKw = 74.5,
+            LoadPercent = 61.0,
+            PrimaryMetric = 2.15,
+            PrimaryMetricLabel = "Belt Speed",
+            PrimaryMetricUnit = "m/s",
+            TripCascadeTarget = "FP-501",
+            Tags =
+            {
+                CreateTag("CV501_SPD", "Tailings Belt Speed", 2.15, "m/s", 0, 3.5),
+                CreateTag("CV501_AMP", "Tailings Drive Amps", 104.2, "A", 0, 180)
+            }
+        });
+
+        // --- ROM, LOADOUT & PGNAA ---
+        AddEquipment(new EquipmentItem
+        {
+            Id = "AF-001",
+            Name = "ROM Apron Feeder",
+            Area = "ROM, Loadout & PGNAA",
+            Type = "Feeder",
+            Status = EquipmentStatus.Running,
+            PowerKw = 58.0,
+            LoadPercent = 72.0,
+            PrimaryMetric = 655.0,
+            PrimaryMetricLabel = "ROM Feed Rate",
+            PrimaryMetricUnit = "t/h",
+            Tags =
+            {
+                CreateTag("AF001_TPH", "ROM Apron Feed Rate", 655.0, "t/h", 0, 950),
+                CreateTag("AF001_SPD", "VFD Speed", 74.0, "%", 0, 100)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "SL-601",
+            Name = "Clean Coal Silo",
+            Area = "ROM, Loadout & PGNAA",
+            Type = "Silo",
+            Status = EquipmentStatus.Running,
+            PowerKw = 12.0,
+            LoadPercent = 64.0,
+            PrimaryMetric = 64.5,
+            PrimaryMetricLabel = "Silo Level",
+            PrimaryMetricUnit = "%",
+            Tags =
+            {
+                CreateTag("SL601_LVL", "Clean Coal Silo Level", 64.5, "%", 0, 100),
+                CreateTag("SL601_TON", "Stored Inventory", 3225.0, "t", 0, 5000)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "AN-601",
+            Name = "PGNAA Online Analyzer",
+            Area = "ROM, Loadout & PGNAA",
+            Type = "Analyzer",
+            Status = EquipmentStatus.Running,
+            PowerKw = 3.6,
+            LoadPercent = 45.0,
+            PrimaryMetric = 9.4,
+            PrimaryMetricLabel = "Product Ash",
+            PrimaryMetricUnit = "%",
+            Tags =
+            {
+                CreateTag("AN601_ASH", "PGNAA Online Ash", 9.4, "%", 4, 22),
+                CreateTag("AN601_MOIST", "PGNAA Online Moisture", 8.6, "%", 3, 16),
+                CreateTag("AN601_CV", "Calorific Value", 27.8, "MJ/kg", 18, 32)
+            }
+        });
+
+        AddEquipment(new EquipmentItem
+        {
+            Id = "LD-601",
+            Name = "Train Loadout Batcher",
+            Area = "ROM, Loadout & PGNAA",
+            Type = "Loadout",
+            Status = EquipmentStatus.Running,
+            PowerKw = 44.0,
+            LoadPercent = 70.0,
+            PrimaryMetric = 1850.0,
+            PrimaryMetricLabel = "Batch Rate",
+            PrimaryMetricUnit = "t/h",
+            Tags =
+            {
+                CreateTag("LD601_TPH", "Loadout Batch Rate", 1850.0, "t/h", 0, 3000),
+                CreateTag("LD601_TOT", "Train Batch Total", 4120.0, "t", 0, 8500)
+            }
+        });
     }
 
     private void AddEquipment(EquipmentItem item)
@@ -417,6 +806,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         }
 
         WaterRecoveryPercent = Math.Round(Math.Clamp(WaterRecoveryPercent + (_rng.NextDouble() - 0.5) * 0.3, 80, 95), 1);
+        _ = PersistCurrentSamplesAsync();
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
     }
 }

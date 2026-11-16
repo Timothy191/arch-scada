@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MqttClientDeviceConfig>
+  <DeviceOptions>
+    <RootTopic>arch/coal/env/dust</RootTopic>
+  </DeviceOptions>
+  <Subscriptions>
+    <Subscription topic="arch/coal/env/dust/crusher_pm10" displayName="Crusher House Dust PM10" qosLevel="1" retain="false" tagCode="ENV_DUST_PM10" readOnly="true" jsEnabled="false" jsFileName="" />
+    <Subscription topic="arch/coal/env/dust/transfer_pm25" displayName="Transfer Tower Dust PM2.5" qosLevel="1" retain="false" tagCode="ENV_DUST_PM25" readOnly="true" jsEnabled="false" jsFileName="" />
+  </Subscriptions>
+  <Commands />
+</MqttClientDeviceConfig>

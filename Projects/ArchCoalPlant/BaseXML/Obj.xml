@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Obj>
+    <ObjNum>1</ObjNum>
+    <Name>Arch Coal Plant</Name>
+    <Code>PLANT</Code>
+    <ParentObjNum xsi:nil="true" />
+  </Obj>
+  <Obj>
+    <ObjNum>2</ObjNum>
+    <Name>Crushing &amp; Conveyors</Name>
+    <Code>CRUSH</Code>
+    <ParentObjNum>1</ParentObjNum>
+  </Obj>
+  <Obj>
+    <ObjNum>3</ObjNum>
+    <Name>Thickener Circuit</Name>
+    <Code>THICK</Code>
+    <ParentObjNum>1</ParentObjNum>
+  </Obj>
+  <Obj>
+    <ObjNum>4</ObjNum>
+    <Name>Magnetite Preparation</Name>
+    <Code>MAG</Code>
+    <ParentObjNum>1</ParentObjNum>
+  </Obj>
+  <Obj>
+    <ObjNum>5</ObjNum>
+    <Name>Quality &amp; Dewatering</Name>
+    <Code>QUAL</Code>
+    <ParentObjNum>1</ParentObjNum>
+  </Obj>
+  <Obj>
+    <ObjNum>6</ObjNum>
+    <Name>Environmental &amp; Safety</Name>
+    <Code>ENV</Code>
+    <ParentObjNum>1</ParentObjNum>
+  </Obj>
+</ArrayOfObj>

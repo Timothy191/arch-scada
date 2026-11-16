@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfDevice xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Device>
+    <DeviceNum>1</DeviceNum>
+    <Name>CR-101 Primary Jaw Crusher PLC</Name>
+    <Code>CR101</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>1</NumAddress>
+    <StrAddress>10.10.1.11:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Primary Jaw Crusher CR-101</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>2</DeviceNum>
+    <Name>SC-102 Vibrating Screen 1 PLC</Name>
+    <Code>SC102</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>2</NumAddress>
+    <StrAddress>10.10.1.12:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Vibrating Screen SC-102</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>3</DeviceNum>
+    <Name>CV-101 Main Feed Conveyor PLC</Name>
+    <Code>CV101</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>3</NumAddress>
+    <StrAddress>10.10.1.13:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Main Feed Conveyor CV-101</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>4</DeviceNum>
+    <Name>CV-102 Clean Coal Conveyor PLC</Name>
+    <Code>CV102</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>4</NumAddress>
+    <StrAddress>10.10.1.14:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Clean Coal Conveyor CV-102</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>5</DeviceNum>
+    <Name>TK-201 High-Rate Thickener PLC</Name>
+    <Code>TK201</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>5</NumAddress>
+    <StrAddress>10.10.2.21:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for High-Rate Thickener TK-201</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>6</DeviceNum>
+    <Name>PP-201 Underflow Pump A PLC</Name>
+    <Code>PP201</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>6</NumAddress>
+    <StrAddress>10.10.2.22:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Underflow Pump A PP-201</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>7</DeviceNum>
+    <Name>PP-202 Underflow Pump B PLC</Name>
+    <Code>PP202</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>7</NumAddress>
+    <StrAddress>10.10.2.23:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Standby Underflow Pump B PP-202</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>8</DeviceNum>
+    <Name>PP-203 Flocculant Dosing Pump PLC</Name>
+    <Code>PP203</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>8</NumAddress>
+    <StrAddress>10.10.2.24:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Flocculant Dosing Pump PP-203</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>9</DeviceNum>
+    <Name>TK-301 Magnetite &amp; DMC Circuit PLC</Name>
+    <Code>TK301</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>9</NumAddress>
+    <StrAddress>10.10.3.31:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Magnetite Medium Tank TK-301, MS-301, and DM-301</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>11</DeviceNum>
+    <Name>AN-601 PGNAA Online Analyzer</Name>
+    <Code>AN601</Code>
+    <DevTypeID>232</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>opc.tcp://10.10.6.61:4840</StrAddress>
+    <CommLineNum>2</CommLineNum>
+    <Descr>OPC UA server on PGNAA elemental coal analyzer AN-601</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>12</DeviceNum>
+    <Name>CF-501 Fine Coal Centrifuge</Name>
+    <Code>CF501</Code>
+    <DevTypeID>232</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>opc.tcp://10.10.5.51:4840</StrAddress>
+    <CommLineNum>2</CommLineNum>
+    <Descr>OPC UA controller on Fine Coal Centrifuge CF-501</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>21</DeviceNum>
+    <Name>ENV-DUST Particulate Monitors</Name>
+    <Code>ENV_DUST</Code>
+    <DevTypeID>235</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>10.10.7.10</StrAddress>
+    <CommLineNum>3</CommLineNum>
+    <Descr>MQTT Client for PM10/PM2.5 dust monitors at crusher and transfer towers</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>22</DeviceNum>
+    <Name>BELT-RIP Conveyor Safety Sensors</Name>
+    <Code>BELT_RIP</Code>
+    <DevTypeID>235</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>10.10.7.10</StrAddress>
+    <CommLineNum>3</CommLineNum>
+    <Descr>MQTT Client for CV-101 and CV-102 belt-rip and drift switches</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>23</DeviceNum>
+    <Name>ENV-GAS Methane &amp; Ambient Sensors</Name>
+    <Code>ENV_GAS</Code>
+    <DevTypeID>235</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>10.10.7.10</StrAddress>
+    <CommLineNum>3</CommLineNum>
+    <Descr>MQTT Client for enclosed silo/tunnel CH4 and ambient temperature sensors</Descr>
+  </Device>
+</ArrayOfDevice>

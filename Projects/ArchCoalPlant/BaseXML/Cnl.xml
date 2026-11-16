@@ -1,0 +1,668 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfCnl xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <!-- Line 1 / Device 1: CR-101 Primary Jaw Crusher (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>101</CnlNum>
+    <Active>true</Active>
+    <Name>CR-101 Crusher Throughput</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>1</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CR101_TPH</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>102</CnlNum>
+    <Active>true</Active>
+    <Name>CR-101 Crusher Motor Power</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>1</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>CR101_KW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>52</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>103</CnlNum>
+    <Active>true</Active>
+    <Name>CR-101 Bearing Temperature</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>1</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>CR101_BRG</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>22</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 2: SC-102 Vibrating Screen 1 (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>111</CnlNum>
+    <Active>true</Active>
+    <Name>SC-102 Screen Vibration</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>2</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>SC102_VIB</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>112</CnlNum>
+    <Active>true</Active>
+    <Name>SC-102 Screen Power</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>2</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>SC102_KW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>52</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 3: CV-101 Main Feed Conveyor (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>121</CnlNum>
+    <Active>true</Active>
+    <Name>CV-101 Belt Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>3</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CV101_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>122</CnlNum>
+    <Active>true</Active>
+    <Name>CV-101 Drive Current</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>3</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>CV101_AMP</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>43</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 4: CV-102 Clean Coal Conveyor (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>131</CnlNum>
+    <Active>true</Active>
+    <Name>CV-102 Belt Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>4</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CV102_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>132</CnlNum>
+    <Active>true</Active>
+    <Name>CV-102 Gearbox Temperature</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>4</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>CV102_TMP</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>22</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 5: TK-201 High-Rate Thickener (ObjNum=3) -->
+  <Cnl>
+    <CnlNum>201</CnlNum>
+    <Active>true</Active>
+    <Name>TK-201 Thickener Bed Level</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>5</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>TK201_LVL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>202</CnlNum>
+    <Active>true</Active>
+    <Name>TK-201 Rake Torque</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>5</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>TK201_TRQ</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>203</CnlNum>
+    <Active>true</Active>
+    <Name>TK-201 Overflow Turbidity</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>5</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>TK201_TRB</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Devices 6-8: PP-201..203 Thickener Pumps (ObjNum=3) -->
+  <Cnl>
+    <CnlNum>211</CnlNum>
+    <Active>true</Active>
+    <Name>PP-201 Underflow Flow A</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>6</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>PP201_FLW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>212</CnlNum>
+    <Active>true</Active>
+    <Name>PP-201 Discharge Pressure</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>6</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>PP201_PRS</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>221</CnlNum>
+    <Active>true</Active>
+    <Name>PP-202 Standby Underflow Flow B</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>7</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>PP202_FLW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>231</CnlNum>
+    <Active>true</Active>
+    <Name>PP-203 Flocculant Dosing Rate</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>3</ObjNum>
+    <DeviceNum>8</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>PP203_DOS</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 9: TK-301 Magnetite & DMC Circuit (ObjNum=4) -->
+  <Cnl>
+    <CnlNum>301</CnlNum>
+    <Active>true</Active>
+    <Name>TK-301 Medium Specific Gravity</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>9</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>TK301_SG</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>302</CnlNum>
+    <Active>true</Active>
+    <Name>TK-301 Medium Tank Level</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>9</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>TK301_LVL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>303</CnlNum>
+    <Active>true</Active>
+    <Name>MS-301 Magnetite Recovery</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>9</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>MS301_REC</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>304</CnlNum>
+    <Active>true</Active>
+    <Name>DM-301 DMC Feed Flow</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>9</DeviceNum>
+    <TagNum>4</TagNum>
+    <TagCode>DM301_FLW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>305</CnlNum>
+    <Active>true</Active>
+    <Name>DM-301 Cyclone Inlet Pressure</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>9</DeviceNum>
+    <TagNum>5</TagNum>
+    <TagCode>DM301_PRS</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 2 / Device 11: AN-601 PGNAA Online Analyzer via OPC UA (ObjNum=5) -->
+  <Cnl>
+    <CnlNum>601</CnlNum>
+    <Active>true</Active>
+    <Name>AN-601 Coal Ash Content</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>11</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>AN601_ASH</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>602</CnlNum>
+    <Active>true</Active>
+    <Name>AN-601 Total Moisture</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>11</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>AN601_MST</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>603</CnlNum>
+    <Active>true</Active>
+    <Name>AN-601 Total Sulfur</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>11</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>AN601_SUL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>604</CnlNum>
+    <Active>true</Active>
+    <Name>AN-601 Calorific Value (GCV)</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>11</DeviceNum>
+    <TagNum>4</TagNum>
+    <TagCode>AN601_CAL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>2</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 2 / Device 12: CF-501 Fine Coal Centrifuge via OPC UA (ObjNum=5) -->
+  <Cnl>
+    <CnlNum>501</CnlNum>
+    <Active>true</Active>
+    <Name>CF-501 Basket Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>12</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CF501_RPM</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>2</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>35</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>502</CnlNum>
+    <Active>true</Active>
+    <Name>CF-501 Bearing Vibration</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>12</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>CF501_VIB</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>503</CnlNum>
+    <Active>true</Active>
+    <Name>CF-501 Scroll Differential Torque</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>12</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>CF501_TORQ</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>504</CnlNum>
+    <Active>true</Active>
+    <Name>CF-501 Product Moisture</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>5</ObjNum>
+    <DeviceNum>12</DeviceNum>
+    <TagNum>4</TagNum>
+    <TagCode>CF501_MST</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 3 / Devices 21-23: MQTT Field Dust, Belt-Rip & Env Sensors (ObjNum=6) -->
+  <Cnl>
+    <CnlNum>701</CnlNum>
+    <Active>true</Active>
+    <Name>Crusher House Dust PM10</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>6</ObjNum>
+    <DeviceNum>21</DeviceNum>
+    <TagNum xsi:nil="true" />
+    <TagCode>ENV_DUST_PM10</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>702</CnlNum>
+    <Active>true</Active>
+    <Name>Transfer Tower Dust PM2.5</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>6</ObjNum>
+    <DeviceNum>21</DeviceNum>
+    <TagNum xsi:nil="true" />
+    <TagCode>ENV_DUST_PM25</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>711</CnlNum>
+    <Active>true</Active>
+    <Name>CV-101 Belt-Rip Trip Status</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>6</ObjNum>
+    <DeviceNum>22</DeviceNum>
+    <TagNum xsi:nil="true" />
+    <TagCode>CV101_RIP</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>21</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask>37</EventMask>
+  </Cnl>
+  <Cnl>
+    <CnlNum>712</CnlNum>
+    <Active>true</Active>
+    <Name>CV-102 Belt-Rip Trip Status</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>6</ObjNum>
+    <DeviceNum>22</DeviceNum>
+    <TagNum xsi:nil="true" />
+    <TagCode>CV102_RIP</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>21</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask>37</EventMask>
+  </Cnl>
+  <Cnl>
+    <CnlNum>721</CnlNum>
+    <Active>true</Active>
+    <Name>Silo Tunnel CH4 Concentration</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>6</ObjNum>
+    <DeviceNum>23</DeviceNum>
+    <TagNum xsi:nil="true" />
+    <TagCode>ENV_CH4_PPM</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+</ArrayOfCnl>

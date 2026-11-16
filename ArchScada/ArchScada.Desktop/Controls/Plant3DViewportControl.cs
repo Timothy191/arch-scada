@@ -222,6 +222,14 @@ public sealed class Plant3DViewportControl : Control
         // DM-301 Dense Medium Cyclone Pump
         AddBox(faces, new Vec3(5.8, 0.55, 0.8), 1.4, 1.1, 1.2, GetAssetColor("DM-301", Color.Parse("#0284C7")), "DM-301");
 
+        // --- FINE COAL, DEWATERING & SILO LOADOUT ---
+        // FC-401 Flotation Column
+        AddCylinder(faces, new Vec3(-5.8, 0.0, 3.6), 1.0, 3.0, 14, GetAssetColor("FC-401", Color.Parse("#0284C7")), "FC-401");
+        // CF-501 Screen-Bowl Centrifuge
+        AddBox(faces, new Vec3(5.6, 0.7, 4.4), 2.0, 1.4, 1.3, GetAssetColor("CF-501", Color.Parse("#7C3AED")), "CF-501");
+        // SL-601 Clean Coal Silo
+        AddCylinder(faces, new Vec3(-8.2, 0.0, 1.6), 1.35, 3.6, 16, GetAssetColor("SL-601", Color.Parse("#059669")), "SL-601");
+
         // Sort faces back-to-front (Painter's algorithm)
         faces.Sort((a, b) => b.Depth.CompareTo(a.Depth));
 
@@ -394,6 +402,9 @@ public sealed class Plant3DViewportControl : Control
         yield return ("TK-301", new Vec3(5.8, 3.0, -2.2));
         yield return ("MS-301", new Vec3(3.2, 2.3, -2.2));
         yield return ("DM-301", new Vec3(5.8, 1.7, 0.8));
+        yield return ("FC-401", new Vec3(-5.8, 3.6, 3.6));
+        yield return ("CF-501", new Vec3(5.6, 2.0, 4.4));
+        yield return ("SL-601", new Vec3(-8.2, 4.2, 1.6));
     }
 
     private void AddBox(List<Face3D> faces, Vec3 center, double sx, double sy, double sz, Color color, string? label = null)

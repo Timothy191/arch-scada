@@ -75,6 +75,18 @@
                             Background="{Binding IsMagnetite, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.MagnetitePrep}" />
 
+                    <Button Content="Fine Coal &amp; Flotation" Classes="nav-item"
+                            Background="{Binding IsFineCoal, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.FineCoalFlotation}" />
+
+                    <Button Content="Dewatering &amp; Tailings" Classes="nav-item"
+                            Background="{Binding IsDewatering, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.DewateringTailings}" />
+
+                    <Button Content="ROM, Loadout &amp; PGNAA" Classes="nav-item"
+                            Background="{Binding IsRomLoadout, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.RomLoadoutQuality}" />
+
                     <TextBlock Text="3D &amp; VISUALS" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="12,14,0,6" />
 
                     <Button Content="3D Digital Twin (Unity)" Classes="nav-item"
@@ -120,7 +132,7 @@
                                 <StackPanel Spacing="6">
                                     <TextBlock Text="TOTAL POWER DRAW" Classes="card-label" />
                                     <TextBlock Text="{Binding TotalPowerDrawKw, StringFormat='{}{0:0.0} kW'}" Classes="kpi-value" />
-                                    <TextBlock Text="Across 11 monitored assets" FontSize="11" Foreground="#94A3B8" />
+                                    <TextBlock Text="Across 23 monitored assets" FontSize="11" Foreground="#94A3B8" />
                                 </StackPanel>
                             </Border>
 
@@ -142,8 +154,8 @@
                         </Grid>
 
                         <TextBlock Text="Process Circuits" Classes="section-title" />
-                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
-                            <Border Grid.Column="0" Classes="scada-card">
+                        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="14">
+                            <Border Grid.Row="0" Grid.Column="0" Classes="scada-card">
                                 <StackPanel Spacing="10">
                                     <TextBlock Text="Crushing &amp; Conveyors" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                     <TextBlock Text="CR-101, SC-102, CV-101, CV-102" FontSize="12" Foreground="#94A3B8" />
@@ -151,7 +163,7 @@
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.CrushingConveyors}" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Classes="scada-card">
+                            <Border Grid.Row="0" Grid.Column="1" Classes="scada-card">
                                 <StackPanel Spacing="10">
                                     <TextBlock Text="Thickener Circuit" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                     <TextBlock Text="TK-201, PP-201, PP-202, PP-203" FontSize="12" Foreground="#94A3B8" />
@@ -159,12 +171,36 @@
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.ThickenerCircuit}" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="2" Classes="scada-card">
+                            <Border Grid.Row="0" Grid.Column="2" Classes="scada-card">
                                 <StackPanel Spacing="10">
                                     <TextBlock Text="Magnetite Preparation" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                     <TextBlock Text="TK-301, MS-301, DM-301" FontSize="12" Foreground="#94A3B8" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.MagnetitePrep}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="0" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Fine Coal &amp; Flotation" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="SP-401, FC-401, AB-401, PP-401, PP-402" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.FineCoalFlotation}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Dewatering &amp; Tailings" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="CF-501, FP-501, CV-501" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.DewateringTailings}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="2" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="ROM, Loadout &amp; PGNAA" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="AF-001, SL-601, AN-601, LD-601" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.RomLoadoutQuality}" />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -224,6 +260,12 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <Border IsVisible="{Binding HasConveyorSafety}" Background="#0B1324" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="10" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding ConveyorSafetySummary}" FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -234,6 +276,28 @@
                     <!-- 3. THICKENER CIRCUIT -->
                     <StackPanel IsVisible="{Binding IsThickener}" Spacing="14">
                         <TextBlock Text="Thickener Circuit" Classes="section-title" />
+                        <Border Classes="scada-card">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="24">
+                                <controls:TankLevelControl Grid.Column="0"
+                                                           Label="TK-201 Bed"
+                                                           LevelPercent="{Binding ThickenerBedLevelPercent}"
+                                                           HighHighLimit="92"
+                                                           HighLimit="82"
+                                                           LowLimit="20"
+                                                           LowLowLimit="10"
+                                                           Width="130" Height="160" />
+                                <controls:ValveIndicatorControl Grid.Column="1"
+                                                                Label="XV-201 Underflow"
+                                                                State="{Binding ThickenerValveState}"
+                                                                Width="110" Height="100"
+                                                                VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6">
+                                    <TextBlock Text="TK-201 High-Rate Thickener Instrumentation" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="{Binding ThickenerBedLevelPercent, StringFormat='Bed Level: {0:0.0} %'}" FontSize="13" Foreground="#38BDF8" />
+                                    <TextBlock Text="{Binding WaterRecoveryPercent, StringFormat='Clarified Water Recovery: {0:0.0} %'}" FontSize="13" Foreground="#22C55E" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                         <ItemsControl ItemsSource="{Binding ThickenerEquipment}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -276,6 +340,28 @@
                     <!-- 4. MAGNETITE PREPARATION -->
                     <StackPanel IsVisible="{Binding IsMagnetite}" Spacing="14">
                         <TextBlock Text="Magnetite Preparation Circuit" Classes="section-title" />
+                        <Border Classes="scada-card">
+                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="24">
+                                <controls:TankLevelControl Grid.Column="0"
+                                                           Label="TK-301 Medium"
+                                                           LevelPercent="{Binding MagnetiteTankLevelPercent}"
+                                                           HighHighLimit="90"
+                                                           HighLimit="80"
+                                                           LowLimit="22"
+                                                           LowLowLimit="12"
+                                                           Width="130" Height="160" />
+                                <controls:ValveIndicatorControl Grid.Column="1"
+                                                                Label="XV-301 DMC Feed"
+                                                                State="{Binding MagnetiteValveState}"
+                                                                Width="110" Height="100"
+                                                                VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6">
+                                    <TextBlock Text="TK-301 Magnetite Medium Sump &amp; DMC Feed" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="{Binding MagnetiteTankLevelPercent, StringFormat='Medium Tank Level: {0:0.0} %'}" FontSize="13" Foreground="#38BDF8" />
+                                    <TextBlock Text="{Binding MediumSpecificGravity, StringFormat='Medium Density: {0:0.00} SG'}" FontSize="13" Foreground="#F59E0B" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                         <ItemsControl ItemsSource="{Binding MagnetiteEquipment}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -307,6 +393,138 @@
                                                 </StackPanel>
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#F59E0B" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 4B. FINE COAL & FROTH FLOTATION -->
+                    <StackPanel IsVisible="{Binding IsFineCoal}" Spacing="14">
+                        <TextBlock Text="Fine Coal &amp; Froth Flotation" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding FlotationEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 4C. DEWATERING & TAILINGS -->
+                    <StackPanel IsVisible="{Binding IsDewatering}" Spacing="14">
+                        <TextBlock Text="Dewatering &amp; Tailings" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding DewateringEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#A855F7" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <Border IsVisible="{Binding HasConveyorSafety}" Background="#0B1324" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="10" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding ConveyorSafetySummary}" FontSize="11" Foreground="#CBD5E1" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 4D. ROM, LOADOUT & PGNAA -->
+                    <StackPanel IsVisible="{Binding IsRomLoadout}" Spacing="14">
+                        <TextBlock Text="ROM, Loadout &amp; PGNAA Online Quality" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding RomLoadoutEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#10B981" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
                                         </StackPanel>
                                     </Border>
@@ -493,10 +711,19 @@
                         <Border Classes="scada-card">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="{Binding ConnectionStatusLabel, StringFormat='SCADA Core: {0}'}" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding ControlModeSummary, StringFormat='Control Boundary: {0}'}" Foreground="#22C55E" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding UnityStreamStatus, StringFormat='Unity 3D Bridge: {0}'}" Foreground="#38BDF8" />
                                 <TextBlock Text="{Binding UnityBridge.IsBlenderInstalled, StringFormat='Blender Installed: {0}'}" Foreground="#CBD5E1" />
                                 <TextBlock Text="{Binding UnityBridge.IsUnityHubInstalled, StringFormat='Unity Hub Installed: {0}'}" Foreground="#CBD5E1" />
                                 <TextBlock Text="{Binding UnityBridge.AssetsExportDirectory, StringFormat='3D Export Directory: {0}'}" Foreground="#94A3B8" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="scada-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Control Safety Boundary (Simulated Audit)" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                <TextBlock Text="Executes a read-only / simulated Cause-and-Effect interlock audit via ControlBoundaryEngine without actuating real plant hardware." FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" />
+                                <Button Content="Run Simulated Control Audit" Command="{Binding RunSimulatedControlAuditCommand}" Classes="secondary-action" HorizontalAlignment="Left" />
+                                <TextBlock Text="{Binding LastControlAuditResult}" FontSize="12" Foreground="#38BDF8" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

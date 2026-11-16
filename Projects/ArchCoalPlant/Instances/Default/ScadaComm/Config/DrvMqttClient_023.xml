@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MqttClientDeviceConfig>
+  <DeviceOptions>
+    <RootTopic>arch/coal/env/gas</RootTopic>
+  </DeviceOptions>
+  <Subscriptions>
+    <Subscription topic="arch/coal/env/gas/silo_ch4_ppm" displayName="Silo Tunnel CH4 Concentration" qosLevel="1" retain="false" tagCode="ENV_CH4_PPM" readOnly="true" jsEnabled="false" jsFileName="" />
+  </Subscriptions>
+  <Commands />
+</MqttClientDeviceConfig>

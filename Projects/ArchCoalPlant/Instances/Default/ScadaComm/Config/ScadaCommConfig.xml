@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScadaCommConfig>
+  <GeneralOptions>
+    <IsBound>true</IsBound>
+    <SendModifiedData>true</SendModifiedData>
+    <SendAllDataPeriod>60</SendAllDataPeriod>
+    <EnableCommands>false</EnableCommands>
+    <EnableFileCommands>false</EnableFileCommands>
+    <StartLinesOnCommand>false</StartLinesOnCommand>
+    <StopWait>10</StopWait>
+    <MaxLogSize>5</MaxLogSize>
+  </GeneralOptions>
+  <ConnectionOptions>
+    <Name>Default Connection</Name>
+    <Host>localhost</Host>
+    <Port>10000</Port>
+    <Username>ScadaComm</Username>
+    <Password>B9D0F030265751578B00E9801C69320C</Password>
+    <Timeout>10000</Timeout>
+    <SecretKey>0E063D581B1DB27B8E984993DED65CE99284A706756C706C7F3B12C44BD55D4D</SecretKey>
+  </ConnectionOptions>
+  <DataSources>
+    <DataSource active="true" code="ScadaServer" name="Server Data Source" driver="DrvDsScadaServer">
+      <Option name="ClientLogEnabled" value="false" />
+      <Option name="Connection" value="" />
+      <Option name="DataLifetime" value="3600" />
+      <Option name="DeviceFilter" value="" />
+      <Option name="MaxQueueSize" value="1000" />
+      <Option name="ReadConfigDb" value="true" />
+      <Option name="UseDefaultConn" value="true" />
+    </DataSource>
+    <DataSource active="false" code="OpcUaServer" name="OPC UA Server" driver="DrvDsOpcUaServer">
+      <Option name="AutoAccept" value="false" />
+      <Option name="ConfigFileName" value="" />
+      <Option name="DeviceFilter" value="" />
+      <Option name="Password" value="B9D0F030265751578B00E9801C69320C" />
+      <Option name="Username" value="opc" />
+    </DataSource>
+  </DataSources>
+  <Lines>
+    <Line active="true" isBound="true" number="1" name="Modbus TCP - Field PLCs">
+      <LineOptions>
+        <ReqRetries>3</ReqRetries>
+        <CycleDelay>0</CycleDelay>
+        <CmdEnabled>false</CmdEnabled>
+        <PollAfterCmd>false</PollAfterCmd>
+        <DetailedLog>true</DetailedLog>
+      </LineOptions>
+      <Channel type="TcpClient" driver="DrvCnlBasic">
+        <Option name="Behavior" value="Master" />
+        <Option name="ConnectionMode" value="Individual" />
+        <Option name="DisconnectOnError" value="false" />
+        <Option name="Host" value="10.10.1.11" />
+        <Option name="ReconnectAfter" value="5" />
+        <Option name="StayConnected" value="true" />
+        <Option name="TcpPort" value="502" />
+      </Channel>
+      <CustomOptions />
+      <DevicePolling>
+        <Device active="true" isBound="true" number="1" name="CR-101 Primary Jaw Crusher PLC" driver="DrvModbus" numAddress="1" strAddress="10.10.1.11:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="2" name="SC-102 Vibrating Screen 1 PLC" driver="DrvModbus" numAddress="2" strAddress="10.10.1.12:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="3" name="CV-101 Main Feed Conveyor PLC" driver="DrvModbus" numAddress="3" strAddress="10.10.1.13:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="4" name="CV-102 Clean Coal Conveyor PLC" driver="DrvModbus" numAddress="4" strAddress="10.10.1.14:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="5" name="TK-201 High-Rate Thickener PLC" driver="DrvModbus" numAddress="5" strAddress="10.10.2.21:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+        <Device active="true" isBound="true" number="6" name="PP-201 Underflow Pump A PLC" driver="DrvModbus" numAddress="6" strAddress="10.10.2.22:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+        <Device active="true" isBound="true" number="7" name="PP-202 Underflow Pump B PLC" driver="DrvModbus" numAddress="7" strAddress="10.10.2.23:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+        <Device active="true" isBound="true" number="8" name="PP-203 Flocculant Dosing Pump PLC" driver="DrvModbus" numAddress="8" strAddress="10.10.2.24:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+        <Device active="true" isBound="true" number="9" name="TK-301 Magnetite &amp; DMC Circuit PLC" driver="DrvModbus" numAddress="9" strAddress="10.10.3.31:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+      </DevicePolling>
+    </Line>
+    <Line active="true" isBound="true" number="2" name="OPC UA - Analyzers &amp; Centrifuge">
+      <LineOptions>
+        <ReqRetries>3</ReqRetries>
+        <CycleDelay>0</CycleDelay>
+        <CmdEnabled>false</CmdEnabled>
+        <PollAfterCmd>false</PollAfterCmd>
+        <DetailedLog>true</DetailedLog>
+      </LineOptions>
+      <Channel type="" driver="" />
+      <CustomOptions />
+      <DevicePolling>
+        <Device active="true" isBound="true" number="11" name="AN-601 PGNAA Online Analyzer" driver="DrvOpcUa" numAddress="0" strAddress="opc.tcp://10.10.6.61:4840" pollOnCmd="false" timeout="5000" delay="500" time="00:00:00" period="00:00:05" cmdLine="" />
+        <Device active="true" isBound="true" number="12" name="CF-501 Fine Coal Centrifuge" driver="DrvOpcUa" numAddress="0" strAddress="opc.tcp://10.10.5.51:4840" pollOnCmd="false" timeout="5000" delay="500" time="00:00:00" period="00:00:02" cmdLine="" />
+      </DevicePolling>
+    </Line>
+    <Line active="true" isBound="true" number="3" name="MQTT - Field Dust, Belt-Rip &amp; Env">
+      <LineOptions>
+        <ReqRetries>3</ReqRetries>
+        <CycleDelay>0</CycleDelay>
+        <CmdEnabled>false</CmdEnabled>
+        <PollAfterCmd>false</PollAfterCmd>
+        <DetailedLog>true</DetailedLog>
+      </LineOptions>
+      <Channel type="MqttClient" driver="DrvCnlMqtt">
+        <Option name="ClientID" value="arch-coal-scada-comm" />
+        <Option name="Password" value="" />
+        <Option name="Port" value="1883" />
+        <Option name="ProtocolVersion" value="Unknown" />
+        <Option name="Server" value="10.10.7.10" />
+        <Option name="Timeout" value="10000" />
+        <Option name="Username" value="scada_ro" />
+      </Channel>
+      <CustomOptions />
+      <DevicePolling>
+        <Device active="true" isBound="true" number="21" name="ENV-DUST Particulate Monitors" driver="DrvMqttClient" numAddress="0" strAddress="10.10.7.10" pollOnCmd="false" timeout="0" delay="0" time="00:00:00" period="00:00:00" cmdLine="" />
+        <Device active="true" isBound="true" number="22" name="BELT-RIP Conveyor Safety Sensors" driver="DrvMqttClient" numAddress="0" strAddress="10.10.7.10" pollOnCmd="false" timeout="0" delay="0" time="00:00:00" period="00:00:00" cmdLine="" />
+        <Device active="true" isBound="true" number="23" name="ENV-GAS Methane &amp; Ambient Sensors" driver="DrvMqttClient" numAddress="0" strAddress="10.10.7.10" pollOnCmd="false" timeout="0" delay="0" time="00:00:00" period="00:00:00" cmdLine="" />
+      </DevicePolling>
+    </Line>
+  </Lines>
+</ScadaCommConfig>
