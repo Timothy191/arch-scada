@@ -4,6 +4,7 @@ public enum ControlExecutionStatus
 {
     Simulated,
     Success,
+    Confirmed,
     Rejected,
     Blocked,
     Timeout,

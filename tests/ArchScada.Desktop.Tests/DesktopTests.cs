@@ -409,4 +409,46 @@ public class DesktopTests
             telemetry.Stop();
         }
     }
+
+    [Fact]
+    public void MainShellViewModel_Isa182AlarmsCoupledPhysicsAndOperatorRbac_WorkEndToEnd()
+    {
+        var telemetry = new SimulatedTelemetryService();
+        using var bridge = new UnityBridgeService();
+        var vm = new MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
+
+        try
+        {
+            // 1. Coupled physics evaluation
+            telemetry.CoupledModel.StepCoupledPhysics(
+                telemetry.AllTags,
+                out var yieldPct,
+                out var ashPct,
+                out var waterRecPct,
+                out var specEnergy);
+
+            Assert.InRange(yieldPct, 70.0, 92.0);
+            Assert.InRange(ashPct, 6.0, 16.0);
+            Assert.InRange(waterRecPct, 75.0, 96.0);
+            Assert.True(specEnergy > 0);
+
+            // 2. Operator RBAC & shift handover
+            vm.SwitchOperatorCommand.Execute("supervisor1");
+            Assert.Equal(OperatorRole.ShiftSupervisor, vm.OperatorAuth.CurrentRole);
+            Assert.True(vm.OperatorAuth.CanShelveAlarms);
+
+            var alarm = vm.Alarms.First();
+            vm.ShelveAlarmCommand.Execute(alarm);
+            Assert.Equal(IsaAlarmState.Shelved, telemetry.AlarmEngine.GetState(alarm.Id));
+
+            int notesBefore = vm.HandoverLog.Count;
+            vm.HandoverNoteDraft = "Shift handover verified: DMC SG steady at 1.52.";
+            vm.AddHandoverNoteCommand.Execute(null);
+            Assert.Equal(notesBefore + 1, vm.HandoverLog.Count);
+        }
+        finally
+        {
+            telemetry.Stop();
+        }
+    }
 }

@@ -302,4 +302,125 @@ public sealed class ControlBoundaryTests : IDisposable
         var audits = logger.ReadAll();
         Assert.Equal(2, audits.Count);
     }
+
+    [Fact]
+    public async Task RealControlAdapter_WithTeleCommandDispatcher_ReturnsConfirmed_WhenFeedbackConfirmed()
+    {
+        var logger = new ControlAuditLogger(_auditLogPath);
+        var authState = new ControlAuthorizationState
+        {
+            IsRealControlAuthorized = true,
+            CauseAndEffectVerified = true,
+            AuthorizedBy = "PlantManager"
+        };
+
+        var dispatcher = new StubTeleCommandDispatcher((req, timeout, ct) =>
+        {
+            Assert.Equal(TimeSpan.FromSeconds(3), timeout);
+            return Task.FromResult((Sent: true, FeedbackConfirmed: true, Detail: "RUNNING"));
+        });
+
+        var realAdapter = new RealControlAdapter(() => authState, dispatcher);
+        var engine = new ControlBoundaryEngine(
+            logger,
+            realAdapter: realAdapter,
+            authorizationState: authState,
+            initialRules: new[] { CreateMotorStartRule() });
+
+        var result = await engine.ExecuteCommandAsync(CreateValidStartRequest());
+
+        Assert.True(result.Accepted);
+        Assert.True(result.ExecutedOnDevice);
+        Assert.False(result.IsSimulated);
+        Assert.Equal(ControlExecutionStatus.Confirmed, result.Status);
+        Assert.Equal("RUNNING", result.EquipmentFeedbackState);
+        Assert.Equal(1, dispatcher.CallCount);
+
+        var audits = logger.ReadAll();
+        Assert.Single(audits);
+        Assert.Equal("CONFIRMED", audits[0].Result);
+        Assert.Equal("RUNNING", audits[0].Feedback);
+        Assert.False(audits[0].Simulated);
+    }
+
+    [Fact]
+    public async Task RealControlAdapter_WithTeleCommandDispatcher_ReturnsUnconfirmed_WhenFeedbackTimesOutOrUnconfirmed()
+    {
+        var logger = new ControlAuditLogger(_auditLogPath);
+        var authState = new ControlAuthorizationState
+        {
+            IsRealControlAuthorized = true,
+            CauseAndEffectVerified = true,
+            AuthorizedBy = "PlantManager"
+        };
+
+        // Case 1: Dispatcher reports sent=true, feedbackConfirmed=false (unconfirmed within timeout)
+        var unconfirmedDispatcher = new StubTeleCommandDispatcher((_, _, _) =>
+            Task.FromResult((Sent: true, FeedbackConfirmed: false, Detail: "PLC read-back remained STOPPED after 3s")));
+
+        var realAdapter1 = new RealControlAdapter(() => authState, unconfirmedDispatcher);
+        var engine1 = new ControlBoundaryEngine(
+            logger,
+            realAdapter: realAdapter1,
+            authorizationState: authState,
+            initialRules: new[] { CreateMotorStartRule() });
+
+        var result1 = await engine1.ExecuteCommandAsync(CreateValidStartRequest());
+
+        Assert.Equal(ControlExecutionStatus.Unconfirmed, result1.Status);
+        Assert.NotEqual(ControlExecutionStatus.Confirmed, result1.Status);
+        Assert.False(result1.IsSimulated);
+        Assert.Contains("STOPPED", result1.FailureReason);
+
+        // Case 2: Dispatcher exceeds FeedbackTimeout and gets cancelled by the adapter timeout token
+        var delayedDispatcher = new StubTeleCommandDispatcher(async (_, _, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            return (Sent: true, FeedbackConfirmed: true, Detail: "RUNNING");
+        });
+
+        var realAdapter2 = new RealControlAdapter(
+            () => authState,
+            delayedDispatcher,
+            feedbackTimeout: TimeSpan.FromMilliseconds(50));
+        var engine2 = new ControlBoundaryEngine(
+            logger,
+            realAdapter: realAdapter2,
+            authorizationState: authState,
+            initialRules: new[] { CreateMotorStartRule() });
+
+        var result2 = await engine2.ExecuteCommandAsync(CreateValidStartRequest());
+
+        Assert.Equal(ControlExecutionStatus.Unconfirmed, result2.Status);
+        Assert.NotEqual(ControlExecutionStatus.Confirmed, result2.Status);
+        Assert.False(result2.IsSimulated);
+        Assert.Contains("timed out", result2.FailureReason, StringComparison.OrdinalIgnoreCase);
+
+        var audits = logger.ReadAll();
+        Assert.Equal(2, audits.Count);
+        Assert.All(audits, a => Assert.Equal("UNCONFIRMED", a.Result));
+    }
+
+    private sealed class StubTeleCommandDispatcher : ITeleCommandDispatcher
+    {
+        private readonly Func<ControlCommandRequest, TimeSpan, CancellationToken, Task<(bool Sent, bool FeedbackConfirmed, string Detail)>> _handler;
+
+        public StubTeleCommandDispatcher(
+            Func<ControlCommandRequest, TimeSpan, CancellationToken, Task<(bool Sent, bool FeedbackConfirmed, string Detail)>> handler)
+        {
+            _handler = handler;
+        }
+
+        public int CallCount { get; private set; }
+
+        public Task<(bool Sent, bool FeedbackConfirmed, string Detail)> DispatchAndVerifyAsync(
+            ControlCommandRequest request,
+            TimeSpan feedbackTimeout,
+            CancellationToken ct)
+        {
+            CallCount++;
+            return _handler(request, feedbackTimeout, ct);
+        }
+    }
 }
+

@@ -13,3 +13,15 @@ public interface IControlAdapter
         CauseAndEffectRule rule,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Dispatches a telecommand to the field PLC/RTU and verifies state transition via read-back feedback.
+/// </summary>
+public interface ITeleCommandDispatcher
+{
+    Task<(bool Sent, bool FeedbackConfirmed, string Detail)> DispatchAndVerifyAsync(
+        ControlCommandRequest request,
+        TimeSpan feedbackTimeout,
+        CancellationToken ct);
+}
+

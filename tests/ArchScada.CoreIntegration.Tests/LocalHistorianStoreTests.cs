@@ -120,6 +120,86 @@ public sealed class LocalHistorianStoreTests : IDisposable
         Assert.Equal(99.5, results[0].Value);
     }
 
+    [Fact]
+    public async Task PruneSamplesAsync_CompactsFileAndKeepsMostRecentSamples()
+    {
+        var t0 = new DateTimeOffset(2026, 11, 16, 6, 0, 0, TimeSpan.Zero);
+        var store = new LocalHistorianStore(_tempDir);
+
+        Assert.Equal(10_000, store.MaxRetainedSamples);
+
+        for (var i = 1; i <= 6; i++)
+        {
+            await store.AppendSampleAsync(new TelemetrySample
+            {
+                TagId = "CR101_TPH",
+                Value = 600.0 + i,
+                TimestampUtc = t0.AddSeconds(i * 10),
+                Quality = "Good"
+            });
+        }
+
+        var prunedCount = await store.PruneSamplesAsync(maxSamplesToKeep: 3);
+        Assert.Equal(3, prunedCount);
+
+        var remaining = await store.QuerySamplesAsync(tagId: "CR101_TPH");
+        Assert.Equal(3, remaining.Count);
+        Assert.Equal(604.0, remaining[0].Value);
+        Assert.Equal(605.0, remaining[1].Value);
+        Assert.Equal(606.0, remaining[2].Value);
+
+        var rawLines = (await File.ReadAllLinesAsync(store.SamplesFilePath))
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToArray();
+        Assert.Equal(3, rawLines.Length);
+    }
+
+    [Fact]
+    public async Task PruneOlderThanAsync_RemovesSamplesBeforeCutoffAndCompactsFile()
+    {
+        var t0 = new DateTimeOffset(2026, 11, 16, 6, 0, 0, TimeSpan.Zero);
+        var store = new LocalHistorianStore(_tempDir);
+
+        await store.AppendSamplesAsync(
+        [
+            new TelemetrySample { TagId = "TK201_LVL", Value = 68.0, TimestampUtc = t0.AddMinutes(-15) },
+            new TelemetrySample { TagId = "TK201_LVL", Value = 69.5, TimestampUtc = t0.AddMinutes(-10) },
+            new TelemetrySample { TagId = "TK201_LVL", Value = 71.0, TimestampUtc = t0.AddMinutes(-5) },
+            new TelemetrySample { TagId = "TK201_LVL", Value = 72.2, TimestampUtc = t0 }
+        ]);
+
+        var removed = await store.PruneOlderThanAsync(t0.AddMinutes(-7));
+        Assert.Equal(2, removed);
+
+        var remaining = await store.QuerySamplesAsync(tagId: "TK201_LVL");
+        Assert.Equal(2, remaining.Count);
+        Assert.Equal(71.0, remaining[0].Value);
+        Assert.Equal(72.2, remaining[1].Value);
+    }
+
+    [Fact]
+    public async Task AppendSampleAsync_AutomaticallyEnforcesMaxRetainedSamples()
+    {
+        var t0 = new DateTimeOffset(2026, 11, 16, 6, 0, 0, TimeSpan.Zero);
+        var store = new LocalHistorianStore(_tempDir, maxRetainedSamples: 4);
+
+        for (var i = 1; i <= 7; i++)
+        {
+            await store.AppendSampleAsync(new TelemetrySample
+            {
+                TagId = "AN601_ASH",
+                Value = 8.0 + i,
+                TimestampUtc = t0.AddSeconds(i),
+                Quality = "Good"
+            });
+        }
+
+        var remaining = await store.QuerySamplesAsync(tagId: "AN601_ASH");
+        Assert.Equal(4, remaining.Count);
+        Assert.Equal(12.0, remaining[0].Value);
+        Assert.Equal(15.0, remaining[3].Value);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))

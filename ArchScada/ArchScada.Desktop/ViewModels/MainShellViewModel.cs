@@ -24,11 +24,22 @@ public partial class MainShellViewModel : ViewModelBase
     public ITelemetryService Telemetry => _telemetry;
     public UnityBridgeService UnityBridge => _unityBridge;
     public ControlBoundaryEngine ControlBoundary => _controlBoundary;
+    public OperatorAuthService OperatorAuth { get; } = new();
 
     public ObservableCollection<EquipmentItem> Equipment => _telemetry.Equipment;
     public ObservableCollection<AlarmItem> Alarms => _telemetry.Alarms;
     public ObservableCollection<TelemetryTag> AllTags => _telemetry.AllTags;
     public ObservableCollection<OptimizationTrimRecord> OptimizationLog => _telemetry.OptimizationLog;
+    public ObservableCollection<ShiftHandoverEntry> HandoverLog => OperatorAuth.HandoverLog;
+
+    [ObservableProperty]
+    public partial string HandoverNoteDraft { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string OperatorBadge { get; set; } = "J. Mokoena (CCR Operator) [Operator]";
+
+    [ObservableProperty]
+    public partial string NativeProtocolStatus { get; set; } = "Native TCP 127.0.0.1:10000 (34 Cnl mapped)";
 
     public ObservableCollection<EquipmentItem> CrushingEquipment { get; } = new();
     public ObservableCollection<EquipmentItem> ThickenerEquipment { get; } = new();
@@ -366,8 +377,52 @@ public partial class MainShellViewModel : ViewModelBase
     [RelayCommand]
     private void StepMicroOptimization()
     {
+        if (!OperatorAuth.CanChangeOptimizationMode) return;
         _telemetry.ApplyOptimizationTick();
         RefreshFromTelemetry();
+    }
+
+    [RelayCommand]
+    private void SilenceHorn()
+    {
+        if (_telemetry is SimulatedTelemetryService sim)
+        {
+            sim.AlarmEngine.SilenceHorn();
+        }
+    }
+
+    [RelayCommand]
+    private void ShelveAlarm(AlarmItem? alarm)
+    {
+        if (alarm is null || !OperatorAuth.CanShelveAlarms) return;
+        if (_telemetry is SimulatedTelemetryService sim)
+        {
+            sim.AlarmEngine.ShelveAlarm(alarm.Id, TimeSpan.FromMinutes(15));
+        }
+    }
+
+    [RelayCommand]
+    private void SwitchOperator(string username)
+    {
+        var pinMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["operator1"] = "1234",
+            ["supervisor1"] = "2468",
+            ["engineer1"] = "9999",
+            ["viewer1"] = "0000"
+        };
+        if (pinMap.TryGetValue(username, out var pin) && OperatorAuth.Login(username, pin))
+        {
+            OperatorBadge = $"{OperatorAuth.CurrentDisplayName} [{OperatorAuth.CurrentRole}]";
+        }
+    }
+
+    [RelayCommand]
+    private void AddHandoverNote()
+    {
+        if (string.IsNullOrWhiteSpace(HandoverNoteDraft)) return;
+        OperatorAuth.AddShiftHandoverNote(HandoverNoteDraft);
+        HandoverNoteDraft = string.Empty;
     }
 
     private void RefreshExportedModels()

@@ -1,0 +1,43 @@
+[Unit]
+Description=Arch SCADA Communication Service (Modbus / OPC UA / MQTT Field Drivers)
+Documentation=https://github.com/Timothy191/arch-scada
+After=network-online.target archscada-server.service
+Wants=network-online.target
+Requires=archscada-server.service
+
+[Service]
+Type=simple
+User=archscada
+Group=archscada
+SupplementaryGroups=dialout
+WorkingDirectory=/opt/archscada/ScadaComm
+ExecStart=/usr/bin/dotnet /opt/archscada/ScadaComm/ScadaCommWkr.dll
+Restart=always
+RestartSec=5
+TimeoutStopSec=25
+KillSignal=SIGINT
+SyslogIdentifier=archscada-comm
+
+# Environment
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=ARCHSCADA_CONTROL_MODE=READ_ONLY
+Environment=ARCHSCADA_CONFIG_DIR=/etc/archscada/comm
+Environment=ARCHSCADA_DATA_DIR=/var/lib/archscada
+Environment=ARCHSCADA_LOG_DIR=/var/log/archscada
+
+# Hardening & Safety Isolation
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/archscada /var/log/archscada
+ReadOnlyPaths=/etc/archscada /opt/archscada
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

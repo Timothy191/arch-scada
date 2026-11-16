@@ -760,15 +760,16 @@
 
                     <!-- 8. ALARMS & EVENTS -->
                     <StackPanel IsVisible="{Binding IsAlarms}" Spacing="14">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="Alarms &amp; Events" Classes="section-title" />
-                            <Button Grid.Column="1" Content="Acknowledge All (Local)" Command="{Binding AcknowledgeAllAlarmsCommand}" Classes="secondary-action" />
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                            <TextBlock Text="Alarms &amp; Events (ISA-18.2 State Machine)" Classes="section-title" />
+                            <Button Grid.Column="1" Content="Silence Horn" Command="{Binding SilenceHornCommand}" Classes="secondary-action" />
+                            <Button Grid.Column="2" Content="Acknowledge All (Local)" Command="{Binding AcknowledgeAllAlarmsCommand}" Classes="secondary-action" />
                         </Grid>
                         <ItemsControl ItemsSource="{Binding Alarms}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Classes="scada-card" Margin="0,4">
-                                        <Grid ColumnDefinitions="14,90,150,*,Auto,Auto" ColumnSpacing="12">
+                                        <Grid ColumnDefinitions="14,90,150,*,Auto,Auto,Auto" ColumnSpacing="12">
                                             <Ellipse Width="10" Height="10" VerticalAlignment="Center"
                                                      Fill="{Binding Severity, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
                                             <TextBlock Grid.Column="1" Text="{Binding TimeDisplay}" Foreground="#94A3B8" VerticalAlignment="Center" />
@@ -779,6 +780,10 @@
                                             <Button Grid.Column="5" Content="Ack"
                                                     IsEnabled="{Binding !IsAcknowledged}"
                                                     Command="{Binding $parent[UserControl].((vm:MainShellViewModel)DataContext).AcknowledgeAlarmCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Classes="secondary-action" Padding="10,4" />
+                                            <Button Grid.Column="6" Content="Shelve 15m"
+                                                    Command="{Binding $parent[UserControl].((vm:MainShellViewModel)DataContext).ShelveAlarmCommand}"
                                                     CommandParameter="{Binding}"
                                                     Classes="secondary-action" Padding="10,4" />
                                         </Grid>
@@ -794,11 +799,41 @@
                         <Border Classes="scada-card">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="{Binding ConnectionStatusLabel, StringFormat='SCADA Core: {0}'}" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding NativeProtocolStatus, StringFormat='Native ScadaClient Protocol: {0}'}" Foreground="#38BDF8" />
                                 <TextBlock Text="{Binding ControlModeSummary, StringFormat='Control Boundary: {0}'}" Foreground="#22C55E" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding OperatorBadge, StringFormat='Active Operator Session: {0}'}" Foreground="#F59E0B" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding UnityStreamStatus, StringFormat='Unity 3D Bridge: {0}'}" Foreground="#38BDF8" />
                                 <TextBlock Text="{Binding UnityBridge.IsBlenderInstalled, StringFormat='Blender Installed: {0}'}" Foreground="#CBD5E1" />
                                 <TextBlock Text="{Binding UnityBridge.IsUnityHubInstalled, StringFormat='Unity Hub Installed: {0}'}" Foreground="#CBD5E1" />
                                 <TextBlock Text="{Binding UnityBridge.AssetsExportDirectory, StringFormat='3D Export Directory: {0}'}" Foreground="#94A3B8" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="scada-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Operator Authentication, RBAC &amp; Electronic Shift Handover" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Operator (J. Mokoena)" Command="{Binding SwitchOperatorCommand}" CommandParameter="operator1" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="Shift Supervisor (S. Nkosi)" Command="{Binding SwitchOperatorCommand}" CommandParameter="supervisor1" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="C&amp;I Engineer (T. van Wyk)" Command="{Binding SwitchOperatorCommand}" CommandParameter="engineer1" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="Observer (Read-Only)" Command="{Binding SwitchOperatorCommand}" CommandParameter="viewer1" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                </StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBox Text="{Binding HandoverNoteDraft}" PlaceholderText="Enter shift handover log note..." />
+                                    <Button Grid.Column="1" Content="Log Handover Note" Command="{Binding AddHandoverNoteCommand}" Classes="primary-action" Padding="12,8" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding HandoverLog}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="scada-panel" Margin="0,2">
+                                                <Grid ColumnDefinitions="140,140,*" ColumnSpacing="10">
+                                                    <TextBlock Grid.Column="0" Text="{Binding TimeDisplay}" FontSize="11" Foreground="#94A3B8" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding RoleDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Note}" FontSize="11" Foreground="#F8FAFC" TextWrapping="Wrap" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                         <Border Classes="scada-card">

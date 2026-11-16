@@ -20,6 +20,9 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public LocalHistorianStore HistorianStore { get; }
     public LocalConfigCache ConfigCache { get; }
     public ScadaServerClient ServerClient { get; }
+    public NativeScadaServerAdapter NativeAdapter { get; } = new();
+    public Isa182AlarmEngine AlarmEngine { get; } = new();
+    public CoupledPlantProcessModel CoupledModel { get; } = new();
 
     public ObservableCollection<EquipmentItem> Equipment { get; } = new();
     public ObservableCollection<AlarmItem> Alarms { get; } = new();
@@ -32,6 +35,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public bool IsOfflineDemoMode { get; private set; } = true;
     public bool IsAutoOptimizationEnabled { get; set; } = true;
     public string LastServerHealthStatus { get; private set; } = "Not probed (Local Cache Active)";
+    public string NativeProtocolStatus { get; private set; } = "Native TCP 127.0.0.1:10000 (34 Cnl mapped)";
     public string ConnectionModeLabel => IsServerConnected
         ? "ScadaServer Connected (Read-Only)"
         : "Offline Demo / Local Cache (Read-Only)";
@@ -806,6 +810,17 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             ApplyOptimizationTick();
         }
 
+        CoupledModel.StepCoupledPhysics(
+            AllTags,
+            out var coupledYield,
+            out _,
+            out var coupledWaterRec,
+            out var coupledSpecEnergy);
+
+        CleanCoalYieldPercent = coupledYield;
+        WaterRecoveryPercent = coupledWaterRec;
+        AlarmEngine.Evaluate(AllTags, Alarms);
+
         TotalPowerDrawKw = Math.Round(totalPower, 1);
         var crusher = Equipment.FirstOrDefault(e => e.Id == "CR-101");
         if (crusher is not null)
@@ -819,11 +834,10 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             MediumSpecificGravity = magTank.PrimaryMetric;
         }
 
-        SpecificEnergyKwhPerTon = TotalFeedTonnageTph > 10
-            ? Math.Round(TotalPowerDrawKw / TotalFeedTonnageTph, 2)
-            : 0.0;
+        SpecificEnergyKwhPerTon = coupledSpecEnergy > 0
+            ? coupledSpecEnergy
+            : (TotalFeedTonnageTph > 10 ? Math.Round(TotalPowerDrawKw / TotalFeedTonnageTph, 2) : 0.0);
 
-        WaterRecoveryPercent = Math.Round(Math.Clamp(WaterRecoveryPercent + (_rng.NextDouble() - 0.45) * 0.25, 82, 95), 1);
         _ = PersistCurrentSamplesAsync();
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
     }

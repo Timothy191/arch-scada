@@ -448,6 +448,7 @@ public sealed class ControlBoundaryEngine
     {
         ControlExecutionStatus.Simulated => "SIMULATED",
         ControlExecutionStatus.Success => "SUCCESS",
+        ControlExecutionStatus.Confirmed => "CONFIRMED",
         ControlExecutionStatus.Timeout => "TIMEOUT",
         ControlExecutionStatus.Unconfirmed => "UNCONFIRMED",
         ControlExecutionStatus.Blocked => "BLOCKED",
