@@ -561,7 +561,13 @@
                                         Effects="{Binding UnityEffects}"
                                         CameraPreset="{Binding UnityEffects.CameraPreset}"
                                         SelectedEquipment="{Binding SelectedEquipment, Mode=TwoWay}"
+                                        FocusTargetId="{Binding FocusTargetId}"
                                         Height="420" />
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Focus Selected (F)" Command="{Binding FocusSelected3DCommand}" Classes="primary-action" Padding="12,6" FontSize="11" />
+                                        <Button Content="Focus Active Alarm" Command="{Binding FocusActiveAlarm3DCommand}" Classes="secondary-action" Padding="12,6" FontSize="11" />
+                                    </StackPanel>
 
                                     <ItemsControl ItemsSource="{Binding CameraPresets}">
                                         <ItemsControl.ItemsPanel>
@@ -598,12 +604,16 @@
                                 </Border>
 
                                 <Border Classes="scada-card">
-                                    <StackPanel Spacing="10">
-                                        <TextBlock Text="3D Visual Effects" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="3D Physics, Camera &amp; FX" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
                                         <CheckBox Content="Material Flow Particles" IsChecked="{Binding UnityEffects.ShowFlowParticles}" Foreground="#CBD5E1" />
                                         <CheckBox Content="Thermal / Load Heatmap" IsChecked="{Binding UnityEffects.ShowThermalHeatmap}" Foreground="#CBD5E1" />
                                         <CheckBox Content="Equipment Alarm Halos" IsChecked="{Binding UnityEffects.ShowAlarmHalos}" Foreground="#CBD5E1" />
-                                        <CheckBox Content="Animate Conveyor Belts" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Animate Conveyors / Rake" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Vibration Physics (SC/CF)" IsChecked="{Binding UnityEffects.EnableVibrationPhysics}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Ground Cast Shadows" IsChecked="{Binding UnityEffects.ShowGroundShadows}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Auto-Orbit Camera" IsChecked="{Binding UnityEffects.AutoOrbit}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Orthographic Projection" IsChecked="{Binding UnityEffects.IsOrthographic}" Foreground="#CBD5E1" />
                                     </StackPanel>
                                 </Border>
 

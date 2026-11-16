@@ -160,5 +160,17 @@ public partial class Unity3DEffectSettings : ObservableObject
     public partial bool AnimateConveyors { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool AutoOrbit { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsOrthographic { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowGroundShadows { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool EnableVibrationPhysics { get; set; } = true;
+
+    [ObservableProperty]
     public partial string CameraPreset { get; set; } = "Plant Overview";
 }

@@ -59,7 +59,14 @@ ArchScada → Build Coal Plant 3D Scene
 
 ---
 
-## 3. Verifying Live Telemetry
+## 3. Physics & URP Visual Scripts
+
+- [`CoalFlowPhysicsSimulator`](Assets/Scripts/CoalFlowPhysicsSimulator.cs): Pools `Rigidbody` coal-lump prefabs or primitives spawned at `crusherHopperOrigin`, simulates PhysX gravity onto `screenCollider` (`SC-102`) and `conveyorColliders` (`CV-101`, `CV-102`) with tangential belt velocity driven by [`ScadaUdpReceiver`](Assets/Scripts/ScadaUdpReceiver.cs), and despawns lumps at `siloDropZone`. When a downstream conveyor reports `Stopped` or `Fault` while an upstream unit is `Running`, belt velocity drops to zero to produce realistic choke-down pileups.
+- [`UrpVisualEnhancer`](Assets/Scripts/UrpVisualEnhancer.cs): Scrolls conveyor belt material `_BaseMap` / `_MainTex` UV offsets proportional to live belt speed, applies telemetry-driven vibration oscillation to `SC-102` and `CF-501` transforms, and toggles `CR-101` dust `ParticleSystem` emission based on live crusher status and `ShowFlowParticles`.
+
+---
+
+## 4. Verifying Live Telemetry
 
 1. Start `ArchScada.Desktop` and navigate to the **3D Digital Twin** section.
 2. Open `Assets/Scenes/CoalPlantTwin.unity` and press **Play** in the Unity Editor.
@@ -68,7 +75,7 @@ ArchScada → Build Coal Plant 3D Scene
 
 ---
 
-## 4. Building a Standalone Player
+## 5. Building a Standalone Player
 
 ### Option A: Unity Editor UI
 

@@ -117,6 +117,9 @@ public partial class MainShellViewModel : ViewModelBase
     [ObservableProperty]
     public partial string LastControlAuditResult { get; set; } = "No simulated audit executed yet";
 
+    [ObservableProperty]
+    public partial string? FocusTargetId { get; set; }
+
     public string ControlModeSummary => _controlBoundary.AuthorizationState.CanExecuteRealControl
         ? "Authorized Real Control Active"
         : "Read-Only / Simulated (Real Control Disabled)";
@@ -313,6 +316,25 @@ public partial class MainShellViewModel : ViewModelBase
         var result = await _controlBoundary.ExecuteCommandAsync(request);
         var shortAuditId = result.AuditId.Length >= 8 ? result.AuditId[..8] : result.AuditId;
         LastControlAuditResult = $"{result.Status} (Simulated={result.IsSimulated}) · Audit #{shortAuditId} · {result.Message}";
+    }
+
+    [RelayCommand]
+    private void FocusSelected3D()
+    {
+        if (SelectedEquipment is null) return;
+        FocusTargetId = null;
+        FocusTargetId = SelectedEquipment.Id;
+    }
+
+    [RelayCommand]
+    private void FocusActiveAlarm3D()
+    {
+        var alarm = _telemetry.Alarms.FirstOrDefault(a => !a.IsAcknowledged) ?? _telemetry.Alarms.FirstOrDefault();
+        if (alarm is null) return;
+        var eq = _telemetry.Equipment.FirstOrDefault(e => e.Id == alarm.EquipmentId);
+        if (eq is not null) SelectedEquipment = eq;
+        FocusTargetId = null;
+        FocusTargetId = alarm.EquipmentId;
     }
 
     private void RefreshExportedModels()
