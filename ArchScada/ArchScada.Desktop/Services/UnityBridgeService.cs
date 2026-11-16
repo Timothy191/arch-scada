@@ -1,0 +1,176 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using ArchScada.Desktop.Models;
+
+namespace ArchScada.Desktop.Services;
+
+public sealed class UnityBridgeService : IDisposable
+{
+    private readonly UdpClient _udp = new();
+    private readonly string _host = "127.0.0.1";
+    private readonly int _port = 17850;
+
+    public bool IsBlenderInstalled { get; }
+    public bool IsUnityHubInstalled { get; }
+    public string AssetsExportDirectory { get; }
+    public string BlenderScriptPath { get; }
+    public bool IsStreaming { get; private set; }
+    public int PacketsSent { get; private set; }
+    public string Endpoint => $"udp://{_host}:{_port}";
+
+    public UnityBridgeService()
+    {
+        IsBlenderInstalled = File.Exists("/usr/bin/blender") || CommandExists("blender");
+        IsUnityHubInstalled = File.Exists("/usr/bin/unityhub") || CommandExists("unityhub");
+
+        var baseDir = AppContext.BaseDirectory;
+        var repoRoot = FindRepoRoot(baseDir) ?? Directory.GetCurrentDirectory();
+        AssetsExportDirectory = Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Exported");
+        BlenderScriptPath = Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Blender", "generate_plant_assets.py");
+    }
+
+    public IReadOnlyList<string> GetExportedModels()
+    {
+        if (!Directory.Exists(AssetsExportDirectory))
+        {
+            return Array.Empty<string>();
+        }
+
+        return Directory
+            .EnumerateFiles(AssetsExportDirectory)
+            .Where(f => f.EndsWith(".glb", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
+            .Select(Path.GetFileName)
+            .Where(n => n is not null)
+            .Cast<string>()
+            .OrderBy(n => n)
+            .ToList();
+    }
+
+    public void PublishFrame(IEnumerable<EquipmentItem> equipment, Unity3DEffectSettings fx)
+    {
+        try
+        {
+            var payload = new
+            {
+                timestampUtc = DateTime.UtcNow,
+                readOnly = true,
+                effects = new
+                {
+                    fx.CameraPreset,
+                    fx.ShowFlowParticles,
+                    fx.ShowThermalHeatmap,
+                    fx.ShowAlarmHalos,
+                    fx.AnimateConveyors
+                },
+                equipment = equipment.Select(e => new
+                {
+                    e.Id,
+                    e.Area,
+                    e.Type,
+                    status = e.Status.ToString(),
+                    e.PowerKw,
+                    e.LoadPercent,
+                    e.PrimaryMetric,
+                    e.PrimaryMetricUnit
+                })
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            _udp.Send(bytes, bytes.Length, _host, _port);
+            IsStreaming = true;
+            PacketsSent++;
+        }
+        catch
+        {
+            IsStreaming = false;
+        }
+    }
+
+    public async Task<(bool Success, string Output)> GenerateBlenderAssetsAsync()
+    {
+        if (!IsBlenderInstalled)
+        {
+            return (false, "Blender binary not found on PATH.");
+        }
+
+        if (!File.Exists(BlenderScriptPath))
+        {
+            return (false, $"Blender generator script not found: {BlenderScriptPath}");
+        }
+
+        Directory.CreateDirectory(AssetsExportDirectory);
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "blender",
+            Arguments = $"--background --python \"{BlenderScriptPath}\" -- \"{AssetsExportDirectory}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc is null)
+        {
+            return (false, "Failed to start Blender process.");
+        }
+
+        var stdout = await proc.StandardOutput.ReadToEndAsync();
+        var stderr = await proc.StandardError.ReadToEndAsync();
+        await proc.WaitForExitAsync();
+
+        if (proc.ExitCode == 0)
+        {
+            return (true, $"Generated 3D assets in {AssetsExportDirectory}");
+        }
+
+        return (false, string.IsNullOrWhiteSpace(stderr) ? stdout : stderr);
+    }
+
+    private static bool CommandExists(string cmd)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("which", cmd)
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(1500);
+            return p?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? FindRepoRoot(string startDir)
+    {
+        var dir = new DirectoryInfo(startDir);
+        while (dir is not null)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, "ArchScada")))
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
+    public void Dispose() => _udp.Dispose();
+}

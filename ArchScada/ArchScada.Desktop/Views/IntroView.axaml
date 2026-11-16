@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ArchScada.Desktop.ViewModels"
+             xmlns:conv="using:ArchScada.Desktop.Converters"
+             x:Class="ArchScada.Desktop.Views.IntroView"
+             x:DataType="vm:IntroViewModel">
+
+    <Grid Background="#090D16">
+        <Border MaxWidth="820"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Classes="scada-card"
+                Padding="32">
+            <StackPanel Spacing="20">
+
+                <!-- Header -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="ARCH SCADA"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="#38BDF8"
+                                   LetterSpacing="2" />
+                        <TextBlock Text="{Binding PlantSiteTitle}"
+                                   FontSize="26"
+                                   FontWeight="Bold"
+                                   Foreground="#F8FAFC" />
+                        <TextBlock Text="{Binding VersionLabel}"
+                                   FontSize="12"
+                                   Foreground="#64748B" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1"
+                            VerticalAlignment="Top"
+                            Classes="safety-pill">
+                        <TextBlock Text="OFFLINE-FIRST HMI"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#38BDF8" />
+                    </Border>
+                </Grid>
+
+                <!-- Safety Boundary Banner -->
+                <Border Background="#0C2D48"
+                        BorderBrush="#0284C7"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="14,10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Ellipse Width="10" Height="10" Fill="#38BDF8" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SafetyBannerText}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#E0F2FE"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Readiness Checklist -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding StatusHeadline}"
+                               FontSize="14"
+                               FontWeight="Medium"
+                               Foreground="#CBD5E1" />
+
+                    <ItemsControl ItemsSource="{Binding Checks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Classes="scada-panel" Margin="0,4">
+                                    <Grid ColumnDefinitions="18,*,Auto" ColumnSpacing="12">
+                                        <Ellipse Width="10"
+                                                 Height="10"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F1F5F9" />
+                                            <TextBlock Text="{Binding Detail}"
+                                                       FontSize="12"
+                                                       Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding State}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Footer Actions -->
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding AutoAdvanceLabel}"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   VerticalAlignment="Center" />
+                        <Button Content="Pause / Resume"
+                                Command="{Binding ToggleAutoAdvanceCommand}"
+                                Padding="10,4"
+                                FontSize="11"
+                                Classes="secondary-action" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Content="Offline Demo Mode"
+                            Command="{Binding EnterOfflineDemoCommand}"
+                            Classes="secondary-action" />
+
+                    <Button Grid.Column="2"
+                            Content="Enter Plant Operations"
+                            Command="{Binding EnterPlantOperationsCommand}"
+                            IsEnabled="{Binding ChecksCompleted}"
+                            Classes="primary-action" />
+                </Grid>
+
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

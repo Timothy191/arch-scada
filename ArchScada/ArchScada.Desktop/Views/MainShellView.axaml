@@ -1,0 +1,517 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ArchScada.Desktop.ViewModels"
+             xmlns:models="using:ArchScada.Desktop.Models"
+             xmlns:controls="using:ArchScada.Desktop.Controls"
+             xmlns:conv="using:ArchScada.Desktop.Converters"
+             x:Class="ArchScada.Desktop.Views.MainShellView"
+             x:DataType="vm:MainShellViewModel">
+
+    <Grid RowDefinitions="56,*,34" Background="#090D16">
+
+        <!-- TOP STATUS BAR -->
+        <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="16,0">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="14">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="#22C55E" />
+                    <TextBlock Text="ARCH SCADA" FontSize="14" FontWeight="Bold" Foreground="#38BDF8" LetterSpacing="1.5" />
+                    <TextBlock Text="|" Foreground="#334155" />
+                    <TextBlock Text="{Binding CurrentSectionTitle}" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                </StackPanel>
+
+                <Border Grid.Column="2" Classes="safety-pill" VerticalAlignment="Center">
+                    <TextBlock Text="READ-ONLY MODE (CONTROL DISABLED)" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" />
+                </Border>
+
+                <Border Grid.Column="3" Background="#1E293B" CornerRadius="4" Padding="10,4" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ConnectionStatusLabel}" FontSize="11" Foreground="#CBD5E1" />
+                </Border>
+
+                <Button Grid.Column="4"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static models:PlantSection.AlarmsEvents}"
+                        Background="#3B1518"
+                        BorderBrush="#EF4444"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="10,4"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="8" Height="8" Fill="#EF4444" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding UnacknowledgedAlarmCount, StringFormat='Alarms: {0} Unack'}"
+                                   FontSize="11" FontWeight="SemiBold" Foreground="#FCA5A5" />
+                    </StackPanel>
+                </Button>
+
+                <TextBlock Grid.Column="5"
+                           Text="{Binding CurrentTimeDisplay}"
+                           FontSize="12"
+                           Foreground="#94A3B8"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <!-- BODY: LEFT NAV + MAIN CONTENT -->
+        <Grid Grid.Row="1" ColumnDefinitions="235,*">
+
+            <!-- LEFT NAVIGATION RAIL -->
+            <Border Grid.Column="0" Background="#0D1321" BorderBrush="#1E293B" BorderThickness="0,0,1,0" Padding="10,14">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="PLANT MONITORING" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="12,4,0,6" />
+
+                    <Button Content="Plant Overview" Classes="nav-item"
+                            Background="{Binding IsOverview, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.Overview}" />
+
+                    <Button Content="Crushing &amp; Conveyors" Classes="nav-item"
+                            Background="{Binding IsCrushing, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.CrushingConveyors}" />
+
+                    <Button Content="Thickener Circuit" Classes="nav-item"
+                            Background="{Binding IsThickener, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.ThickenerCircuit}" />
+
+                    <Button Content="Magnetite Preparation" Classes="nav-item"
+                            Background="{Binding IsMagnetite, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.MagnetitePrep}" />
+
+                    <TextBlock Text="3D &amp; VISUALS" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="12,14,0,6" />
+
+                    <Button Content="3D Digital Twin (Unity)" Classes="nav-item"
+                            Background="{Binding IsDigitalTwin3D, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.DigitalTwin3D}" />
+
+                    <TextBlock Text="OPERATIONS" FontSize="10" FontWeight="Bold" Foreground="#64748B" Margin="12,14,0,6" />
+
+                    <Button Content="Equipment &amp; Assets" Classes="nav-item"
+                            Background="{Binding IsEquipmentAssets, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.EquipmentAssets}" />
+
+                    <Button Content="Trends &amp; Historian" Classes="nav-item"
+                            Background="{Binding IsTrends, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.TrendsHistorian}" />
+
+                    <Button Content="Alarms &amp; Events" Classes="nav-item"
+                            Background="{Binding IsAlarms, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.AlarmsEvents}" />
+
+                    <Button Content="System Diagnostics" Classes="nav-item"
+                            Background="{Binding IsDiagnostics, Converter={x:Static conv:BoolToActiveNavBrushConverter.Instance}}"
+                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.Diagnostics}" />
+                </StackPanel>
+            </Border>
+
+            <!-- MAIN CONTENT AREA -->
+            <ScrollViewer Grid.Column="1" Padding="22">
+                <Panel>
+
+                    <!-- 1. PLANT OVERVIEW -->
+                    <StackPanel IsVisible="{Binding IsOverview}" Spacing="18">
+                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="14">
+                            <Border Grid.Column="0" Classes="scada-card">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="PLANT FEED TONNAGE" Classes="card-label" />
+                                    <TextBlock Text="{Binding TotalFeedTonnageTph, StringFormat='{}{0:0.0} t/h'}" Classes="kpi-value" />
+                                    <TextBlock Text="CR-101 Primary Jaw Crusher" FontSize="11" Foreground="#22C55E" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Classes="scada-card">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="TOTAL POWER DRAW" Classes="card-label" />
+                                    <TextBlock Text="{Binding TotalPowerDrawKw, StringFormat='{}{0:0.0} kW'}" Classes="kpi-value" />
+                                    <TextBlock Text="Across 11 monitored assets" FontSize="11" Foreground="#94A3B8" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Classes="scada-card">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="WATER RECOVERY" Classes="card-label" />
+                                    <TextBlock Text="{Binding WaterRecoveryPercent, StringFormat='{}{0:0.0} %'}" Classes="kpi-value" />
+                                    <TextBlock Text="TK-201 High-Rate Thickener" FontSize="11" Foreground="#38BDF8" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Classes="scada-card">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="MEDIUM DENSITY" Classes="card-label" />
+                                    <TextBlock Text="{Binding MediumSpecificGravity, StringFormat='{}{0:0.00} SG'}" Classes="kpi-value" />
+                                    <TextBlock Text="TK-301 Magnetite Circuit" FontSize="11" Foreground="#F59E0B" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="Process Circuits" Classes="section-title" />
+                        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
+                            <Border Grid.Column="0" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Crushing &amp; Conveyors" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="CR-101, SC-102, CV-101, CV-102" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.CrushingConveyors}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Thickener Circuit" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="TK-201, PP-201, PP-202, PP-203" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.ThickenerCircuit}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Classes="scada-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Magnetite Preparation" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="TK-301, MS-301, DM-301" FontSize="12" Foreground="#94A3B8" />
+                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                            Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.MagnetitePrep}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="Recent Alarms" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding Alarms}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-panel" Margin="0,3">
+                                        <Grid ColumnDefinitions="12,80,140,*,Auto" ColumnSpacing="12">
+                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TimeDisplay}" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Area}" FontSize="12" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding Message}" FontSize="12" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="4" Text="{Binding Severity}" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{Binding Severity, Converter={x:Static conv:StatusToBrushConverter.Instance}}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 2. CRUSHING & CONVEYORS -->
+                    <StackPanel IsVisible="{Binding IsCrushing}" Spacing="14">
+                        <TextBlock Text="Crushing &amp; Conveyor Circuit" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding CrushingEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 3. THICKENER CIRCUIT -->
+                    <StackPanel IsVisible="{Binding IsThickener}" Spacing="14">
+                        <TextBlock Text="Thickener Circuit" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding ThickenerEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#22C55E" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 4. MAGNETITE PREPARATION -->
+                    <StackPanel IsVisible="{Binding IsMagnetite}" Spacing="14">
+                        <TextBlock Text="Magnetite Preparation Circuit" Classes="section-title" />
+                        <ItemsControl ItemsSource="{Binding MagnetiteEquipment}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
+                                        <StackPanel Spacing="10">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="#1E293B" CornerRadius="4" Padding="8,3" VerticalAlignment="Top">
+                                                    <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Border>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="Power Draw" Classes="card-label" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#CBD5E1" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#F59E0B" />
+                                            <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 5. 3D DIGITAL TWIN (UNITY + BLENDER) -->
+                    <StackPanel IsVisible="{Binding IsDigitalTwin3D}" Spacing="16">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel>
+                                <TextBlock Text="3D Digital Twin (Unity Engine &amp; Blender Pipeline)" Classes="section-title" />
+                                <TextBlock Text="Live read-only telemetry stream to Unity 3D runtime + headless Blender GLB model generation."
+                                           FontSize="12" Foreground="#94A3B8" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Classes="scada-panel" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding UnityStreamStatus}" FontSize="12" Foreground="#22C55E" />
+                            </Border>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="2*,1*" ColumnSpacing="16">
+                            <!-- 3D Viewport / Schematic Preview -->
+                            <Border Grid.Column="0" Classes="scada-card" MinHeight="380">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{Binding UnityEffects.CameraPreset, StringFormat='Unity Camera Preset: {0}'}"
+                                                   FontSize="14" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                        <TextBlock Grid.Column="1" Text="3D Scene Sync Active" FontSize="11" Foreground="#22C55E" />
+                                    </Grid>
+
+                                    <controls:Plant3DViewportControl
+                                        Equipment="{Binding Equipment}"
+                                        Effects="{Binding UnityEffects}"
+                                        CameraPreset="{Binding UnityEffects.CameraPreset}"
+                                        Height="410" />
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <ItemsControl ItemsSource="{Binding CameraPresets}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding}" Classes="secondary-action" Padding="10,6" FontSize="11"
+                                                            Command="{Binding $parent[UserControl].((vm:MainShellViewModel)DataContext).SetCameraPresetCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 3D Effects & Blender Controls -->
+                            <StackPanel Grid.Column="1" Spacing="14">
+                                <Border Classes="scada-card">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="3D Visual Effects" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                        <CheckBox Content="Material Flow Particles" IsChecked="{Binding UnityEffects.ShowFlowParticles}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Thermal / Load Heatmap" IsChecked="{Binding UnityEffects.ShowThermalHeatmap}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Equipment Alarm Halos" IsChecked="{Binding UnityEffects.ShowAlarmHalos}" Foreground="#CBD5E1" />
+                                        <CheckBox Content="Animate Conveyor Belts" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#CBD5E1" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="scada-card">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Blender 3D Asset Pipeline" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                        <Button Content="Generate GLB Models via Blender"
+                                                Command="{Binding GenerateBlenderAssetsCommand}"
+                                                IsEnabled="{Binding !IsGeneratingBlenderAssets}"
+                                                Classes="primary-action" />
+                                        <TextBlock Text="{Binding BlenderBuildStatus}" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding Exported3DModels}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="11" Foreground="#38BDF8" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- 6. EQUIPMENT & ASSETS INSPECTOR -->
+                    <StackPanel IsVisible="{Binding IsEquipmentAssets}" Spacing="14">
+                        <TextBlock Text="Equipment &amp; Assets Inspector" Classes="section-title" />
+                        <Grid ColumnDefinitions="*,1.2*" ColumnSpacing="16">
+                            <ListBox Grid.Column="0" ItemsSource="{Binding Equipment}" SelectedItem="{Binding SelectedEquipment}"
+                                     Background="#111827" BorderBrush="#1F2937" BorderThickness="1" CornerRadius="8" MaxHeight="520">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="12,80,*,Auto" ColumnSpacing="10" Margin="4">
+                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Id}" FontWeight="Bold" Foreground="#38BDF8" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="#F8FAFC" />
+                                            <TextBlock Grid.Column="3" Text="{Binding PrimaryMetricDisplay}" Foreground="#94A3B8" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Border Grid.Column="1" Classes="scada-card" DataContext="{Binding SelectedEquipment}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC" />
+                                    <TextBlock Text="{Binding Area, StringFormat='Area: {0}'}" FontSize="12" Foreground="#94A3B8" />
+                                    <TextBlock Text="{Binding InterlockSummary}" FontSize="12" Foreground="#38BDF8" />
+                                    <TextBlock Text="Live Tags" FontSize="14" FontWeight="SemiBold" Foreground="#CBD5E1" Margin="0,6,0,0" />
+                                    <ItemsControl ItemsSource="{Binding Tags}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="scada-panel" Margin="0,3">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <TextBlock Text="{Binding Name}" Foreground="#CBD5E1" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding FormattedValue}" FontWeight="Bold" Foreground="#F8FAFC" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- 7. TRENDS & HISTORIAN -->
+                    <StackPanel IsVisible="{Binding IsTrends}" Spacing="14">
+                        <TextBlock Text="Live Trends &amp; Local Historian" Classes="section-title" />
+                        <ComboBox ItemsSource="{Binding AllTags}" SelectedItem="{Binding SelectedTrendTag}" Width="340">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Border Classes="scada-card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="{Binding SelectedTrendTag.Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding SelectedTrendTag.FormattedValue, StringFormat='Current Value: {0}'}" FontSize="13" Foreground="#38BDF8" />
+                                <controls:TrendChartControl Values="{Binding SelectedTrendValues}" Height="280" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 8. ALARMS & EVENTS -->
+                    <StackPanel IsVisible="{Binding IsAlarms}" Spacing="14">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Alarms &amp; Events" Classes="section-title" />
+                            <Button Grid.Column="1" Content="Acknowledge All (Local)" Command="{Binding AcknowledgeAllAlarmsCommand}" Classes="secondary-action" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Alarms}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Classes="scada-card" Margin="0,4">
+                                        <Grid ColumnDefinitions="14,90,150,*,Auto,Auto" ColumnSpacing="12">
+                                            <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                     Fill="{Binding Severity, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TimeDisplay}" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Area}" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding Message}" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="4" Text="{Binding Severity}" FontWeight="Bold"
+                                                       Foreground="{Binding Severity, Converter={x:Static conv:StatusToBrushConverter.Instance}}" VerticalAlignment="Center" />
+                                            <Button Grid.Column="5" Content="Ack"
+                                                    IsEnabled="{Binding !IsAcknowledged}"
+                                                    Command="{Binding $parent[UserControl].((vm:MainShellViewModel)DataContext).AcknowledgeAlarmCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Classes="secondary-action" Padding="10,4" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- 9. SYSTEM DIAGNOSTICS -->
+                    <StackPanel IsVisible="{Binding IsDiagnostics}" Spacing="14">
+                        <TextBlock Text="System &amp; Driver Diagnostics" Classes="section-title" />
+                        <Border Classes="scada-card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding ConnectionStatusLabel, StringFormat='SCADA Core: {0}'}" Foreground="#F8FAFC" />
+                                <TextBlock Text="{Binding UnityStreamStatus, StringFormat='Unity 3D Bridge: {0}'}" Foreground="#38BDF8" />
+                                <TextBlock Text="{Binding UnityBridge.IsBlenderInstalled, StringFormat='Blender Installed: {0}'}" Foreground="#CBD5E1" />
+                                <TextBlock Text="{Binding UnityBridge.IsUnityHubInstalled, StringFormat='Unity Hub Installed: {0}'}" Foreground="#CBD5E1" />
+                                <TextBlock Text="{Binding UnityBridge.AssetsExportDirectory, StringFormat='3D Export Directory: {0}'}" Foreground="#94A3B8" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                </Panel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- BOTTOM ALARM TICKER -->
+        <Border Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="16,0">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <TextBlock Text="ALARM TICKER:" FontSize="11" FontWeight="Bold" Foreground="#F59E0B" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding LatestAlarmTicker}" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+    </Grid>
+</UserControl>
