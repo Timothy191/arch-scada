@@ -383,4 +383,30 @@ public class DesktopTests
             }
         }
     }
+
+    [Fact]
+    public void MainShellViewModel_MicroOptimization_AppliesBoundedSimulatedTrimsAndImprovesEfficiency()
+    {
+        var telemetry = new SimulatedTelemetryService();
+        using var bridge = new UnityBridgeService();
+        var vm = new MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
+
+        try
+        {
+            Assert.True(vm.IsAutoOptimizationEnabled);
+            int beforeTrims = vm.TotalMicroTrimsApplied;
+            double beforeEff = vm.PlantEfficiencyScorePercent;
+
+            vm.StepMicroOptimizationCommand.Execute(null);
+
+            Assert.Equal(beforeTrims + 1, vm.TotalMicroTrimsApplied);
+            Assert.True(vm.PlantEfficiencyScorePercent >= beforeEff);
+            Assert.NotEmpty(vm.OptimizationLog);
+            Assert.Equal("SIMULATED - NO DEVICE WRITE", vm.OptimizationLog[0].AuditStatus);
+        }
+        finally
+        {
+            telemetry.Stop();
+        }
+    }
 }

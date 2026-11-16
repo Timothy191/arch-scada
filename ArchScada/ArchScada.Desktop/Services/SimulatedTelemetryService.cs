@@ -24,9 +24,13 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public ObservableCollection<EquipmentItem> Equipment { get; } = new();
     public ObservableCollection<AlarmItem> Alarms { get; } = new();
     public ObservableCollection<TelemetryTag> AllTags { get; } = new();
+    public ObservableCollection<OptimizationTrimRecord> OptimizationLog { get; } = new();
+
+    private int _loopRotationIndex;
 
     public bool IsServerConnected { get; private set; }
     public bool IsOfflineDemoMode { get; private set; } = true;
+    public bool IsAutoOptimizationEnabled { get; set; } = true;
     public string LastServerHealthStatus { get; private set; } = "Not probed (Local Cache Active)";
     public string ConnectionModeLabel => IsServerConnected
         ? "ScadaServer Connected (Read-Only)"
@@ -36,6 +40,10 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public double TotalPowerDrawKw { get; private set; } = 1485.0;
     public double WaterRecoveryPercent { get; private set; } = 87.4;
     public double MediumSpecificGravity { get; private set; } = 1.52;
+    public double PlantEfficiencyScorePercent { get; private set; } = 94.2;
+    public double CleanCoalYieldPercent { get; private set; } = 83.8;
+    public double SpecificEnergyKwhPerTon { get; private set; } = 2.28;
+    public int TotalMicroTrimsApplied { get; private set; }
     public int ActiveAlarmCount => Alarms.Count;
     public int UnacknowledgedAlarmCount => Alarms.Count(a => !a.IsAcknowledged);
     public int StaleTagCount => AllTags.Count(t => t.IsStale);
@@ -60,6 +68,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
 
         SeedPlantModel();
         SeedInitialAlarms();
+        ApplyOptimizationTick();
     }
 
     public void Start(bool offlineDemoMode)
@@ -792,6 +801,11 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             totalPower += eq.PowerKw;
         }
 
+        if (IsAutoOptimizationEnabled)
+        {
+            ApplyOptimizationTick();
+        }
+
         TotalPowerDrawKw = Math.Round(totalPower, 1);
         var crusher = Equipment.FirstOrDefault(e => e.Id == "CR-101");
         if (crusher is not null)
@@ -805,8 +819,76 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             MediumSpecificGravity = magTank.PrimaryMetric;
         }
 
-        WaterRecoveryPercent = Math.Round(Math.Clamp(WaterRecoveryPercent + (_rng.NextDouble() - 0.5) * 0.3, 80, 95), 1);
+        SpecificEnergyKwhPerTon = TotalFeedTonnageTph > 10
+            ? Math.Round(TotalPowerDrawKw / TotalFeedTonnageTph, 2)
+            : 0.0;
+
+        WaterRecoveryPercent = Math.Round(Math.Clamp(WaterRecoveryPercent + (_rng.NextDouble() - 0.45) * 0.25, 82, 95), 1);
         _ = PersistCurrentSamplesAsync();
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ApplyOptimizationTick()
+    {
+        var loops = new (string LoopName, string EqId, string TagId, double Target, double MaxStep, string GainDesc)[]
+        {
+            ("DMC Medium Density Trim", "TK-301", "TK301_SG", 1.52, 0.008, "Cut-point error reduced · Yield +0.12%"),
+            ("Thickener Clarity & Flocculant Trim", "TK-201", "TK201_TRB", 14.0, 0.45, "Overflow clarity improved · Water recovery +0.15%"),
+            ("Flotation Collector Trim", "PP-401", "PP401_DOS", 15.2, 0.22, "Fines combustible recovery +0.18%"),
+            ("Centrifuge Dewatering Trim", "CF-501", "CF501_MOIST", 8.4, 0.18, "Product cake moisture reduced -0.14%"),
+            ("Crusher Choke-Feed Efficiency Trim", "CR-101", "CR101_TPH", 655.0, 3.2, "Specific energy improved -0.02 kWh/t")
+        };
+
+        var chosen = loops[_loopRotationIndex % loops.Length];
+        _loopRotationIndex++;
+
+        var eq = Equipment.FirstOrDefault(e => e.Id == chosen.EqId);
+        var tag = AllTags.FirstOrDefault(t => t.TagId == chosen.TagId);
+        if (eq is null || tag is null) return;
+
+        double prev = tag.Value;
+        double error = chosen.Target - prev;
+        double step = Math.Abs(error) < 0.005
+            ? (chosen.MaxStep * 0.25)
+            : Math.Clamp(error * 0.42, -chosen.MaxStep, chosen.MaxStep);
+
+        double next = Math.Round(Math.Clamp(prev + step, tag.MinLimit, tag.MaxLimit), 2);
+        double applied = Math.Round(next - prev, 3);
+        if (Math.Abs(applied) < 0.001)
+        {
+            applied = Math.Round(chosen.MaxStep * 0.2, 3);
+            next = Math.Round(Math.Clamp(prev + applied, tag.MinLimit, tag.MaxLimit), 2);
+        }
+
+        tag.Value = next;
+        tag.Timestamp = DateTime.Now;
+        if (eq.Tags.Count > 0 && eq.Tags[0].TagId == tag.TagId)
+        {
+            eq.PrimaryMetric = next;
+        }
+
+        TotalMicroTrimsApplied++;
+        PlantEfficiencyScorePercent = Math.Round(Math.Clamp(PlantEfficiencyScorePercent + 0.08, 90.0, 98.6), 2);
+        CleanCoalYieldPercent = Math.Round(Math.Clamp(CleanCoalYieldPercent + 0.05, 80.0, 88.4), 2);
+
+        OptimizationLog.Insert(0, new OptimizationTrimRecord
+        {
+            Timestamp = DateTime.Now,
+            LoopName = chosen.LoopName,
+            EquipmentId = chosen.EqId,
+            TagId = chosen.TagId,
+            TargetSetpoint = chosen.Target,
+            PreviousValue = prev,
+            AppliedDelta = applied,
+            NewValue = next,
+            Unit = tag.Unit,
+            EfficiencyGainSummary = chosen.GainDesc,
+            AuditStatus = "SIMULATED - NO DEVICE WRITE"
+        });
+
+        while (OptimizationLog.Count > 20)
+        {
+            OptimizationLog.RemoveAt(OptimizationLog.Count - 1);
+        }
     }
 }

@@ -28,6 +28,7 @@ public partial class MainShellViewModel : ViewModelBase
     public ObservableCollection<EquipmentItem> Equipment => _telemetry.Equipment;
     public ObservableCollection<AlarmItem> Alarms => _telemetry.Alarms;
     public ObservableCollection<TelemetryTag> AllTags => _telemetry.AllTags;
+    public ObservableCollection<OptimizationTrimRecord> OptimizationLog => _telemetry.OptimizationLog;
 
     public ObservableCollection<EquipmentItem> CrushingEquipment { get; } = new();
     public ObservableCollection<EquipmentItem> ThickenerEquipment { get; } = new();
@@ -74,6 +75,31 @@ public partial class MainShellViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial double MediumSpecificGravity { get; set; }
+
+    [ObservableProperty]
+    public partial double PlantEfficiencyScorePercent { get; set; } = 94.2;
+
+    [ObservableProperty]
+    public partial double CleanCoalYieldPercent { get; set; } = 83.8;
+
+    [ObservableProperty]
+    public partial double SpecificEnergyKwhPerTon { get; set; } = 2.28;
+
+    [ObservableProperty]
+    public partial int TotalMicroTrimsApplied { get; set; }
+
+    public bool IsAutoOptimizationEnabled
+    {
+        get => _telemetry.IsAutoOptimizationEnabled;
+        set
+        {
+            if (_telemetry.IsAutoOptimizationEnabled != value)
+            {
+                _telemetry.IsAutoOptimizationEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     [ObservableProperty]
     public partial double ThickenerBedLevelPercent { get; set; } = 71.5;
@@ -337,6 +363,13 @@ public partial class MainShellViewModel : ViewModelBase
         FocusTargetId = alarm.EquipmentId;
     }
 
+    [RelayCommand]
+    private void StepMicroOptimization()
+    {
+        _telemetry.ApplyOptimizationTick();
+        RefreshFromTelemetry();
+    }
+
     private void RefreshExportedModels()
     {
         Exported3DModels.Clear();
@@ -353,6 +386,10 @@ public partial class MainShellViewModel : ViewModelBase
         TotalPowerDrawKw = _telemetry.TotalPowerDrawKw;
         WaterRecoveryPercent = _telemetry.WaterRecoveryPercent;
         MediumSpecificGravity = _telemetry.MediumSpecificGravity;
+        PlantEfficiencyScorePercent = _telemetry.PlantEfficiencyScorePercent;
+        CleanCoalYieldPercent = _telemetry.CleanCoalYieldPercent;
+        SpecificEnergyKwhPerTon = _telemetry.SpecificEnergyKwhPerTon;
+        TotalMicroTrimsApplied = _telemetry.TotalMicroTrimsApplied;
         ActiveAlarmCount = _telemetry.ActiveAlarmCount;
         UnacknowledgedAlarmCount = _telemetry.UnacknowledgedAlarmCount;
 

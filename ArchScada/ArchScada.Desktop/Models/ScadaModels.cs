@@ -174,3 +174,22 @@ public partial class Unity3DEffectSettings : ObservableObject
     [ObservableProperty]
     public partial string CameraPreset { get; set; } = "Plant Overview";
 }
+
+public sealed class OptimizationTrimRecord
+{
+    public DateTime Timestamp { get; init; } = DateTime.Now;
+    public string LoopName { get; init; } = string.Empty;
+    public string EquipmentId { get; init; } = string.Empty;
+    public string TagId { get; init; } = string.Empty;
+    public double TargetSetpoint { get; init; }
+    public double PreviousValue { get; init; }
+    public double AppliedDelta { get; init; }
+    public double NewValue { get; init; }
+    public string Unit { get; init; } = string.Empty;
+    public string EfficiencyGainSummary { get; init; } = string.Empty;
+    public string AuditStatus { get; init; } = "SIMULATED - NO DEVICE WRITE";
+
+    public string TimeDisplay => Timestamp.ToString("HH:mm:ss");
+    public string DeltaDisplay => AppliedDelta >= 0 ? $"+{AppliedDelta:0.###} {Unit}" : $"{AppliedDelta:0.###} {Unit}";
+    public string ValueTransitionDisplay => $"{PreviousValue:0.##} → {NewValue:0.##} {Unit} (Target {TargetSetpoint:0.##})";
+}

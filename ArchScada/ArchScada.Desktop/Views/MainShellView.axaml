@@ -205,6 +205,65 @@
                             </Border>
                         </Grid>
 
+                        <!-- ACTIVE MICRO-OPTIMIZATION & EFFICIENCY -->
+                        <Border Classes="scada-card">
+                            <StackPanel Spacing="12">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+                                    <StackPanel>
+                                        <TextBlock Text="Automated Closed-Loop Micro-Optimization (Read-Only / Simulated Trim)" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                        <TextBlock Text="Continuously monitors process setpoints (DMC SG, Thickener Turbidity, Flotation Dosing, Cake Moisture, Crusher Feed) and applies bounded micro-trims."
+                                                   FontSize="12" Foreground="#94A3B8" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Content="Auto Micro-Trim Active" IsChecked="{Binding IsAutoOptimizationEnabled}" Foreground="#22C55E" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Content="Apply Trim Now" Command="{Binding StepMicroOptimizationCommand}" Classes="secondary-action" Padding="12,6" FontSize="11" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                                    <Border Grid.Column="0" Classes="scada-panel">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="PLANT EFFICIENCY SCORE" Classes="card-label" />
+                                            <TextBlock Text="{Binding PlantEfficiencyScorePercent, StringFormat='{}{0:0.00} %'}" FontSize="20" FontWeight="Bold" Foreground="#22C55E" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Classes="scada-panel">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="CLEAN COAL YIELD" Classes="card-label" />
+                                            <TextBlock Text="{Binding CleanCoalYieldPercent, StringFormat='{}{0:0.00} %'}" FontSize="20" FontWeight="Bold" Foreground="#38BDF8" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Classes="scada-panel">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="SPECIFIC ENERGY" Classes="card-label" />
+                                            <TextBlock Text="{Binding SpecificEnergyKwhPerTon, StringFormat='{}{0:0.00} kWh/t'}" FontSize="20" FontWeight="Bold" Foreground="#F8FAFC" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="3" Classes="scada-panel">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="MICRO-TRIMS APPLIED" Classes="card-label" />
+                                            <TextBlock Text="{Binding TotalMicroTrimsApplied}" FontSize="20" FontWeight="Bold" Foreground="#F59E0B" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding OptimizationLog}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="scada-panel" Margin="0,2">
+                                                <Grid ColumnDefinitions="70,190,65,190,*,Auto" ColumnSpacing="10">
+                                                    <TextBlock Grid.Column="0" Text="{Binding TimeDisplay}" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding LoopName}" FontSize="11" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding EquipmentId}" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding ValueTransitionDisplay}" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding EfficiencyGainSummary}" FontSize="11" Foreground="#22C55E" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding AuditStatus}" FontSize="10" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="Recent Alarms" Classes="section-title" />
                         <ItemsControl ItemsSource="{Binding Alarms}">
                             <ItemsControl.ItemTemplate>
