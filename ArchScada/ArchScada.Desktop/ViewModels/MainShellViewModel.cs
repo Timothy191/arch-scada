@@ -45,6 +45,9 @@ public partial class MainShellViewModel : ViewModelBase
         "Crushing & Conveyors",
         "Thickener Circuit",
         "Magnetite Prep",
+        "Fine Coal & Flotation",
+        "Dewatering & Tailings",
+        "ROM & Silo Loadout",
         "Top-Down Schematic"
     };
 

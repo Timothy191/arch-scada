@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -12,8 +14,9 @@ namespace ArchScada.Desktop.Controls;
 
 /// <summary>
 /// Interactive 3D perspective viewport rendering the coal processing plant,
-/// with mouse orbit/zoom, shaded 3D meshes, animated conveyors/rake,
-/// material flow particles, thermal load heatmap, and alarm halos.
+/// with smooth camera orbit/pan/zoom, back-face culling, subdivided conveyors,
+/// connecting pipes, 3D axis gizmo, click-to-select, flow particles,
+/// thermal load heatmap, and alarm halos.
 /// </summary>
 public sealed class Plant3DViewportControl : Control
 {
@@ -25,6 +28,11 @@ public sealed class Plant3DViewportControl : Control
 
     public static readonly StyledProperty<string> CameraPresetProperty =
         AvaloniaProperty.Register<Plant3DViewportControl, string>(nameof(CameraPreset), "Plant Overview");
+
+    public static readonly StyledProperty<EquipmentItem?> SelectedEquipmentProperty =
+        AvaloniaProperty.Register<Plant3DViewportControl, EquipmentItem?>(
+            nameof(SelectedEquipment),
+            defaultBindingMode: BindingMode.TwoWay);
 
     public IReadOnlyList<EquipmentItem>? Equipment
     {
@@ -44,22 +52,53 @@ public sealed class Plant3DViewportControl : Control
         set => SetValue(CameraPresetProperty, value);
     }
 
+    public EquipmentItem? SelectedEquipment
+    {
+        get => GetValue(SelectedEquipmentProperty);
+        set => SetValue(SelectedEquipmentProperty, value);
+    }
+
     private readonly DispatcherTimer _animTimer;
+    private readonly Dictionary<uint, SolidColorBrush> _brushCache = new();
+    private readonly List<(string Id, Rect Bounds)> _hitRects = new();
+
+    private static readonly Pen FaceEdgePen = new(new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)), 0.7);
+    private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromArgb(42, 56, 189, 248)), 1);
+    private static readonly Pen PipePen = new(new SolidColorBrush(Color.FromArgb(140, 148, 163, 184)), 2.2);
+    private static readonly SolidColorBrush LabelBgBrush = new(Color.FromArgb(195, 15, 23, 42));
+    private static readonly SolidColorBrush SelectedLabelBgBrush = new(Color.FromArgb(225, 12, 74, 110));
+    private static readonly Pen SelectedLabelPen = new(new SolidColorBrush(Color.Parse("#38BDF8")), 1.5);
+    private static readonly Typeface LabelTypeface = new("Inter", FontStyle.Normal, FontWeight.SemiBold);
+    private static readonly Typeface HudTypeface = new("Inter");
+
     private double _time;
     private double _yaw = -0.62;
     private double _pitch = 0.52;
     private double _zoom = 1.05;
     private double _targetX;
     private double _targetZ;
+
+    private double _goalYaw = -0.62;
+    private double _goalPitch = 0.52;
+    private double _goalZoom = 1.05;
+    private double _goalTargetX;
+    private double _goalTargetZ;
+
+    private Point? _pressOrigin;
     private Point? _lastPointer;
+    private bool _isPanning;
+    private bool _didDrag;
 
     private readonly record struct Vec3(double X, double Y, double Z);
-
-    private readonly record struct Face3D(Vec3[] Vertices, Color BaseColor, double Depth, string? Label = null, Color? LabelColor = null);
+    private readonly record struct Face3D(Vec3[] Vertices, Color BaseColor, double Depth, Vec3 Normal);
 
     static Plant3DViewportControl()
     {
-        AffectsRender<Plant3DViewportControl>(EquipmentProperty, EffectsProperty, CameraPresetProperty);
+        AffectsRender<Plant3DViewportControl>(
+            EquipmentProperty,
+            EffectsProperty,
+            CameraPresetProperty,
+            SelectedEquipmentProperty);
     }
 
     public Plant3DViewportControl()
@@ -69,6 +108,7 @@ public sealed class Plant3DViewportControl : Control
         _animTimer.Tick += (_, _) =>
         {
             _time += 0.033;
+            StepCameraSmoothing();
             InvalidateVisual();
         };
         _animTimer.Start();
@@ -83,24 +123,43 @@ public sealed class Plant3DViewportControl : Control
         }
     }
 
+    private void StepCameraSmoothing()
+    {
+        const double lerp = 0.22;
+        _yaw += (_goalYaw - _yaw) * lerp;
+        _pitch += (_goalPitch - _pitch) * lerp;
+        _zoom += (_goalZoom - _zoom) * lerp;
+        _targetX += (_goalTargetX - _targetX) * lerp;
+        _targetZ += (_goalTargetZ - _targetZ) * lerp;
+    }
+
     private void ApplyCameraPreset(string preset)
     {
         switch (preset)
         {
             case "Crushing & Conveyors":
-                _yaw = -0.45; _pitch = 0.45; _zoom = 1.35; _targetX = -5.5; _targetZ = -1.5;
+                _goalYaw = -0.45; _goalPitch = 0.45; _goalZoom = 1.38; _goalTargetX = -4.8; _goalTargetZ = -1.6;
                 break;
             case "Thickener Circuit":
-                _yaw = 0.55; _pitch = 0.50; _zoom = 1.35; _targetX = 0.5; _targetZ = 3.0;
+                _goalYaw = 0.52; _goalPitch = 0.50; _goalZoom = 1.36; _goalTargetX = 0.8; _goalTargetZ = 3.2;
                 break;
             case "Magnetite Prep":
-                _yaw = 0.85; _pitch = 0.46; _zoom = 1.38; _targetX = 6.0; _targetZ = -1.5;
+                _goalYaw = 0.82; _goalPitch = 0.46; _goalZoom = 1.38; _goalTargetX = 5.2; _goalTargetZ = -1.2;
+                break;
+            case "Fine Coal & Flotation":
+                _goalYaw = -0.78; _goalPitch = 0.48; _goalZoom = 1.45; _goalTargetX = -5.6; _goalTargetZ = 3.5;
+                break;
+            case "Dewatering & Tailings":
+                _goalYaw = 0.72; _goalPitch = 0.48; _goalZoom = 1.45; _goalTargetX = 5.4; _goalTargetZ = 4.2;
+                break;
+            case "ROM & Silo Loadout":
+                _goalYaw = -0.95; _goalPitch = 0.44; _goalZoom = 1.42; _goalTargetX = -8.0; _goalTargetZ = 1.4;
                 break;
             case "Top-Down Schematic":
-                _yaw = 0.0; _pitch = 1.42; _zoom = 0.95; _targetX = 0.0; _targetZ = 0.0;
+                _goalYaw = 0.0; _goalPitch = 1.42; _goalZoom = 0.96; _goalTargetX = 0.0; _goalTargetZ = 0.5;
                 break;
             default:
-                _yaw = -0.62; _pitch = 0.52; _zoom = 1.05; _targetX = 0.0; _targetZ = 0.0;
+                _goalYaw = -0.62; _goalPitch = 0.52; _goalZoom = 1.05; _goalTargetX = 0.0; _goalTargetZ = 0.5;
                 break;
         }
         InvalidateVisual();
@@ -109,37 +168,105 @@ public sealed class Plant3DViewportControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        _lastPointer = e.GetPosition(this);
+        var props = e.GetCurrentPoint(this).Properties;
+        if (e.ClickCount == 2 && props.IsLeftButtonPressed)
+        {
+            ApplyCameraPreset("Plant Overview");
+            return;
+        }
+
+        _pressOrigin = e.GetPosition(this);
+        _lastPointer = _pressOrigin;
+        _isPanning = props.IsRightButtonPressed || props.IsMiddleButtonPressed;
+        _didDrag = false;
         e.Pointer.Capture(this);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_lastPointer is Point prev && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        var props = e.GetCurrentPoint(this).Properties;
+        if (_lastPointer is not Point prev || (!props.IsLeftButtonPressed && !props.IsRightButtonPressed && !props.IsMiddleButtonPressed))
         {
-            var cur = e.GetPosition(this);
-            var dx = cur.X - prev.X;
-            var dy = cur.Y - prev.Y;
-            _yaw += dx * 0.008;
-            _pitch = Math.Clamp(_pitch + dy * 0.008, 0.15, 1.48);
-            _lastPointer = cur;
-            InvalidateVisual();
+            return;
         }
+
+        var cur = e.GetPosition(this);
+        var dx = cur.X - prev.X;
+        var dy = cur.Y - prev.Y;
+        if (_pressOrigin is Point origin && Math.Abs(cur.X - origin.X) + Math.Abs(cur.Y - origin.Y) > 4)
+        {
+            _didDrag = true;
+        }
+
+        if (_isPanning || props.IsRightButtonPressed || props.IsMiddleButtonPressed)
+        {
+            double panScale = 0.018 / _zoom;
+            double cy = Math.Cos(_yaw);
+            double sy = Math.Sin(_yaw);
+            _goalTargetX = Math.Clamp(_goalTargetX - (dx * cy + dy * sy) * panScale, -14, 14);
+            _goalTargetZ = Math.Clamp(_goalTargetZ - (-dx * sy + dy * cy) * panScale, -12, 12);
+        }
+        else if (props.IsLeftButtonPressed)
+        {
+            _goalYaw += dx * 0.008;
+            _goalPitch = Math.Clamp(_goalPitch + dy * 0.008, 0.15, 1.48);
+        }
+
+        _lastPointer = cur;
+        InvalidateVisual();
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (!_didDrag && !_isPanning)
+        {
+            var pos = e.GetPosition(this);
+            TrySelectAt(pos);
+        }
+
+        _pressOrigin = null;
         _lastPointer = null;
+        _isPanning = false;
+        _didDrag = false;
         e.Pointer.Capture(null);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        _zoom = Math.Clamp(_zoom + e.Delta.Y * 0.08, 0.55, 2.4);
+        _goalZoom = Math.Clamp(_goalZoom + e.Delta.Y * 0.10, 0.50, 2.60);
         InvalidateVisual();
+    }
+
+    private void TrySelectAt(Point p)
+    {
+        if (Equipment is null) return;
+        for (int i = _hitRects.Count - 1; i >= 0; i--)
+        {
+            if (_hitRects[i].Bounds.Contains(p))
+            {
+                var match = Equipment.FirstOrDefault(eq => eq.Id == _hitRects[i].Id);
+                if (match is not null)
+                {
+                    SelectedEquipment = match;
+                    InvalidateVisual();
+                }
+                return;
+            }
+        }
+    }
+
+    private SolidColorBrush GetBrush(byte r, byte g, byte b, byte a = 255)
+    {
+        uint key = ((uint)a << 24) | ((uint)r << 16) | ((uint)g << 8) | b;
+        if (!_brushCache.TryGetValue(key, out var brush))
+        {
+            brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            _brushCache[key] = brush;
+        }
+        return brush;
     }
 
     public override void Render(DrawingContext context)
@@ -149,7 +276,6 @@ public sealed class Plant3DViewportControl : Control
         var h = Bounds.Height;
         if (w < 40 || h < 40) return;
 
-        // Deep 3D sky/floor gradient background
         var bgBrush = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -162,11 +288,10 @@ public sealed class Plant3DViewportControl : Control
         };
         context.FillRectangle(bgBrush, new Rect(0, 0, w, h), 6);
 
-        // 1. Ground grid in 3D
         DrawGroundGrid(context, w, h);
+        DrawConnectingPipes(context, w, h);
 
-        // 2. Build 3D scene faces
-        var faces = new List<Face3D>(256);
+        var faces = new List<Face3D>(384);
         var fx = Effects ?? new Unity3DEffectSettings();
         var eqMap = (Equipment ?? Array.Empty<EquipmentItem>()).ToDictionary(e => e.Id, e => e);
 
@@ -189,54 +314,52 @@ public sealed class Plant3DViewportControl : Control
             };
         }
 
-        // --- CRUSHING & CONVEYORS (Left Zone) ---
-        // CR-101 Primary Jaw Crusher + Hopper
-        AddBox(faces, new Vec3(-7.5, 0.9, -2.5), 2.2, 1.8, 2.0, GetAssetColor("CR-101", Color.Parse("#334155")), "CR-101");
+        // --- CRUSHING & CONVEYORS ---
+        AddBox(faces, new Vec3(-7.5, 0.9, -2.5), 2.2, 1.8, 2.0, GetAssetColor("CR-101", Color.Parse("#334155")));
         AddPyramidHopper(faces, new Vec3(-7.5, 2.4, -2.5), 2.6, 1.2, Color.Parse("#D97706"));
 
-        // CV-101 Main Feed Conveyor (angled ramp)
-        AddBox(faces, new Vec3(-4.2, 0.85, -2.5), 4.2, 0.45, 1.0, GetAssetColor("CV-101", Color.Parse("#1E3A5F")), "CV-101");
+        // Subdivided inclined CV-101 conveyor segments + support legs
+        AddSubdividedConveyorX(faces, -6.0, -2.4, 0.65, 1.25, -2.5, 0.95, 3, GetAssetColor("CV-101", Color.Parse("#1E3A5F")));
+        AddBox(faces, new Vec3(-1.3, 1.25, -2.5), 1.8, 1.5, 1.8, GetAssetColor("SC-102", Color.Parse("#0284C7")));
+        AddSubdividedConveyorZ(faces, -1.3, -1.3, 2.5, 0.95, 0.65, 1.0, 3, GetAssetColor("CV-102", Color.Parse("#1E3A5F")));
 
-        // SC-102 Vibrating Screen
-        AddBox(faces, new Vec3(-1.3, 1.25, -2.5), 1.8, 1.5, 1.8, GetAssetColor("SC-102", Color.Parse("#0284C7")), "SC-102");
-
-        // CV-102 Clean Coal Conveyor (Warning highlight when active)
-        AddBox(faces, new Vec3(-1.3, 0.7, 0.6), 1.1, 0.4, 3.8, GetAssetColor("CV-102", Color.Parse("#1E3A5F")), "CV-102");
-
-        // --- THICKENER CIRCUIT (Center-Front Zone) ---
-        // TK-201 High-Rate Thickener (large cylinder + rotating rake bridge)
-        AddCylinder(faces, new Vec3(1.2, 0.0, 3.2), 2.8, 1.6, 18, GetAssetColor("TK-201", Color.Parse("#1E40AF")), "TK-201");
+        // --- THICKENER CIRCUIT ---
+        AddCylinder(faces, new Vec3(1.2, 0.0, 3.2), 2.8, 1.6, 20, GetAssetColor("TK-201", Color.Parse("#1E40AF")));
         double rakeAngle = fx.AnimateConveyors ? _time * 0.45 : 0.2;
-        AddRotatedBar(faces, new Vec3(1.2, 1.75, 3.2), 5.8, 0.25, 0.45, rakeAngle, Color.Parse("#38BDF8"));
+        AddRotatedBar(faces, new Vec3(1.2, 1.78, 3.2), 5.8, 0.22, 0.42, rakeAngle, Color.Parse("#38BDF8"));
 
-        // PP-201, PP-202, PP-203 Pumps
-        AddBox(faces, new Vec3(-2.4, 0.45, 4.2), 1.1, 0.9, 0.9, GetAssetColor("PP-201", Color.Parse("#0EA5E9")), "PP-201");
-        AddBox(faces, new Vec3(-2.4, 0.45, 5.5), 1.1, 0.9, 0.9, GetAssetColor("PP-202", Color.Parse("#475569")), "PP-202");
-        AddBox(faces, new Vec3(4.6, 0.40, 4.2), 0.9, 0.8, 0.8, GetAssetColor("PP-203", Color.Parse("#10B981")), "PP-203");
+        AddBox(faces, new Vec3(-2.4, 0.45, 4.2), 1.1, 0.9, 0.9, GetAssetColor("PP-201", Color.Parse("#0EA5E9")));
+        AddBox(faces, new Vec3(-2.4, 0.45, 5.5), 1.1, 0.9, 0.9, GetAssetColor("PP-202", Color.Parse("#475569")));
+        AddBox(faces, new Vec3(4.6, 0.40, 4.2), 0.9, 0.8, 0.8, GetAssetColor("PP-203", Color.Parse("#10B981")));
 
-        // --- MAGNETITE PREPARATION (Right Zone) ---
-        // TK-301 Magnetite Medium Tank
-        AddCylinder(faces, new Vec3(5.8, 0.0, -2.2), 1.45, 2.4, 14, GetAssetColor("TK-301", Color.Parse("#B45309")), "TK-301");
-        // MS-301 Magnetic Separator Drum
-        AddCylinder(faces, new Vec3(3.2, 0.6, -2.2), 0.95, 1.4, 12, GetAssetColor("MS-301", Color.Parse("#0D9488")), "MS-301");
-        // DM-301 Dense Medium Cyclone Pump
-        AddBox(faces, new Vec3(5.8, 0.55, 0.8), 1.4, 1.1, 1.2, GetAssetColor("DM-301", Color.Parse("#0284C7")), "DM-301");
+        // --- MAGNETITE PREPARATION ---
+        AddCylinder(faces, new Vec3(5.8, 0.0, -2.2), 1.45, 2.4, 14, GetAssetColor("TK-301", Color.Parse("#B45309")));
+        AddCylinder(faces, new Vec3(3.2, 0.6, -2.2), 0.95, 1.4, 12, GetAssetColor("MS-301", Color.Parse("#0D9488")));
+        AddBox(faces, new Vec3(5.8, 0.55, 0.8), 1.4, 1.1, 1.2, GetAssetColor("DM-301", Color.Parse("#0284C7")));
+        AddPyramidHopper(faces, new Vec3(5.8, 1.6, 0.8), 1.2, 0.9, Color.Parse("#38BDF8"));
 
         // --- FINE COAL, DEWATERING & SILO LOADOUT ---
-        // FC-401 Flotation Column
-        AddCylinder(faces, new Vec3(-5.8, 0.0, 3.6), 1.0, 3.0, 14, GetAssetColor("FC-401", Color.Parse("#0284C7")), "FC-401");
-        // CF-501 Screen-Bowl Centrifuge
-        AddBox(faces, new Vec3(5.6, 0.7, 4.4), 2.0, 1.4, 1.3, GetAssetColor("CF-501", Color.Parse("#7C3AED")), "CF-501");
-        // SL-601 Clean Coal Silo
-        AddCylinder(faces, new Vec3(-8.2, 0.0, 1.6), 1.35, 3.6, 16, GetAssetColor("SL-601", Color.Parse("#059669")), "SL-601");
+        AddCylinder(faces, new Vec3(-5.8, 0.0, 3.6), 0.95, 3.0, 14, GetAssetColor("FC-401", Color.Parse("#0284C7")));
+        AddCylinder(faces, new Vec3(-5.8, 2.75, 3.6), 1.25, 0.35, 14, Color.Parse("#38BDF8"));
+        AddBox(faces, new Vec3(5.6, 0.7, 4.4), 2.0, 1.4, 1.3, GetAssetColor("CF-501", Color.Parse("#7C3AED")));
+        AddCylinder(faces, new Vec3(-8.2, 0.7, 1.6), 1.35, 2.9, 16, GetAssetColor("SL-601", Color.Parse("#059669")));
+        AddPyramidHopper(faces, new Vec3(-8.2, 0.35, 1.6), 2.0, 0.7, Color.Parse("#334155"));
 
-        // Sort faces back-to-front (Painter's algorithm)
         faces.Sort((a, b) => b.Depth.CompareTo(a.Depth));
 
-        // 3. Draw sorted 3D faces with directional lighting
+        // Camera forward vector in world space for back-face culling
         var lightDir = Normalize(new Vec3(0.45, 0.82, -0.35));
         foreach (var face in faces)
         {
+            // Back-face culling in camera space
+            var c0 = TransformToCamera(face.Vertices[0]);
+            var c1 = TransformToCamera(face.Vertices[1]);
+            var c2 = TransformToCamera(face.Vertices[2]);
+            var e1 = Sub(c1, c0);
+            var e2 = Sub(c2, c0);
+            var camCross = Cross(e1, e2);
+            if (camCross.Z <= 0) continue;
+
             var pts = new Point[face.Vertices.Length];
             bool visible = true;
             for (int i = 0; i < face.Vertices.Length; i++)
@@ -249,12 +372,7 @@ public sealed class Plant3DViewportControl : Control
             }
             if (!visible) continue;
 
-            // Compute face normal for shading
-            var v1 = Sub(face.Vertices[1], face.Vertices[0]);
-            var v2 = Sub(face.Vertices[2], face.Vertices[0]);
-            var normal = Normalize(Cross(v1, v2));
-            double shade = 0.48 + 0.52 * Math.Max(0, Dot(normal, lightDir));
-
+            double shade = 0.48 + 0.52 * Math.Max(0, Dot(face.Normal, lightDir));
             byte r = (byte)Math.Clamp(face.BaseColor.R * shade, 0, 255);
             byte g = (byte)Math.Clamp(face.BaseColor.G * shade, 0, 255);
             byte b = (byte)Math.Clamp(face.BaseColor.B * shade, 0, 255);
@@ -268,80 +386,102 @@ public sealed class Plant3DViewportControl : Control
                 gctx.EndFigure(true);
             }
 
-            context.DrawGeometry(
-                new SolidColorBrush(Color.FromRgb(r, g, b)),
-                new Pen(new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)), 0.75),
-                geom);
+            context.DrawGeometry(GetBrush(r, g, b), FaceEdgePen, geom);
         }
 
-        // 4. Draw 3D Material Flow Particles
         if (fx.ShowFlowParticles)
         {
             DrawFlowParticles(context, w, h);
         }
 
-        // 5. Draw 3D Alarm Halos for Warning/Fault equipment
         if (fx.ShowAlarmHalos)
         {
             DrawAlarmHalos(context, w, h, eqMap);
         }
 
-        // 6. Draw 3D Floating Equipment Labels
+        DrawSelectionRing(context, w, h);
         DrawEquipmentLabels(context, w, h, eqMap);
+        DrawAxisGizmo(context, w);
 
-        // 7. HUD Overlay hint
         var hint = new FormattedText(
-            "3D Viewport · Drag to Orbit · Scroll to Zoom · Live Telemetry Synced",
-            System.Globalization.CultureInfo.CurrentCulture,
+            "Left-Drag: Orbit  |  Right-Drag: Pan  |  Scroll: Zoom  |  Double-Click: Reset  |  Click Label: Inspect",
+            CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Inter"),
+            HudTypeface,
             11,
-            new SolidColorBrush(Color.Parse("#64748B")));
+            GetBrush(148, 163, 184));
         context.DrawText(hint, new Point(12, h - 22));
     }
 
     private void DrawGroundGrid(DrawingContext context, double w, double h)
     {
-        var gridPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 56, 189, 248)), 1);
         for (int i = -10; i <= 10; i += 2)
         {
             if (TryProject(new Vec3(i, 0, -8), w, h, out var a) && TryProject(new Vec3(i, 0, 8), w, h, out var b))
-                context.DrawLine(gridPen, a, b);
+                context.DrawLine(GridPen, a, b);
             if (TryProject(new Vec3(-10, 0, i * 0.8), w, h, out var c) && TryProject(new Vec3(10, 0, i * 0.8), w, h, out var d))
-                context.DrawLine(gridPen, c, d);
+                context.DrawLine(GridPen, c, d);
         }
+    }
+
+    private void DrawConnectingPipes(DrawingContext context, double w, double h)
+    {
+        DrawPipeSegment(context, w, h, new Vec3(-1.3, 0.7, 2.5), new Vec3(-8.2, 1.5, 1.6)); // CV-102 -> SL-601
+        DrawPipeSegment(context, w, h, new Vec3(-1.3, 1.1, -1.6), new Vec3(-5.8, 2.2, 3.6)); // SC-102 -> FC-401
+        DrawPipeSegment(context, w, h, new Vec3(1.2, 0.5, 3.2), new Vec3(-2.4, 0.5, 4.2));   // TK-201 -> PP-201
+        DrawPipeSegment(context, w, h, new Vec3(-2.4, 0.5, 4.2), new Vec3(5.8, 1.1, -2.2));  // PP-201 -> TK-301
+        DrawPipeSegment(context, w, h, new Vec3(5.8, 0.8, -2.2), new Vec3(5.8, 0.8, 0.8));   // TK-301 -> DM-301
+        DrawPipeSegment(context, w, h, new Vec3(5.8, 0.8, 0.8), new Vec3(5.6, 0.8, 4.4));    // DM-301 -> CF-501
+    }
+
+    private void DrawPipeSegment(DrawingContext context, double w, double h, Vec3 a, Vec3 b)
+    {
+        if (TryProject(a, w, h, out var pa) && TryProject(b, w, h, out var pb))
+            context.DrawLine(PipePen, pa, pb);
     }
 
     private void DrawFlowParticles(DrawingContext context, double w, double h)
     {
-        var coalBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
-        var slurryBrush = new SolidColorBrush(Color.Parse("#38BDF8"));
+        var coalBrush = GetBrush(245, 158, 11);
+        var slurryBrush = GetBrush(56, 189, 248);
+        var frothBrush = GetBrush(34, 197, 94);
 
-        // Crushing -> Screen -> Clean Coal Conveyor
-        for (int i = 0; i < 10; i++)
+        // Crushing -> Screen
+        for (int i = 0; i < 8; i++)
         {
-            double t = ((_time * 0.35 + i * 0.1) % 1.0);
-            var p = new Vec3(-6.4 + t * 5.1, 1.25, -2.5);
-            if (TryProject(p, w, h, out var pt))
+            double t = (_time * 0.35 + i * 0.125) % 1.0;
+            if (TryProject(new Vec3(-6.4 + t * 5.1, 1.25, -2.5), w, h, out var pt))
                 context.DrawEllipse(coalBrush, null, pt, 3.2, 3.2);
         }
 
-        // Screen -> CV-102
+        // Screen -> CV-102 -> SL-601
         for (int i = 0; i < 6; i++)
         {
-            double t = ((_time * 0.4 + i * 0.16) % 1.0);
-            var p = new Vec3(-1.3, 1.05, -1.2 + t * 3.6);
-            if (TryProject(p, w, h, out var pt))
+            double t = (_time * 0.38 + i * 0.16) % 1.0;
+            if (TryProject(new Vec3(-1.3 - t * 6.9, 1.1 + t * 0.8, 2.5 - t * 0.9), w, h, out var pt))
                 context.DrawEllipse(coalBrush, null, pt, 3.0, 3.0);
         }
 
-        // Thickener -> Underflow Pump -> Magnetite Tank
+        // Screen -> Flotation Column FC-401
+        for (int i = 0; i < 6; i++)
+        {
+            double t = (_time * 0.32 + i * 0.16) % 1.0;
+            if (TryProject(new Vec3(-1.3 - t * 4.5, 1.2 + t * 1.1, -1.6 + t * 5.2), w, h, out var pt))
+                context.DrawEllipse(frothBrush, null, pt, 2.8, 2.8);
+        }
+
+        // Thickener -> Pump -> Magnetite -> Centrifuge
         for (int i = 0; i < 8; i++)
         {
-            double t = ((_time * 0.3 + i * 0.125) % 1.0);
-            var p = new Vec3(1.2 + t * 4.6, 0.6, 3.2 - t * 5.4);
-            if (TryProject(p, w, h, out var pt))
+            double t = (_time * 0.30 + i * 0.125) % 1.0;
+            if (TryProject(new Vec3(1.2 + t * 4.6, 0.65, 3.2 - t * 5.4), w, h, out var pt))
                 context.DrawEllipse(slurryBrush, null, pt, 3.0, 3.0);
+        }
+        for (int i = 0; i < 5; i++)
+        {
+            double t = (_time * 0.34 + i * 0.2) % 1.0;
+            if (TryProject(new Vec3(5.8 - t * 0.2, 0.8, 0.8 + t * 3.6), w, h, out var pt))
+                context.DrawEllipse(slurryBrush, null, pt, 2.8, 2.8);
         }
     }
 
@@ -354,41 +494,83 @@ public sealed class Plant3DViewportControl : Control
             if (eq.Status != EquipmentStatus.Warning && eq.Status != EquipmentStatus.Fault) continue;
 
             var color = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
-            var pen = new Pen(new SolidColorBrush(Color.FromArgb((byte)(220 * pulse), color.R, color.G, color.B)), 2.5);
+            var pen = new Pen(GetBrush(color.R, color.G, color.B, (byte)(220 * pulse)), 2.5);
+            DrawRing(context, w, h, new Vec3(pos.X, 0.15, pos.Z), 1.45 + 0.2 * pulse, pen);
+        }
+    }
 
-            Point? prev = null;
-            double radius = 1.45 + 0.2 * pulse;
-            for (int i = 0; i <= 16; i++)
+    private void DrawSelectionRing(DrawingContext context, double w, double h)
+    {
+        if (SelectedEquipment is null) return;
+        foreach (var (id, pos) in GetLabelPositions())
+        {
+            if (id == SelectedEquipment.Id)
             {
-                double ang = i * Math.PI * 2 / 16;
-                var world = new Vec3(pos.X + Math.Cos(ang) * radius, 0.15, pos.Z + Math.Sin(ang) * radius);
-                if (TryProject(world, w, h, out var pt))
-                {
-                    if (prev.HasValue) context.DrawLine(pen, prev.Value, pt);
-                    prev = pt;
-                }
+                DrawRing(context, w, h, new Vec3(pos.X, 0.12, pos.Z), 1.75, SelectedLabelPen);
+                break;
+            }
+        }
+    }
+
+    private void DrawRing(DrawingContext context, double w, double h, Vec3 center, double radius, Pen pen)
+    {
+        Point? prev = null;
+        for (int i = 0; i <= 18; i++)
+        {
+            double ang = i * Math.PI * 2 / 18;
+            var world = new Vec3(center.X + Math.Cos(ang) * radius, center.Y, center.Z + Math.Sin(ang) * radius);
+            if (TryProject(world, w, h, out var pt))
+            {
+                if (prev.HasValue) context.DrawLine(pen, prev.Value, pt);
+                prev = pt;
             }
         }
     }
 
     private void DrawEquipmentLabels(DrawingContext context, double w, double h, Dictionary<string, EquipmentItem> eqMap)
     {
+        _hitRects.Clear();
         foreach (var (id, pos) in GetLabelPositions())
         {
             if (!TryProject(pos, w, h, out var pt)) continue;
+            bool isSelected = SelectedEquipment?.Id == id;
             string metric = eqMap.TryGetValue(id, out var eq) ? $"{id} · {eq.PrimaryMetricDisplay}" : id;
             var text = new FormattedText(
                 metric,
-                System.Globalization.CultureInfo.CurrentCulture,
+                CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Inter", FontStyle.Normal, FontWeight.SemiBold),
+                LabelTypeface,
                 11,
                 Brushes.White);
 
             var bg = new Rect(pt.X - 6, pt.Y - 10, text.Width + 12, text.Height + 6);
-            context.FillRectangle(new SolidColorBrush(Color.FromArgb(185, 15, 23, 42)), bg, 4);
+            _hitRects.Add((id, bg));
+            context.DrawRectangle(isSelected ? SelectedLabelBgBrush : LabelBgBrush, isSelected ? SelectedLabelPen : null, bg, 4);
             context.DrawText(text, new Point(pt.X, pt.Y - 7));
         }
+    }
+
+    private void DrawAxisGizmo(DrawingContext context, double w)
+    {
+        var origin = new Point(w - 46, 46);
+        double len = 24;
+        DrawAxisVec(context, origin, new Vec3(1, 0, 0), len, GetBrush(239, 68, 68), "X");
+        DrawAxisVec(context, origin, new Vec3(0, 1, 0), len, GetBrush(34, 197, 94), "Y");
+        DrawAxisVec(context, origin, new Vec3(0, 0, 1), len, GetBrush(56, 189, 248), "Z");
+    }
+
+    private void DrawAxisVec(DrawingContext context, Point origin, Vec3 axis, double len, IBrush brush, string label)
+    {
+        double cy = Math.Cos(_yaw), sy = Math.Sin(_yaw);
+        double x1 = axis.X * cy - axis.Z * sy;
+        double z1 = axis.X * sy + axis.Z * cy;
+        double cp = Math.Cos(_pitch), sp = Math.Sin(_pitch);
+        double y2 = axis.Y * cp - z1 * sp;
+
+        var tip = new Point(origin.X + x1 * len, origin.Y - y2 * len);
+        context.DrawLine(new Pen(brush, 1.8), origin, tip);
+        var txt = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 9, brush);
+        context.DrawText(txt, new Point(tip.X + 2, tip.Y - 5));
     }
 
     private static IEnumerable<(string Id, Vec3 Pos)> GetLabelPositions()
@@ -401,13 +583,43 @@ public sealed class Plant3DViewportControl : Control
         yield return ("PP-201", new Vec3(-2.4, 1.5, 4.2));
         yield return ("TK-301", new Vec3(5.8, 3.0, -2.2));
         yield return ("MS-301", new Vec3(3.2, 2.3, -2.2));
-        yield return ("DM-301", new Vec3(5.8, 1.7, 0.8));
+        yield return ("DM-301", new Vec3(5.8, 2.3, 0.8));
         yield return ("FC-401", new Vec3(-5.8, 3.6, 3.6));
         yield return ("CF-501", new Vec3(5.6, 2.0, 4.4));
         yield return ("SL-601", new Vec3(-8.2, 4.2, 1.6));
     }
 
-    private void AddBox(List<Face3D> faces, Vec3 center, double sx, double sy, double sz, Color color, string? label = null)
+    private void AddSubdividedConveyorX(List<Face3D> faces, double x0, double x1, double y0, double y1, double z, double width, int segs, Color color)
+    {
+        for (int i = 0; i < segs; i++)
+        {
+            double sx = x0 + (x1 - x0) * (i + 0.5) / segs;
+            double sy = y0 + (y1 - y0) * (i + 0.5) / segs;
+            AddBox(faces, new Vec3(sx, sy, z), (x1 - x0) / segs - 0.04, 0.38, width, color);
+        }
+        AddBox(faces, new Vec3(x0 + 0.3, y0 * 0.5, z), 0.2, y0, 0.2, Color.Parse("#475569"));
+        AddBox(faces, new Vec3(x1 - 0.3, y1 * 0.5, z), 0.2, y1, 0.2, Color.Parse("#475569"));
+    }
+
+    private void AddSubdividedConveyorZ(List<Face3D> faces, double x, double z0, double z1, double y0, double y1, double width, int segs, Color color)
+    {
+        for (int i = 0; i < segs; i++)
+        {
+            double sz = z0 + (z1 - z0) * (i + 0.5) / segs;
+            double sy = y0 + (y1 - y0) * (i + 0.5) / segs;
+            AddBox(faces, new Vec3(x, sy, sz), width, 0.36, (z1 - z0) / segs - 0.04, color);
+        }
+        AddBox(faces, new Vec3(x, y1 * 0.5, z1 - 0.3), 0.2, y1, 0.2, Color.Parse("#475569"));
+    }
+
+    private void AddFace(List<Face3D> faces, Vec3[] pts, Color color)
+    {
+        var v1 = Sub(pts[1], pts[0]);
+        var v2 = Sub(pts[2], pts[0]);
+        faces.Add(new Face3D(pts, color, AvgDepth(pts), Normalize(Cross(v1, v2))));
+    }
+
+    private void AddBox(List<Face3D> faces, Vec3 center, double sx, double sy, double sz, Color color)
     {
         double hx = sx / 2, hy = sy / 2, hz = sz / 2;
         var v = new[]
@@ -432,10 +644,7 @@ public sealed class Plant3DViewportControl : Control
         };
 
         foreach (var q in quads)
-        {
-            var pts = new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] };
-            faces.Add(new Face3D(pts, color, AvgDepth(pts), label));
-        }
+            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
     }
 
     private void AddRotatedBar(List<Face3D> faces, Vec3 center, double length, double height, double width, double angle, Color color)
@@ -456,10 +665,7 @@ public sealed class Plant3DViewportControl : Control
             new[] { 4, 0, 3, 7 }, new[] { 1, 5, 6, 2 }, new[] { 3, 2, 6, 7 }
         };
         foreach (var q in quads)
-        {
-            var pts = new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] };
-            faces.Add(new Face3D(pts, color, AvgDepth(pts)));
-        }
+            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
     }
 
     private void AddPyramidHopper(List<Face3D> faces, Vec3 center, double topSize, double height, Color color)
@@ -478,13 +684,10 @@ public sealed class Plant3DViewportControl : Control
         };
         int[][] quads = { new[] { 0, 1, 5, 4 }, new[] { 1, 2, 6, 5 }, new[] { 2, 3, 7, 6 }, new[] { 3, 0, 4, 7 } };
         foreach (var q in quads)
-        {
-            var pts = new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] };
-            faces.Add(new Face3D(pts, color, AvgDepth(pts)));
-        }
+            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
     }
 
-    private void AddCylinder(List<Face3D> faces, Vec3 baseCenter, double radius, double height, int segs, Color color, string? label = null)
+    private void AddCylinder(List<Face3D> faces, Vec3 baseCenter, double radius, double height, int segs, Color color)
     {
         var topPts = new Vec3[segs];
         for (int i = 0; i < segs; i++)
@@ -496,10 +699,9 @@ public sealed class Plant3DViewportControl : Control
             var t1 = new Vec3(b1.X, baseCenter.Y + height, b1.Z);
             var t0 = new Vec3(b0.X, baseCenter.Y + height, b0.Z);
             topPts[i] = t0;
-            var side = new[] { b0, b1, t1, t0 };
-            faces.Add(new Face3D(side, color, AvgDepth(side), label));
+            AddFace(faces, new[] { b0, b1, t1, t0 }, color);
         }
-        faces.Add(new Face3D(topPts, color, AvgDepth(topPts)));
+        AddFace(faces, topPts, color);
     }
 
     private double AvgDepth(Vec3[] pts)
@@ -515,12 +717,10 @@ public sealed class Plant3DViewportControl : Control
         double y = world.Y - 0.8;
         double z = world.Z - _targetZ;
 
-        // Rotate around Y (yaw)
         double cy = Math.Cos(_yaw), sy = Math.Sin(_yaw);
         double x1 = x * cy - z * sy;
         double z1 = x * sy + z * cy;
 
-        // Rotate around X (pitch)
         double cp = Math.Cos(_pitch), sp = Math.Sin(_pitch);
         double y2 = y * cp - z1 * sp;
         double z2 = y * sp + z1 * cp;
