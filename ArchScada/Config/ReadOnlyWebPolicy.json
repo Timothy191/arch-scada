@@ -1,0 +1,171 @@
+{
+  "policyVersion": "1.0.0",
+  "phase": "Phase 5 - ScadaWeb Read-Only Hardening",
+  "serviceName": "ScadaWeb",
+  "readOnlyEnforcement": {
+    "enabled": true,
+    "mode": "strict-read-only",
+    "allowRemoteControl": false,
+    "allowPlcWrites": false,
+    "allowSetpointChanges": false,
+    "allowAlarmAcknowledgeToPlc": false,
+    "allowedHttpMethods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "blockedHttpMethods": [
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE"
+    ],
+    "blockedMethodStatusCode": 403,
+    "authEndpointsExemptFromMethodBlock": [
+      "/api/v1/auth/login",
+      "/api/v1/auth/logout",
+      "/api/v1/auth/refresh"
+    ],
+    "requireReadOnlyHeader": "X-Scada-Mode: read-only"
+  },
+  "networkBinding": {
+    "internalOnly": true,
+    "bindAddresses": [
+      "127.0.0.1"
+    ],
+    "internalPort": 8443,
+    "allowPublicInternetIngress": false,
+    "allowedCidrRanges": [
+      "127.0.0.1/32",
+      "10.20.0.0/16",
+      "192.168.100.0/24"
+    ],
+    "tls": {
+      "required": true,
+      "minVersion": "TLSv1.3",
+      "terminateAtInternalProxy": true,
+      "hstsEnabled": true
+    },
+    "cors": {
+      "enabled": true,
+      "allowedOrigins": [
+        "https://scada.internal.plant.local"
+      ],
+      "allowWildcardOrigins": false
+    }
+  },
+  "rbac": {
+    "defaultRole": "Viewer",
+    "denyByDefault": true,
+    "roles": {
+      "Viewer": {
+        "description": "Plant overview and live read-only telemetry dashboards",
+        "permissions": [
+          "telemetry:read",
+          "equipment:read",
+          "alarms:read"
+        ],
+        "allowedAreas": [
+          "Overview",
+          "CrushingConveyors",
+          "ThickenerCircuit",
+          "MagnetitePrep"
+        ],
+        "canExportCsv": false,
+        "canViewDiagnostics": false
+      },
+      "OperatorReadOnly": {
+        "description": "Control room read-only operator visibility across all process areas and trends",
+        "permissions": [
+          "telemetry:read",
+          "equipment:read",
+          "alarms:read",
+          "trends:read",
+          "digital-twin:read"
+        ],
+        "allowedAreas": [
+          "*"
+        ],
+        "canExportCsv": false,
+        "canViewDiagnostics": false
+      },
+      "EngineerReadOnly": {
+        "description": "Process and reliability engineers with historian export and diagnostics read access",
+        "permissions": [
+          "telemetry:read",
+          "equipment:read",
+          "alarms:read",
+          "trends:read",
+          "digital-twin:read",
+          "diagnostics:read",
+          "historian:export"
+        ],
+        "allowedAreas": [
+          "*"
+        ],
+        "canExportCsv": true,
+        "canViewDiagnostics": true
+      },
+      "Auditor": {
+        "description": "Compliance and safety auditors with read-only access to audit logs and policy state",
+        "permissions": [
+          "audit:read",
+          "policy:read",
+          "alarms:read"
+        ],
+        "allowedAreas": [
+          "*"
+        ],
+        "canExportCsv": true,
+        "canViewDiagnostics": true
+      }
+    }
+  },
+  "rateLimiting": {
+    "enabled": true,
+    "algorithm": "sliding-window",
+    "statusCodeOnLimit": 429,
+    "includeRetryAfterHeader": true,
+    "rules": {
+      "apiRead": {
+        "requestsPerMinutePerIp": 120,
+        "requestsPerMinutePerSession": 180,
+        "burst": 30
+      },
+      "telemetryStream": {
+        "maxConcurrentConnectionsPerSession": 3,
+        "maxConcurrentConnectionsPerIp": 10
+      },
+      "authLogin": {
+        "requestsPerMinutePerIp": 10,
+        "lockoutMinutesAfterFailures": 15,
+        "maxFailedAttempts": 5
+      },
+      "historianExport": {
+        "requestsPerHourPerSession": 20
+      }
+    }
+  },
+  "sessionPolicy": {
+    "idleTimeoutMinutes": 15,
+    "absoluteMaxLifetimeHours": 8,
+    "slidingExpiration": true,
+    "cookie": {
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict",
+      "name": "__Host-ScadaWebSession"
+    },
+    "maxConcurrentSessionsPerUser": 2,
+    "revokeOnLogout": true,
+    "revokeOnRoleChange": true
+  },
+  "auditLogging": {
+    "enabled": true,
+    "logBlockedWriteAttempts": true,
+    "logAuthEvents": true,
+    "logRateLimitViolations": true,
+    "logSessionTimeouts": true,
+    "retentionDays": 365
+  }
+}

@@ -46,7 +46,17 @@ dotnet build ScadaWeb/OpenPlugins/OpenPlugins.sln -c "$CONFIG"
 step "OpenExtensions"
 dotnet build ScadaAdmin/OpenExtensions/OpenExtensions.sln -c "$CONFIG"
 
-# Arch SCADA desktop HMI (Avalonia, .NET 10)
+# Arch SCADA libraries & desktop HMI (Avalonia, .NET 10)
+if [ -f ArchScada/ArchScada.ControlBoundary/ArchScada.ControlBoundary.csproj ]; then
+  step "ArchScada.ControlBoundary"
+  dotnet build ArchScada/ArchScada.ControlBoundary/ArchScada.ControlBoundary.csproj -c "$CONFIG"
+fi
+
+if [ -f ArchScada/ArchScada.CoreIntegration/ArchScada.CoreIntegration.csproj ]; then
+  step "ArchScada.CoreIntegration"
+  dotnet build ArchScada/ArchScada.CoreIntegration/ArchScada.CoreIntegration.csproj -c "$CONFIG"
+fi
+
 if [ -f ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj ]; then
   step "ArchScada.Desktop"
   dotnet build ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj -c "$CONFIG"
