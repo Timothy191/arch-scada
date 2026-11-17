@@ -1,0 +1,1005 @@
+{
+  "version": "1.0.0",
+  "documentId": "CE-CHPP-2026-V1",
+  "facility": "Arch SCADA CHPP Facility",
+  "approvedBy": "Plant Engineering & Safety Directorate",
+  "approvedAt": "2026-11-16T08:00:00Z",
+  "description": "Approved Cause-and-Effect Matrix governing safety boundary control rules across all 6 CHPP circuits",
+  "rules": [
+    {
+      "ruleId": "CE-SIM-001",
+      "equipmentId": "CR-101",
+      "commandType": "SIM_INTERLOCK_AUDIT",
+      "requiredPermission": "OPERATOR_SIM_TEST",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ReadOnly",
+      "requiredInterlocks": [
+        "ILK-CR101-LUBE",
+        "ILK-CV101-RUN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CR101-START",
+      "equipmentId": "CR-101",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CR101-LUBE",
+        "ILK-CV101-RUN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CR101-STOP",
+      "equipmentId": "CR-101",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CR101-SPEED",
+      "equipmentId": "CR-101",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 0.0,
+      "maxParameter": 100.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CR101-LUBE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CR101-RESET",
+      "equipmentId": "CR-101",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SC102-START",
+      "equipmentId": "SC-102",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-SC102-CHUTE",
+        "ILK-CV102-RUN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SC102-STOP",
+      "equipmentId": "SC-102",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SC102-RESET",
+      "equipmentId": "SC-102",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV101-START",
+      "equipmentId": "CV-101",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CV101-PULLCORD",
+        "ILK-CV101-ALIGN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV101-STOP",
+      "equipmentId": "CV-101",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV101-SPEED",
+      "equipmentId": "CV-101",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 0.5,
+      "maxParameter": 4.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CV101-PULLCORD"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV101-RESET",
+      "equipmentId": "CV-101",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV102-START",
+      "equipmentId": "CV-102",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CV102-PULLCORD",
+        "ILK-CV102-TEMP"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV102-STOP",
+      "equipmentId": "CV-102",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV102-SPEED",
+      "equipmentId": "CV-102",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 0.5,
+      "maxParameter": 4.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CV102-PULLCORD"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV102-RESET",
+      "equipmentId": "CV-102",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK201-START",
+      "equipmentId": "TK-201",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-TK201-TORQUE",
+        "ILK-TK201-LEVEL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK201-STOP",
+      "equipmentId": "TK-201",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK201-SPEED",
+      "equipmentId": "TK-201",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 0.0,
+      "maxParameter": 10.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-TK201-TORQUE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK201-RESET",
+      "equipmentId": "TK-201",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP201-START",
+      "equipmentId": "PP-201",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP201-SUCT",
+        "ILK-PP201-SEAL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP201-STOP",
+      "equipmentId": "PP-201",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP201-SPEED",
+      "equipmentId": "PP-201",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 100.0,
+      "maxParameter": 550.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP201-SUCT"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP201-RESET",
+      "equipmentId": "PP-201",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP202-START",
+      "equipmentId": "PP-202",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP202-SUCT",
+        "ILK-PP202-SEAL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP202-STOP",
+      "equipmentId": "PP-202",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP202-SPEED",
+      "equipmentId": "PP-202",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 100.0,
+      "maxParameter": 550.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP202-SUCT"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP202-RESET",
+      "equipmentId": "PP-202",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP203-START",
+      "equipmentId": "PP-203",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP203-FLOC-TANK"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP203-STOP",
+      "equipmentId": "PP-203",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP203-SPEED",
+      "equipmentId": "PP-203",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 0.0,
+      "maxParameter": 60.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP203-FLOC-TANK"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP203-RESET",
+      "equipmentId": "PP-203",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK301-START",
+      "equipmentId": "TK-301",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-TK301-MIN-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK301-STOP",
+      "equipmentId": "TK-301",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK301-DENSITY",
+      "equipmentId": "TK-301",
+      "commandType": "SET_DENSITY",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 1.20,
+      "maxParameter": 2.00,
+      "safeState": "NormalOperation",
+      "requiredInterlocks": [
+        "ILK-TK301-MIN-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-TK301-RESET",
+      "equipmentId": "TK-301",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-MS301-START",
+      "equipmentId": "MS-301",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-MS301-DRUM-GUARD"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-MS301-STOP",
+      "equipmentId": "MS-301",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-MS301-RESET",
+      "equipmentId": "MS-301",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-DM301-START",
+      "equipmentId": "DM-301",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-DM301-PRESSURE",
+        "ILK-TK301-LEVEL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-DM301-STOP",
+      "equipmentId": "DM-301",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-DM301-SPEED",
+      "equipmentId": "DM-301",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 200.0,
+      "maxParameter": 1100.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-DM301-PRESSURE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-DM301-RESET",
+      "equipmentId": "DM-301",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FC401-START",
+      "equipmentId": "FC-401",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-FC401-AIR-MIN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FC401-STOP",
+      "equipmentId": "FC-401",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FC401-LEVEL",
+      "equipmentId": "FC-401",
+      "commandType": "SET_PULP_LEVEL",
+      "requiredPermission": "CONTROL_VALVES",
+      "minParameter": 30.0,
+      "maxParameter": 95.0,
+      "safeState": "Closed",
+      "requiredInterlocks": [
+        "ILK-FC401-TAIL-VALVE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FC401-RESET",
+      "equipmentId": "FC-401",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AB401-START",
+      "equipmentId": "AB-401",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-AB401-OIL-TEMP"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AB401-STOP",
+      "equipmentId": "AB-401",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AB401-SPEED",
+      "equipmentId": "AB-401",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 200.0,
+      "maxParameter": 2000.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-AB401-OIL-TEMP"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AB401-RESET",
+      "equipmentId": "AB-401",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP401-START",
+      "equipmentId": "PP-401",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP401-CHEMICAL-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP401-STOP",
+      "equipmentId": "PP-401",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP401-SPEED",
+      "equipmentId": "PP-401",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 0.0,
+      "maxParameter": 35.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP401-CHEMICAL-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP401-RESET",
+      "equipmentId": "PP-401",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP402-START",
+      "equipmentId": "PP-402",
+      "commandType": "START_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP402-CHEMICAL-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP402-STOP",
+      "equipmentId": "PP-402",
+      "commandType": "STOP_PUMP",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP402-SPEED",
+      "equipmentId": "PP-402",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_PUMPS",
+      "minParameter": 0.0,
+      "maxParameter": 25.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-PP402-CHEMICAL-LVL"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-PP402-RESET",
+      "equipmentId": "PP-402",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CF501-START",
+      "equipmentId": "CF-501",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CF501-LUBE",
+        "ILK-CF501-VIB-LOW",
+        "ILK-CV501-RUN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CF501-STOP",
+      "equipmentId": "CF-501",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CF501-SPEED",
+      "equipmentId": "CF-501",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 500.0,
+      "maxParameter": 1800.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CF501-LUBE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CF501-RESET",
+      "equipmentId": "CF-501",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FP501-START",
+      "equipmentId": "FP-501",
+      "commandType": "START_CYCLE",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "De-energized",
+      "requiredInterlocks": [
+        "ILK-FP501-LIGHT-CURTAIN",
+        "ILK-FP501-DOOR-CLOSED"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FP501-STOP",
+      "equipmentId": "FP-501",
+      "commandType": "STOP_CYCLE",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "De-energized",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-FP501-RESET",
+      "equipmentId": "FP-501",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV501-START",
+      "equipmentId": "CV-501",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-CV501-ALIGN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV501-STOP",
+      "equipmentId": "CV-501",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-CV501-RESET",
+      "equipmentId": "CV-501",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AN601-CALIB",
+      "equipmentId": "AN-601",
+      "commandType": "CALIBRATE",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ShutterClosed",
+      "requiredInterlocks": [
+        "ILK-AN601-SHUTTER"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AN601-INTERVAL",
+      "equipmentId": "AN-601",
+      "commandType": "SET_SAMPLE_INTERVAL",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": 10.0,
+      "maxParameter": 300.0,
+      "safeState": "ShutterClosed",
+      "requiredInterlocks": [
+        "ILK-AN601-INTERLOCK-KEY"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AN601-RESET",
+      "equipmentId": "AN-601",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ShutterClosed",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SL601-OPEN",
+      "equipmentId": "SL-601",
+      "commandType": "OPEN_GATE",
+      "requiredPermission": "CONTROL_VALVES",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Closed",
+      "requiredInterlocks": [
+        "ILK-SL601-LEVEL-MAX",
+        "ILK-LD601-POSITION"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SL601-CLOSE",
+      "equipmentId": "SL-601",
+      "commandType": "CLOSE_GATE",
+      "requiredPermission": "CONTROL_VALVES",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Closed",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-SL601-RESET",
+      "equipmentId": "SL-601",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Closed",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AF001-START",
+      "equipmentId": "AF-001",
+      "commandType": "START_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-AF001-CHUTE",
+        "ILK-CR101-RUN"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AF001-STOP",
+      "equipmentId": "AF-001",
+      "commandType": "STOP_MOTOR",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AF001-SPEED",
+      "equipmentId": "AF-001",
+      "commandType": "SET_SPEED",
+      "requiredPermission": "CONTROL_MOTORS",
+      "minParameter": 0.0,
+      "maxParameter": 100.0,
+      "safeState": "Stopped",
+      "requiredInterlocks": [
+        "ILK-AF001-CHUTE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-AF001-RESET",
+      "equipmentId": "AF-001",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "Stopped",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-LD601-START",
+      "equipmentId": "LD-601",
+      "commandType": "START_BATCH",
+      "requiredPermission": "CONTROL_VALVES",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ChuteClosed",
+      "requiredInterlocks": [
+        "ILK-LD601-WAGON-PRESENT",
+        "ILK-LD601-BRAKE"
+      ],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-LD601-ABORT",
+      "equipmentId": "LD-601",
+      "commandType": "ABORT_BATCH",
+      "requiredPermission": "CONTROL_VALVES",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ChuteClosed",
+      "requiredInterlocks": [],
+      "isApproved": true
+    },
+    {
+      "ruleId": "CE-LD601-RESET",
+      "equipmentId": "LD-601",
+      "commandType": "RESET_FAULT",
+      "requiredPermission": "CONTROL_RESET",
+      "minParameter": null,
+      "maxParameter": null,
+      "safeState": "ChuteClosed",
+      "requiredInterlocks": [],
+      "isApproved": true
+    }
+  ]
+}

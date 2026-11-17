@@ -11,7 +11,7 @@ using ArchScada.Desktop.Models;
 
 namespace ArchScada.Desktop.Services;
 
-public sealed class SimulatedTelemetryService : ITelemetryService
+public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
 {
     private readonly Random _rng = new(42);
     private readonly Dictionary<string, List<double>> _history = new();
@@ -20,7 +20,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     public LocalHistorianStore HistorianStore { get; }
     public LocalConfigCache ConfigCache { get; }
     public ScadaServerClient ServerClient { get; }
-    public NativeScadaServerAdapter NativeAdapter { get; } = new();
+    public NativeScadaServerAdapter NativeAdapter { get; }
     public Isa182AlarmEngine AlarmEngine { get; } = new();
     public CoupledPlantProcessModel CoupledModel { get; } = new();
 
@@ -32,7 +32,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
     private int _loopRotationIndex;
 
     public bool IsServerConnected { get; private set; }
-    public bool IsOfflineDemoMode { get; private set; } = true;
+    public bool IsOfflineDemoMode { get; set; } = true;
     public bool IsAutoOptimizationEnabled { get; set; } = true;
     public string LastServerHealthStatus { get; private set; } = "Not probed (Local Cache Active)";
     public string NativeProtocolStatus { get; private set; } = "Native TCP 127.0.0.1:10000 (34 Cnl mapped)";
@@ -54,12 +54,15 @@ public sealed class SimulatedTelemetryService : ITelemetryService
 
     public event EventHandler? TelemetryUpdated;
 
-    public SimulatedTelemetryService()
-        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchScada"))
+    public SimulatedTelemetryService(NativeScadaServerAdapter? nativeAdapter = null)
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArchScada"), null, nativeAdapter)
     {
     }
 
-    public SimulatedTelemetryService(string storageDirectory, ScadaServerClient? serverClient = null)
+    public SimulatedTelemetryService(
+        string storageDirectory,
+        ScadaServerClient? serverClient = null,
+        NativeScadaServerAdapter? nativeAdapter = null)
     {
         if (string.IsNullOrWhiteSpace(storageDirectory))
         {
@@ -69,6 +72,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         HistorianStore = new LocalHistorianStore(Path.Combine(storageDirectory, "historian"));
         ConfigCache = new LocalConfigCache(Path.Combine(storageDirectory, "plant-config-cache.json"));
         ServerClient = serverClient ?? new ScadaServerClient();
+        NativeAdapter = nativeAdapter ?? new NativeScadaServerAdapter();
 
         SeedPlantModel();
         SeedInitialAlarms();
@@ -95,18 +99,31 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             return;
         }
 
-        _timer = new DispatcherTimer
+        try
         {
-            Interval = TimeSpan.FromMilliseconds(1500)
-        };
-        _timer.Tick += (_, _) => TickSimulation();
-        _timer.Start();
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1500)
+            };
+            _timer.Tick += (_, _) => TickSimulation();
+            _timer.Start();
+        }
+        catch
+        {
+            // Suppress DispatcherTimer failure in headless test environments without Avalonia UI thread.
+        }
     }
 
     public void Stop()
     {
         _timer?.Stop();
         _timer = null;
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        NativeAdapter.Dispose();
     }
 
     public void AcknowledgeAlarm(string alarmId)
@@ -765,10 +782,62 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         });
     }
 
+    /// <summary>
+    /// Deterministic single-tick and polling execution method.
+    /// Synchronously or asynchronously steps the simulation or polls live SCADA channels,
+    /// evaluates plant physics, alarms, and durably persists current samples to the historian.
+    /// </summary>
+    public async Task TickAsync(CancellationToken cancellationToken = default)
+    {
+        await ExecuteTickAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Deterministic single-tick/poll method for unit testing and manual stepping.
+    /// </summary>
+    public async Task PollAndTickAsync(CancellationToken cancellationToken = default)
+    {
+        await ExecuteTickAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Synchronous single-tick method for testing and manual stepping.
+    /// </summary>
+    public void Tick()
+    {
+        ExecuteTickAsync(CancellationToken.None).GetAwaiter().GetResult();
+    }
+
     private void TickSimulation()
+    {
+        _ = ExecuteTickAsync(CancellationToken.None);
+    }
+
+    private async Task ExecuteTickAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.Now;
         double totalPower = 0;
+        Dictionary<string, TagValueSnapshot>? snapshotMap = null;
+
+        if (!IsOfflineDemoMode)
+        {
+            var snapshots = NativeAdapter.PollChannelTags(out var statusMsg);
+            NativeProtocolStatus = statusMsg;
+            IsServerConnected = NativeAdapter.IsOnline;
+
+            if (NativeAdapter.IsOnline && snapshots.Count > 0)
+            {
+                snapshotMap = new Dictionary<string, TagValueSnapshot>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in snapshots)
+                {
+                    snapshotMap[s.TagId] = s;
+                }
+            }
+        }
+        else
+        {
+            IsServerConnected = false;
+        }
 
         foreach (var eq in Equipment)
         {
@@ -779,11 +848,25 @@ public sealed class SimulatedTelemetryService : ITelemetryService
 
             foreach (var tag in eq.Tags)
             {
-                var span = Math.Max(0.5, (tag.MaxLimit - tag.MinLimit) * 0.015);
-                var delta = (_rng.NextDouble() - 0.5) * span;
-                var next = Math.Clamp(tag.Value + delta, tag.MinLimit, tag.MaxLimit);
-                tag.Value = Math.Round(next, 2);
-                tag.Timestamp = now;
+                if (snapshotMap is not null && snapshotMap.TryGetValue(tag.TagId, out var snapshot))
+                {
+                    var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
+                    tag.IsStale = isStale;
+                    if (!isStale)
+                    {
+                        tag.Value = snapshot.Value;
+                        tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
+                    }
+                }
+                else
+                {
+                    tag.IsStale = false;
+                    var span = Math.Max(0.5, (tag.MaxLimit - tag.MinLimit) * 0.015);
+                    var delta = (_rng.NextDouble() - 0.5) * span;
+                    var next = Math.Clamp(tag.Value + delta, tag.MinLimit, tag.MaxLimit);
+                    tag.Value = Math.Round(next, 2);
+                    tag.Timestamp = now;
+                }
 
                 if (_history.TryGetValue(tag.TagId, out var series))
                 {
@@ -808,6 +891,47 @@ public sealed class SimulatedTelemetryService : ITelemetryService
         if (IsAutoOptimizationEnabled)
         {
             ApplyOptimizationTick();
+            if (snapshotMap is not null)
+            {
+                foreach (var eq in Equipment)
+                {
+                    foreach (var tag in eq.Tags)
+                    {
+                        if (snapshotMap.TryGetValue(tag.TagId, out var snapshot))
+                        {
+                            var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
+                            tag.IsStale = isStale;
+                            if (!isStale)
+                            {
+                                tag.Value = snapshot.Value;
+                                tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
+                            }
+                        }
+                    }
+
+                    if (eq.Tags.Count > 0)
+                    {
+                        eq.PrimaryMetric = eq.Tags[0].Value;
+                    }
+                }
+            }
+        }
+
+        if (snapshotMap is not null)
+        {
+            foreach (var tag in AllTags)
+            {
+                if (snapshotMap.TryGetValue(tag.TagId, out var snapshot))
+                {
+                    var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
+                    tag.IsStale = isStale;
+                    if (!isStale)
+                    {
+                        tag.Value = snapshot.Value;
+                        tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
+                    }
+                }
+            }
         }
 
         CoupledModel.StepCoupledPhysics(
@@ -838,7 +962,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService
             ? coupledSpecEnergy
             : (TotalFeedTonnageTph > 10 ? Math.Round(TotalPowerDrawKw / TotalFeedTonnageTph, 2) : 0.0);
 
-        _ = PersistCurrentSamplesAsync();
+        await PersistCurrentSamplesAsync(cancellationToken).ConfigureAwait(false);
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
     }
 

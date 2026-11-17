@@ -23,9 +23,12 @@
  * Modified : 2025
  */
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Scada.Data.Const;
@@ -124,7 +127,24 @@ namespace Scada.Web
                 {
                     options.LoginPath = WebPath.LoginPage;
                     options.LogoutPath = WebPath.LogoutPage;
-                    options.Events = new CookieAuthEvents();
+                    options.Events = new CookieAuthEvents
+                    {
+                        OnValidatePrincipal = async validateContext =>
+                        {
+                            if (validateContext.Properties.IssuedUtc.HasValue &&
+                                DateTimeOffset.UtcNow - validateContext.Properties.IssuedUtc.Value > TimeSpan.FromHours(8))
+                            {
+                                validateContext.RejectPrincipal();
+                                await validateContext.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                            }
+                        }
+                    };
+                    options.Cookie.Name = "__Host-ScadaWebSession";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+                    options.SlidingExpiration = true;
                 });
 
             services
@@ -148,7 +168,20 @@ namespace Scada.Web
 
             services
                 .AddHttpContextAccessor()
-                .AddSession()
+                .AddSession(options =>
+                {
+                    options.IdleTimeout = TimeSpan.FromMinutes(15);
+                    options.Cookie.Name = "__Host-ScadaWebSession.Session";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.Cookie.IsEssential = true;
+                })
+                .AddSingleton(provider =>
+                {
+                    var env = provider.GetService<IWebHostEnvironment>();
+                    return ReadOnlyHardeningMiddleware.LoadPolicy(env, webContext);
+                })
                 .AddSingleton<IWebContext>(webContext)
                 .AddSingleton(webContext.Log)
                 .AddScoped(UserContextFactory.GetUserContext)
@@ -206,6 +239,8 @@ namespace Scada.Web
                 app.UseExceptionHandler(WebPath.ErrorPage);
                 app.UseHsts();
             }
+
+            app.UseReadOnlyHardening();
 
             app.UseStaticFiles();
             app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api"), webApp =>

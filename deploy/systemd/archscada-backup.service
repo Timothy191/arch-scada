@@ -1,0 +1,43 @@
+[Unit]
+Description=Arch SCADA Automated Database & Configuration Backup Service
+Documentation=https://github.com/Timothy191/arch-scada
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=archscada
+Group=archscada
+WorkingDirectory=/opt/archscada
+ExecStart=/usr/bin/bash /opt/archscada/deploy/scripts/create-backup.sh
+ExecStart=/usr/bin/bash /opt/archscada/deploy/scripts/verify-backup.sh
+TimeoutStartSec=1800
+SyslogIdentifier=archscada-backup
+
+# Environment
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=ARCHSCADA_CONTROL_MODE=READ_ONLY
+Environment=ARCHSCADA_BACKUP_DIR=/var/backups/archscada
+Environment=ARCHSCADA_DATA_DIR=/var/lib/archscada
+Environment=ARCHSCADA_LOG_DIR=/var/log/archscada
+Environment=PGHOST=localhost
+Environment=PGPORT=5432
+Environment=PGDATABASE=archscada_historian
+Environment=PGUSER=archscada
+
+# Hardening & Safety Isolation
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/backups/archscada /var/log/archscada
+ReadOnlyPaths=/etc/archscada /opt/archscada /var/lib/archscada
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

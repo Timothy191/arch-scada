@@ -405,3 +405,4 @@ FodyWeavers.xsd
 .agentsroom/transfer-context-*.txt
 .agentsroom/handoff-context-*.txt
 .agents/hooks.json
+.omp/mcp.json

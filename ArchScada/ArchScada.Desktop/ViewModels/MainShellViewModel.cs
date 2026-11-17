@@ -216,26 +216,15 @@ public partial class MainShellViewModel : ViewModelBase
             "control-audit.jsonl");
 
         var logger = new ControlAuditLogger(auditPath);
-        var rules = new[]
-        {
-            new CauseAndEffectRule
-            {
-                RuleId = "CE-SIM-001",
-                EquipmentId = "CR-101",
-                CommandType = "SIM_INTERLOCK_AUDIT",
-                RequiredPermission = "OPERATOR_SIM_TEST",
-                SafeState = "ReadOnly",
-                RequiredInterlocks = new[] { "ILK-CR101-LUBE", "ILK-CV101-RUN" },
-                IsApproved = true
-            }
-        };
+        var rules = CauseAndEffectMatrixLoader.LoadMatrix();
 
         return new ControlBoundaryEngine(
             logger,
             authorizationState: new ControlAuthorizationState
             {
                 IsRealControlAuthorized = false,
-                CauseAndEffectVerified = false
+                CauseAndEffectVerified = true,
+                Scope = "ALL_6_CHPP_CIRCUITS"
             },
             initialRules: rules);
     }
