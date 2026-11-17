@@ -402,3 +402,4 @@ FodyWeavers.xsd
 .agentsroom/fork-context-*.txt
 .agentsroom/transfer-context-*.txt
 .agents/mcp_config.json
+.agentsroom/handoff-context-*.txt
