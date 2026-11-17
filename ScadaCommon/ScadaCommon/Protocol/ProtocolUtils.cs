@@ -113,7 +113,11 @@ namespace Scada.Protocol
 
                 do
                 {
-                    bytesRead += netStream.Read(buffer, bytesRead + offset, size - bytesRead);
+                    int read = netStream.Read(buffer, bytesRead + offset, size - bytesRead);
+                    if (read <= 0)
+                        break;
+
+                    bytesRead += read;
                 } while (bytesRead < size && (DateTime.UtcNow - startDT).TotalMilliseconds <= timeout);
 
                 return bytesRead;
@@ -129,8 +133,12 @@ namespace Scada.Protocol
         /// </summary>
         public static void ClearNetStream(NetworkStream netStream, byte[] buffer)
         {
-            if (netStream.DataAvailable)
-                netStream.Read(buffer, 0, buffer.Length);
+            while (netStream.DataAvailable)
+            {
+                int read = netStream.Read(buffer, 0, buffer.Length);
+                if (read <= 0)
+                    break;
+            }
         }
 
         /// <summary>

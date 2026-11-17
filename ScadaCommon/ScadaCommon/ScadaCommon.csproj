@@ -15,4 +15,8 @@
     <ProjectReference Include="..\ScadaCommon.Log\ScadaCommon.Log.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ScadaCommon.Tests" />
+  </ItemGroup>
+
 </Project>
