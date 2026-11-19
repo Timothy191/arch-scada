@@ -40,6 +40,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModActiveDirectory.View", "
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "ModActiveDirectory.Shared", "ModActiveDirectory.Shared\ModActiveDirectory.Shared.shproj", "{3E78954F-06ED-436B-B664-3558C497565F}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModRuleEngine.Logic", "ModRuleEngine\\ModRuleEngine.Logic\\ModRuleEngine.Logic.csproj", "{C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "ModRuleEngine.Shared", "ModRuleEngine\\ModRuleEngine.Shared\\ModRuleEngine.Shared.shproj", "{A1B2C3D4-E5F6-7890-ABCD-123456789012}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ModDbExport", "ModDbExport", "{ADDF01AE-6F28-497C-9C92-EA88E152F65C}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModDbExport.Logic", "ModDbExport.Logic\ModDbExport.Logic.csproj", "{630579F7-F44F-4F08-8122-C89BBD2E62B2}"
