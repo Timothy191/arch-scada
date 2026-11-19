@@ -10,7 +10,7 @@ namespace ArchScada.ControlBoundary;
 /// - Strictly prohibits automatic shutdowns and automatic restarts.
 /// - Audits every control attempt to an append-only JSONL log.
 /// </summary>
-public sealed class ControlBoundaryEngine
+public sealed class ControlBoundaryEngine : IControlBoundaryEngine
 {
     private static readonly TimeSpan MaxTelemetryAgeForControl = TimeSpan.FromSeconds(5);
 

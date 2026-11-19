@@ -433,7 +433,7 @@ public class DesktopTests
             Assert.True(specEnergy > 0);
 
             // 2. Operator RBAC & shift handover
-            vm.SwitchOperatorCommand.Execute("supervisor1");
+            vm.SwitchOperatorCommand.Execute("supervisor1:2468");
             Assert.Equal(OperatorRole.ShiftSupervisor, vm.OperatorAuth.CurrentRole);
             Assert.True(vm.OperatorAuth.CanShelveAlarms);
 

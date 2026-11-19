@@ -391,16 +391,19 @@ public partial class MainShellViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SwitchOperator(string username)
+    private void SwitchOperator(string? usernamePin)
     {
-        var pinMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["operator1"] = "1234",
-            ["supervisor1"] = "2468",
-            ["engineer1"] = "9999",
-            ["viewer1"] = "0000"
-        };
-        if (pinMap.TryGetValue(username, out var pin) && OperatorAuth.Login(username, pin))
+        if (string.IsNullOrWhiteSpace(usernamePin))
+            return;
+
+        var parts = usernamePin.Split(':', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length != 2)
+            return;
+
+        var username = parts[0];
+        var pin = parts[1];
+
+        if (OperatorAuth.Login(username, pin))
         {
             OperatorBadge = $"{OperatorAuth.CurrentDisplayName} [{OperatorAuth.CurrentRole}]";
         }
