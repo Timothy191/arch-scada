@@ -1,0 +1,52 @@
+[
+  {
+    "RuleName": "HighTankLevelAlarm",
+    "Description": "Raise a critical alarm when tank level exceeds 90% and the tank pump is running.",
+    "Expression": "Channels[\"TankLevel\"] > 90.0 && Channels[\"TankPump\"] == 1.0",
+    "RuleExpressionType": "LambdaExpression",
+    "SuccessEvent": "Tank level high - pump running",
+    "ErrorMessage": "",
+    "Enabled": true,
+    "ChannelInputs": [
+      { "Alias": "TankLevel", "CnlNum": 101 },
+      { "Alias": "TankPump", "CnlNum": 102 }
+    ],
+    "Actions": [
+      { "Type": "RaiseEvent", "Severity": 4, "Text": "Tank level is high ({TankLevel}%) while pump is running." },
+      { "Type": "SendCommand", "CnlNum": 201, "CmdVal": 0.0, "Text": "Shut off tank inlet valve" }
+    ]
+  },
+  {
+    "RuleName": "LowTankLevelInterlock",
+    "Description": "Prevent tank pump from running when level is below 10%.",
+    "Expression": "Channels[\"TankLevel\"] < 10.0 && Channels[\"TankPump\"] == 1.0",
+    "RuleExpressionType": "LambdaExpression",
+    "SuccessEvent": "Tank level low - stopping pump",
+    "ErrorMessage": "",
+    "Enabled": true,
+    "ChannelInputs": [
+      { "Alias": "TankLevel", "CnlNum": 101 },
+      { "Alias": "TankPump", "CnlNum": 102 }
+    ],
+    "Actions": [
+      { "Type": "RaiseEvent", "Severity": 3, "Text": "Tank level low ({TankLevel}%) - interlock stopping pump." },
+      { "Type": "SendCommand", "CnlNum": 201, "CmdVal": 0.0, "Text": "Stop tank pump due to low level" }
+    ]
+  },
+  {
+    "RuleName": "ComputedFlowTotal",
+    "Description": "Example: compute a derived flow total when both flow meters are defined.",
+    "Expression": "Channels[\"FlowMeter1\"] > 0.0 && Channels[\"FlowMeter2\"] > 0.0",
+    "RuleExpressionType": "LambdaExpression",
+    "SuccessEvent": "Flow total computed",
+    "ErrorMessage": "",
+    "Enabled": false,
+    "ChannelInputs": [
+      { "Alias": "FlowMeter1", "CnlNum": 103 },
+      { "Alias": "FlowMeter2", "CnlNum": 104 }
+    ],
+    "Actions": [
+      { "Type": "WriteData", "CnlNum": 301, "CmdVal": 0.0, "Text": "Derived flow channel updated" }
+    ]
+  }
+]

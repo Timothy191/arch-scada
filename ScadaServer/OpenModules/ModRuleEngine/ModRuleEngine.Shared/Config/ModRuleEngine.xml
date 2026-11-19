@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ModRuleEngine>
+  <GeneralOptions>
+    <!-- How often (ms) the rule engine re-evaluates all rules when no new data arrives. 0 = evaluate only on new data. -->
+    <PollIntervalMs>0</PollIntervalMs>
+    <!-- Whether to write an SCADA event when a rule fires. -->
+    <RaiseEvents>true</RaiseEvents>
+    <!-- Whether to send telecontrol commands when a rule action requests it. -->
+    <SendCommands>true</SendCommands>
+  </GeneralOptions>
+</ModRuleEngine>

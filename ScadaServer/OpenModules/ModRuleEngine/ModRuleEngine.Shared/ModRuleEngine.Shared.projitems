@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <SharedContent Condition="'$(SharedContent)'==''">true</SharedContent>
+    <IsSharedProject>true</IsSharedProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\ModRuleEngine.Logic\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Config\*.xml" />
+    <None Include="Config\*.json" />
+  </ItemGroup>
+</Project>
