@@ -66,6 +66,33 @@ public class Plant3DTests
         Assert.Equal("TK-201", picked);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Plant3DSceneData_BuildCameraMatrices_MapsNearAndFarToOpenGlClipSpace(bool isOrthographic)
+    {
+        const double targetX = 0.0;
+        const double targetZ = 0.5;
+        var (view, proj, camPos) = Plant3DSceneData.BuildCameraMatrices(
+            yaw: -0.62, pitch: 0.52, zoom: 1.05, targetX: targetX, targetZ: targetZ,
+            width: 800, height: 420, isOrthographic: isOrthographic);
+
+        var target = new Vector3((float)targetX, 0.9f, (float)targetZ);
+        var forward = Vector3.Normalize(target - camPos);
+        float near = isOrthographic ? 0.1f : 0.2f;
+        const float far = 120f;
+
+        var vp = view * proj;
+        var nearClip = Vector4.Transform(new Vector4(camPos + forward * near, 1f), vp);
+        var farClip = Vector4.Transform(new Vector4(camPos + forward * far, 1f), vp);
+
+        float nearNdcZ = nearClip.Z / nearClip.W;
+        float farNdcZ = farClip.Z / farClip.W;
+
+        Assert.InRange(nearNdcZ, -1f - 1e-4f, -1f + 1e-4f);
+        Assert.InRange(farNdcZ, 1f - 1e-4f, 1f + 1e-4f);
+    }
+
     [Fact]
     public void Plant3DSceneData_FlowSpeed_StopsWhenSourceStoppedOrFaulted()
     {

@@ -297,14 +297,46 @@ public static class Plant3DSceneData
         if (isOrthographic)
         {
             float orthoHalfH = (float)(9.5 / Math.Clamp(zoom, 0.4, 3.0));
-            proj = Matrix4x4.CreateOrthographic(orthoHalfH * 2f * aspect, orthoHalfH * 2f, 0.1f, 120f);
+            proj = CreateOpenGlOrthographic(orthoHalfH * 2f * aspect, orthoHalfH * 2f, 0.1f, 120f);
         }
         else
         {
-            proj = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4.2f, aspect, 0.2f, 120f);
+            proj = CreateOpenGlPerspective(MathF.PI / 4.2f, aspect, 0.2f, 120f);
         }
 
         return (view, proj, camPos);
+    }
+
+    /// <summary>
+    /// Creates a right-handed perspective projection matrix using row-vector convention
+    /// (matching <see cref="Matrix4x4.CreateLookAt"/>) for OpenGL [-1, 1] Z clip-space.
+    /// </summary>
+    public static Matrix4x4 CreateOpenGlPerspective(float fovY, float aspect, float near, float far)
+    {
+        float yScale = 1.0f / MathF.Tan(fovY * 0.5f);
+        float xScale = yScale / aspect;
+        float invRange = 1.0f / (near - far);
+
+        return new Matrix4x4(
+            xScale, 0f, 0f, 0f,
+            0f, yScale, 0f, 0f,
+            0f, 0f, (near + far) * invRange, -1f,
+            0f, 0f, 2f * near * far * invRange, 0f);
+    }
+
+    /// <summary>
+    /// Creates a right-handed orthographic projection matrix using row-vector convention
+    /// (matching <see cref="Matrix4x4.CreateLookAt"/>) for OpenGL [-1, 1] Z clip-space.
+    /// </summary>
+    public static Matrix4x4 CreateOpenGlOrthographic(float width, float height, float near, float far)
+    {
+        float invRange = 1.0f / (near - far);
+
+        return new Matrix4x4(
+            2f / width, 0f, 0f, 0f,
+            0f, 2f / height, 0f, 0f,
+            0f, 0f, 2f * invRange, 0f,
+            0f, 0f, (near + far) * invRange, 1f);
     }
 
     /// <summary>

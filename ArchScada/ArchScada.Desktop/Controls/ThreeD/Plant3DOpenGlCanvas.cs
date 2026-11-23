@@ -52,6 +52,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteShaderDel(int shader);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlCreateProgramDel();
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlAttachShaderDel(int program, int shader);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindAttribLocationDel(int program, uint index, byte* name);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlLinkProgramDel(int program);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetProgramivDel(int program, int pname, int* param);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUseProgramDel(int program);
@@ -88,6 +89,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GlDeleteShaderDel? _glDeleteShader;
     private GlCreateProgramDel? _glCreateProgram;
     private GlAttachShaderDel? _glAttachShader;
+    private GlBindAttribLocationDel? _glBindAttribLocation;
     private GlLinkProgramDel? _glLinkProgram;
     private GlGetProgramivDel? _glGetProgramiv;
     private GlUseProgramDel? _glUseProgram;
@@ -176,6 +178,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glDeleteShader = LoadProc<GlDeleteShaderDel>(gl, "glDeleteShader");
             _glCreateProgram = LoadProc<GlCreateProgramDel>(gl, "glCreateProgram");
             _glAttachShader = LoadProc<GlAttachShaderDel>(gl, "glAttachShader");
+            _glBindAttribLocation = LoadProc<GlBindAttribLocationDel>(gl, "glBindAttribLocation");
             _glLinkProgram = LoadProc<GlLinkProgramDel>(gl, "glLinkProgram");
             _glGetProgramiv = LoadProc<GlGetProgramivDel>(gl, "glGetProgramiv");
             _glUseProgram = LoadProc<GlUseProgramDel>(gl, "glUseProgram");
@@ -511,13 +514,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
     private int BuildShaderProgram(bool isEs)
     {
-        string header = isEs ? "#version 300 es\nprecision highp float;\n" : "#version 330 core\n";
+        string header = isEs ? "#version 300 es\nprecision highp float;\n" : "#version 150\n";
 
         string vsSrc = header + @"
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;
-layout(location = 2) in vec3 aColor;
-layout(location = 3) in vec2 aPbr;
+in vec3 aPos;
+in vec3 aNormal;
+in vec3 aColor;
+in vec2 aPbr;
 
 uniform mat4 uModel;
 uniform mat4 uViewProj;
@@ -596,6 +599,10 @@ void main() {
         int prog = _glCreateProgram!();
         _glAttachShader!(prog, vs);
         _glAttachShader!(prog, fs);
+        BindAttribLocation(prog, 0, "aPos");
+        BindAttribLocation(prog, 1, "aNormal");
+        BindAttribLocation(prog, 2, "aColor");
+        BindAttribLocation(prog, 3, "aPbr");
         _glLinkProgram!(prog);
 
         int ok = 0;
@@ -629,6 +636,14 @@ void main() {
             return 0;
         }
         return shader;
+    }
+
+    private void BindAttribLocation(int prog, uint index, string name)
+    {
+        if (_glBindAttribLocation is null) return;
+        var bytes = Encoding.UTF8.GetBytes(name + "\0");
+        fixed (byte* p = bytes)
+            _glBindAttribLocation(prog, index, p);
     }
 
     private int GetUniformLoc(string name)

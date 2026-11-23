@@ -49,6 +49,9 @@ dotnet build ScadaWeb/OpenPlugins/OpenPlugins.sln -c "$CONFIG" -p:AllowMissingPr
 step "OpenExtensions"
 dotnet build ScadaAdmin/OpenExtensions/OpenExtensions.sln -c "$CONFIG"
 
+step "ScadaDoc"
+dotnet build ScadaDoc/ScadaDoc.sln -c "$CONFIG" -p:AllowMissingPrunePackageData=true
+
 # Arch SCADA libraries & desktop HMI (Avalonia, .NET 10)
 if [ -f ArchScada/ArchScada.ControlBoundary/ArchScada.ControlBoundary.csproj ]; then
   step "ArchScada.ControlBoundary"
