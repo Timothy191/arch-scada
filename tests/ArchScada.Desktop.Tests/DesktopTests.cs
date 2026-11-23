@@ -14,10 +14,10 @@ namespace ArchScada.Desktop.Tests;
 public class DesktopTests
 {
     [Fact]
-    public void IntroViewModel_InitializesWithFivePendingChecks()
+    public void SplashViewModel_InitializesWithFivePendingChecks()
     {
         using var bridge = new UnityBridgeService();
-        var vm = new IntroViewModel(bridge);
+        var vm = new SplashViewModel(bridge);
 
         Assert.Equal(5, vm.Checks.Count);
         Assert.All(vm.Checks, check => Assert.Equal(StartupCheckState.Pending, check.State));
@@ -25,26 +25,22 @@ public class DesktopTests
     }
 
     [Fact]
-    public void IntroViewModel_ToggleAutoAdvanceCommand_TogglesFlagAndLabel()
+    public void SplashViewModel_InitializesWithZeroProgressAndDefaultStatus()
     {
         using var bridge = new UnityBridgeService();
-        var vm = new IntroViewModel(bridge);
+        var vm = new SplashViewModel(bridge);
 
-        Assert.True(vm.AutoAdvanceEnabled);
-
-        vm.ToggleAutoAdvanceCommand.Execute(null);
-        Assert.False(vm.AutoAdvanceEnabled);
-        Assert.Equal("Auto-advance paused by operator", vm.AutoAdvanceLabel);
-
-        vm.ToggleAutoAdvanceCommand.Execute(null);
-        Assert.True(vm.AutoAdvanceEnabled);
+        Assert.Equal(0.0, vm.Progress);
+        Assert.Equal("0%", vm.ProgressText);
+        Assert.False(vm.IsComplete);
+        Assert.Equal("Initializing Arch SCADA...", vm.StatusText);
     }
 
     [Fact]
-    public void IntroViewModel_EnterOfflineDemoCommand_FiresCompletedWithTrue()
+    public void SplashViewModel_SkipSplashCommand_FiresCompletedWithTrue()
     {
         using var bridge = new UnityBridgeService();
-        var vm = new IntroViewModel(bridge);
+        var vm = new SplashViewModel(bridge);
 
         bool? completedArg = null;
         int fireCount = 0;
@@ -54,7 +50,7 @@ public class DesktopTests
             completedArg = offline;
         };
 
-        vm.EnterOfflineDemoCommand.Execute(null);
+        vm.SkipSplashCommand.Execute(null);
 
         Assert.Equal(1, fireCount);
         Assert.True(completedArg);

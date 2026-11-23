@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build all Rapid SCADA / Arch SCADA solutions in the documented order.
-# See HowToBuild.txt. Run from the repository root.
+# See CLAUDE.md. Run from the repository root.
 set -euo pipefail
 
 CONFIG="${1:-Release}"
