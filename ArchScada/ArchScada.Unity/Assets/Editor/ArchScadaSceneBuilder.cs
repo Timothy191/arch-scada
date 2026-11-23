@@ -22,9 +22,13 @@ namespace ArchScada.Unity.Editor
         private static readonly string[] GlbFileNames =
         {
             "crusher_cr101.glb",
+            "conveyor_segment.glb",
+            "vibrating_screen_sc102.glb",
             "thickener_tk201.glb",
             "centrifugal_pump.glb",
-            "conveyor_segment.glb",
+            "magnetite_tank_tk301.glb",
+            "magnetic_separator_ms301.glb",
+            "dense_medium_sump_dm301.glb",
             "flotation_column_fc401.glb",
             "centrifuge_cf501.glb",
             "coal_silo_sl601.glb"
@@ -71,24 +75,24 @@ namespace ArchScada.Unity.Editor
         private static readonly EquipmentSpec[] PlantLayout =
         {
             // Crushing & Conveyors (Left Zone)
-            new EquipmentSpec("CR-101", "crusher_cr101.glb", new Vector3(-7.5f, 0f, -2.5f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(2.2f, 1.8f, 2.0f), true, Vector3.up, 30f),
-            new EquipmentSpec("CV-101", "conveyor_segment.glb", new Vector3(-4.2f, 0.35f, -2.5f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(4.2f, 0.5f, 1.0f)),
-            new EquipmentSpec("SC-102", null, new Vector3(-1.3f, 0.75f, -2.5f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(1.8f, 1.5f, 1.8f), true, Vector3.right, 60f),
-            new EquipmentSpec("CV-102", "conveyor_segment.glb", new Vector3(-1.3f, 0.3f, 0.6f), new Vector3(0f, 90f, 0f), new Vector3(0.75f, 1f, 1f), PrimitiveType.Cube, new Vector3(1.1f, 0.4f, 3.8f)),
-            new EquipmentSpec("SL-601", "coal_silo_sl601.glb", new Vector3(-7.5f, 0f, 3.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(3.0f, 4.0f, 3.0f)),
+            new EquipmentSpec("CR-101", "crusher_cr101.glb", new Vector3(-7.5f, 0f, -2.5f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(2.2f, 1.8f, 2.0f), false, Vector3.up, 30f),
+            new EquipmentSpec("CV-101", "conveyor_segment.glb", new Vector3(-4.2f, 0.1f, -2.5f), Vector3.zero, new Vector3(0.65f, 1f, 1f), PrimitiveType.Cube, new Vector3(4.2f, 0.5f, 1.0f)),
+            new EquipmentSpec("SC-102", "vibrating_screen_sc102.glb", new Vector3(-1.3f, 0f, -2.5f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(1.8f, 1.5f, 1.8f), false, Vector3.right, 60f),
+            new EquipmentSpec("CV-102", "conveyor_segment.glb", new Vector3(-1.3f, 0.1f, 0.6f), new Vector3(0f, 90f, 0f), new Vector3(0.65f, 1f, 1f), PrimitiveType.Cube, new Vector3(1.1f, 0.4f, 3.8f)),
+            new EquipmentSpec("SL-601", "coal_silo_sl601.glb", new Vector3(-8.2f, 0f, 1.6f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(3.0f, 4.0f, 3.0f)),
 
             // Thickener Circuit (Center-Front Zone)
             new EquipmentSpec("TK-201", "thickener_tk201.glb", new Vector3(1.2f, 0f, 3.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(5.6f, 0.9f, 5.6f), true, Vector3.up, 18f),
-            new EquipmentSpec("PP-201", "centrifugal_pump.glb", new Vector3(-2.4f, 0f, 4.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.0f, 0.9f, 1.0f), true, Vector3.right, 120f),
-            new EquipmentSpec("PP-202", "centrifugal_pump.glb", new Vector3(-2.4f, 0f, 5.5f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.0f, 0.9f, 1.0f), true, Vector3.right, 120f),
-            new EquipmentSpec("PP-203", "centrifugal_pump.glb", new Vector3(4.6f, 0f, 4.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(0.9f, 0.8f, 0.9f), true, Vector3.right, 120f),
+            new EquipmentSpec("PP-201", "centrifugal_pump.glb", new Vector3(-2.4f, 0f, 4.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.0f, 0.9f, 1.0f), false, Vector3.right, 120f),
+            new EquipmentSpec("PP-202", "centrifugal_pump.glb", new Vector3(-2.4f, 0f, 5.5f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.0f, 0.9f, 1.0f), false, Vector3.right, 120f),
+            new EquipmentSpec("PP-203", "centrifugal_pump.glb", new Vector3(4.6f, 0f, 4.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(0.9f, 0.8f, 0.9f), false, Vector3.right, 120f),
 
             // Magnetite Preparation & Fine Coal Processing (Right Zone)
-            new EquipmentSpec("TK-301", null, new Vector3(5.8f, 1.2f, -2.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(2.8f, 1.2f, 2.8f)),
-            new EquipmentSpec("MS-301", null, new Vector3(3.2f, 0.7f, -2.2f), new Vector3(0f, 0f, 90f), Vector3.one, PrimitiveType.Cylinder, new Vector3(1.6f, 0.8f, 1.6f), true, Vector3.up, 75f),
-            new EquipmentSpec("DM-301", "centrifugal_pump.glb", new Vector3(5.8f, 0f, 0.8f), new Vector3(0f, -90f, 0f), new Vector3(1.2f, 1.2f, 1.2f), PrimitiveType.Cube, new Vector3(1.4f, 1.1f, 1.2f), true, Vector3.right, 140f),
-            new EquipmentSpec("FC-401", "flotation_column_fc401.glb", new Vector3(8.8f, 0f, -2.0f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(2.0f, 3.0f, 2.0f)),
-            new EquipmentSpec("CF-501", "centrifuge_cf501.glb", new Vector3(8.8f, 0f, 1.8f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.8f, 1.2f, 1.8f), true, Vector3.right, 180f)
+            new EquipmentSpec("TK-301", "magnetite_tank_tk301.glb", new Vector3(5.8f, 0f, -2.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(2.8f, 1.2f, 2.8f)),
+            new EquipmentSpec("MS-301", "magnetic_separator_ms301.glb", new Vector3(3.2f, 0f, -2.2f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.6f, 0.8f, 1.6f), true, Vector3.right, 75f),
+            new EquipmentSpec("DM-301", "dense_medium_sump_dm301.glb", new Vector3(5.8f, 0f, 0.8f), Vector3.zero, Vector3.one, PrimitiveType.Cube, new Vector3(1.4f, 1.1f, 1.2f)),
+            new EquipmentSpec("FC-401", "flotation_column_fc401.glb", new Vector3(-5.8f, 0f, 3.6f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(2.0f, 3.0f, 2.0f)),
+            new EquipmentSpec("CF-501", "centrifuge_cf501.glb", new Vector3(5.6f, 0f, 4.4f), Vector3.zero, Vector3.one, PrimitiveType.Cylinder, new Vector3(1.8f, 1.2f, 1.8f), false, Vector3.right, 180f)
         };
 
         [MenuItem("ArchScada/Build Coal Plant 3D Scene")]

@@ -316,6 +316,10 @@ public partial class MainShellViewModel : ViewModelBase
 
         var (success, output) = await _unityBridge.GenerateBlenderAssetsAsync();
         BlenderBuildStatus = success ? output : $"Error: {output}";
+        if (success)
+        {
+            ArchScada.Desktop.Controls.ThreeD.Plant3DSceneData.InvalidateMeshCache();
+        }
         RefreshExportedModels();
         IsGeneratingBlenderAssets = false;
     }

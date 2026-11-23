@@ -2,24 +2,25 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using ArchScada.Desktop.Controls.ThreeD;
 using ArchScada.Desktop.Models;
 
 namespace ArchScada.Desktop.Controls;
 
 /// <summary>
-/// Interactive 3D viewport rendering the coal processing plant with:
-/// - Smooth camera orbit/pan/zoom, Auto-Orbit, Perspective/Orthographic toggle, WASD/F/R keys
-/// - Focus-on-Selected and Focus-on-Alarm camera fly-to
-/// - Telemetry-driven vibration physics (SC-102, CF-501) and rotating drum/rake (TK-201, MS-301)
-/// - Ground cast shadows, depth fog, specular highlights, connecting pipes, and 3D axis gizmo
+/// Interactive 3D CHPP Digital Twin viewport:
+/// - Primary: Hardware-accelerated OpenGL 3.3/ES3 renderer (Plant3DOpenGlCanvas) loading Blender .glb meshes with true Z-buffer
+/// - Fallback: High-Fidelity Pure-Avalonia software renderer (foundation pads, orthogonal 3D pipes, live fill levels, telemetry-coupled flow)
+/// - Unified HUD: Direct 3D raycast picking &amp; hover tooltips, decluttered labels for all 14 assets, axis gizmo, and lifecycle-aware animation
 /// </summary>
-public sealed class Plant3DViewportControl : Control
+public sealed class Plant3DViewportControl : Panel
 {
     public static readonly StyledProperty<IReadOnlyList<EquipmentItem>?> EquipmentProperty =
         AvaloniaProperty.Register<Plant3DViewportControl, IReadOnlyList<EquipmentItem>?>(nameof(Equipment));
@@ -68,39 +69,32 @@ public sealed class Plant3DViewportControl : Control
         set => SetValue(FocusTargetIdProperty, value);
     }
 
-    private readonly DispatcherTimer _animTimer;
-    private readonly Dictionary<uint, SolidColorBrush> _brushCache = new();
-    private readonly List<(string Id, Rect Bounds)> _hitRects = new();
+    public bool IsHardwareAccelerated => _glCanvas.IsHardwareActive;
 
-    private static readonly Pen FaceEdgePen = new(new SolidColorBrush(Color.FromArgb(80, 255, 255, 255)), 0.7);
-    private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromArgb(42, 56, 189, 248)), 1);
-    private static readonly Pen PipePen = new(new SolidColorBrush(Color.FromArgb(140, 148, 163, 184)), 2.2);
-    private static readonly SolidColorBrush LabelBgBrush = new(Color.FromArgb(195, 15, 23, 42));
-    private static readonly SolidColorBrush SelectedLabelBgBrush = new(Color.FromArgb(225, 12, 74, 110));
-    private static readonly Pen SelectedLabelPen = new(new SolidColorBrush(Color.Parse("#38BDF8")), 1.5);
-    private static readonly Typeface LabelTypeface = new("Inter", FontStyle.Normal, FontWeight.SemiBold);
-    private static readonly Typeface HudTypeface = new("Inter");
+    private readonly Plant3DOpenGlCanvas _glCanvas;
+    private readonly HudOverlayControl _overlay;
+    private readonly DispatcherTimer _animTimer;
+    private readonly List<(string Id, Rect Bounds)> _hitRects = new();
 
     private double _time;
     private double _yaw = -0.62;
     private double _pitch = 0.52;
     private double _zoom = 1.05;
     private double _targetX;
-    private double _targetZ;
+    private double _targetZ = 0.5;
 
     private double _goalYaw = -0.62;
     private double _goalPitch = 0.52;
     private double _goalZoom = 1.05;
     private double _goalTargetX;
-    private double _goalTargetZ;
+    private double _goalTargetZ = 0.5;
 
     private Point? _pressOrigin;
     private Point? _lastPointer;
+    private Point? _hoverPointer;
+    private string? _hoveredId;
     private bool _isPanning;
     private bool _didDrag;
-
-    private readonly record struct Vec3(double X, double Y, double Z);
-    private readonly record struct Face3D(Vec3[] Vertices, Color BaseColor, double Depth, Vec3 Normal);
 
     static Plant3DViewportControl()
     {
@@ -116,18 +110,43 @@ public sealed class Plant3DViewportControl : Control
     {
         ClipToBounds = true;
         Focusable = true;
+        Background = new SolidColorBrush(Color.Parse("#080E1B"));
+
+        _glCanvas = new Plant3DOpenGlCanvas { IsHitTestVisible = false };
+        _overlay = new HudOverlayControl(this) { IsHitTestVisible = false };
+
+        Children.Add(_glCanvas);
+        Children.Add(_overlay);
+
         _animTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _animTimer.Tick += (_, _) =>
         {
+            if (!IsEffectivelyVisible || Bounds.Width < 40 || Bounds.Height < 40)
+                return;
+
             _time += 0.033;
             if (Effects?.AutoOrbit == true && _lastPointer is null)
             {
                 _goalYaw += 0.0045;
             }
             StepCameraSmoothing();
-            InvalidateVisual();
+            SyncCanvasState();
+            _glCanvas.RequestNextFrameRendering();
+            _overlay.InvalidateVisual();
         };
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SyncCanvasState();
         _animTimer.Start();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _animTimer.Stop();
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -141,22 +160,44 @@ public sealed class Plant3DViewportControl : Control
         {
             FocusOnEquipment(id);
         }
+        else if (change.Property == EquipmentProperty || change.Property == EffectsProperty || change.Property == SelectedEquipmentProperty)
+        {
+            SyncCanvasState();
+            _glCanvas.RequestNextFrameRendering();
+            _overlay.InvalidateVisual();
+        }
     }
 
     public void FocusOnEquipment(string equipmentId)
     {
-        foreach (var (id, pos) in GetLabelPositions())
+        foreach (var p in Plant3DSceneData.Placements)
         {
-            if (id == equipmentId)
+            if (string.Equals(p.Id, equipmentId, StringComparison.OrdinalIgnoreCase))
             {
-                _goalTargetX = pos.X;
-                _goalTargetZ = pos.Z;
+                _goalTargetX = p.Position.X;
+                _goalTargetZ = p.Position.Z;
                 _goalZoom = 1.68;
                 _goalPitch = 0.48;
-                InvalidateVisual();
+                SyncCanvasState();
+                _glCanvas.RequestNextFrameRendering();
+                _overlay.InvalidateVisual();
                 return;
             }
         }
+    }
+
+    private void SyncCanvasState()
+    {
+        _glCanvas.CameraYaw = _yaw;
+        _glCanvas.CameraPitch = _pitch;
+        _glCanvas.CameraZoom = _zoom;
+        _glCanvas.TargetX = _targetX;
+        _glCanvas.TargetZ = _targetZ;
+        _glCanvas.SimTime = _time;
+        _glCanvas.Equipment = Equipment;
+        _glCanvas.Effects = Effects;
+        _glCanvas.SelectedEquipmentId = SelectedEquipment?.Id;
+        _glCanvas.HoveredEquipmentId = _hoveredId;
     }
 
     private void StepCameraSmoothing()
@@ -198,7 +239,9 @@ public sealed class Plant3DViewportControl : Control
                 _goalYaw = -0.62; _goalPitch = 0.52; _goalZoom = 1.05; _goalTargetX = 0.0; _goalTargetZ = 0.5;
                 break;
         }
-        InvalidateVisual();
+        SyncCanvasState();
+        _glCanvas.RequestNextFrameRendering();
+        _overlay.InvalidateVisual();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -259,13 +302,24 @@ public sealed class Plant3DViewportControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        var cur = e.GetPosition(this);
+        _hoverPointer = cur;
+
         var props = e.GetCurrentPoint(this).Properties;
         if (_lastPointer is not Point prev || (!props.IsLeftButtonPressed && !props.IsRightButtonPressed && !props.IsMiddleButtonPressed))
         {
+            // Direct 3D hover picking
+            var newHover = HitTestEquipmentAt(cur);
+            if (!string.Equals(newHover, _hoveredId, StringComparison.OrdinalIgnoreCase))
+            {
+                _hoveredId = newHover;
+                SyncCanvasState();
+                _glCanvas.RequestNextFrameRendering();
+                _overlay.InvalidateVisual();
+            }
             return;
         }
 
-        var cur = e.GetPosition(this);
         var dx = cur.X - prev.X;
         var dy = cur.Y - prev.Y;
         if (_pressOrigin is Point origin && Math.Abs(cur.X - origin.X) + Math.Abs(cur.Y - origin.Y) > 4)
@@ -288,7 +342,21 @@ public sealed class Plant3DViewportControl : Control
         }
 
         _lastPointer = cur;
-        InvalidateVisual();
+        SyncCanvasState();
+        _glCanvas.RequestNextFrameRendering();
+        _overlay.InvalidateVisual();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _hoverPointer = null;
+        if (_hoveredId is not null)
+        {
+            _hoveredId = null;
+            SyncCanvasState();
+            _overlay.InvalidateVisual();
+        }
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -296,8 +364,7 @@ public sealed class Plant3DViewportControl : Control
         base.OnPointerReleased(e);
         if (!_didDrag && !_isPanning)
         {
-            var pos = e.GetPosition(this);
-            TrySelectAt(pos);
+            TrySelectAt(e.GetPosition(this));
         }
 
         _pressOrigin = null;
@@ -311,46 +378,54 @@ public sealed class Plant3DViewportControl : Control
     {
         base.OnPointerWheelChanged(e);
         _goalZoom = Math.Clamp(_goalZoom + e.Delta.Y * 0.10, 0.50, 2.60);
-        InvalidateVisual();
+        SyncCanvasState();
+        _glCanvas.RequestNextFrameRendering();
+        _overlay.InvalidateVisual();
+    }
+
+    private string? HitTestEquipmentAt(Point p)
+    {
+        // 1. Check floating HUD labels first (exact click on tag)
+        for (int i = _hitRects.Count - 1; i >= 0; i--)
+        {
+            if (_hitRects[i].Bounds.Contains(p))
+                return _hitRects[i].Id;
+        }
+
+        // 2. Direct 3D Ray-AABB picking across all 14 plant assemblies
+        if (Bounds.Width < 40 || Bounds.Height < 40) return null;
+        var fx = Effects ?? new Unity3DEffectSettings();
+        var (view, proj, _) = Plant3DSceneData.BuildCameraMatrices(
+            _yaw, _pitch, _zoom, _targetX, _targetZ, Bounds.Width, Bounds.Height, fx.IsOrthographic);
+        var ray = Plant3DSceneData.UnprojectRay(p, view * proj, Bounds.Width, Bounds.Height);
+        return Plant3DSceneData.PickEquipment(ray, Plant3DSceneData.LoadAllGlbMeshes());
     }
 
     private void TrySelectAt(Point p)
     {
         if (Equipment is null) return;
-        for (int i = _hitRects.Count - 1; i >= 0; i--)
+        var hitId = HitTestEquipmentAt(p);
+        if (hitId is null) return;
+
+        var match = Equipment.FirstOrDefault(eq => string.Equals(eq.Id, hitId, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
         {
-            if (_hitRects[i].Bounds.Contains(p))
-            {
-                var match = Equipment.FirstOrDefault(eq => eq.Id == _hitRects[i].Id);
-                if (match is not null)
-                {
-                    SelectedEquipment = match;
-                    InvalidateVisual();
-                }
-                return;
-            }
+            SelectedEquipment = match;
+            SyncCanvasState();
+            _glCanvas.RequestNextFrameRendering();
+            _overlay.InvalidateVisual();
         }
     }
 
-    private SolidColorBrush GetBrush(byte r, byte g, byte b, byte a = 255)
+    /// <summary>
+    /// Layered 2D HUD + High-Fidelity Pure-Avalonia software fallback renderer when OpenGL is unavailable.
+    /// </summary>
+    private sealed class HudOverlayControl : Control
     {
-        uint key = ((uint)a << 24) | ((uint)r << 16) | ((uint)g << 8) | b;
-        if (!_brushCache.TryGetValue(key, out var brush))
-        {
-            brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
-            _brushCache[key] = brush;
-        }
-        return brush;
-    }
+        private readonly Plant3DViewportControl _owner;
+        private readonly Dictionary<uint, SolidColorBrush> _brushCache = new();
 
-    public override void Render(DrawingContext context)
-    {
-        base.Render(context);
-        var w = Bounds.Width;
-        var h = Bounds.Height;
-        if (w < 40 || h < 40) return;
-
-        var bgBrush = new LinearGradientBrush
+        private static readonly LinearGradientBrush FallbackBgBrush = new()
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
             EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
@@ -360,515 +435,372 @@ public sealed class Plant3DViewportControl : Control
                 new GradientStop(Color.Parse("#0B1324"), 1)
             }
         };
-        context.FillRectangle(bgBrush, new Rect(0, 0, w, h), 6);
 
-        var fx = Effects ?? new Unity3DEffectSettings();
-        var eqMap = (Equipment ?? Array.Empty<EquipmentItem>()).ToDictionary(e => e.Id, e => e);
+        private static readonly Pen FaceEdgePen = new(new SolidColorBrush(Color.FromArgb(48, 255, 255, 255)), 0.55);
+        private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromArgb(38, 56, 189, 248)), 1);
+        private static readonly SolidColorBrush LabelBgBrush = new(Color.FromArgb(198, 15, 23, 42));
+        private static readonly SolidColorBrush SelectedLabelBgBrush = new(Color.FromArgb(232, 12, 74, 110));
+        private static readonly SolidColorBrush HoverLabelBgBrush = new(Color.FromArgb(220, 30, 41, 59));
+        private static readonly Pen SelectedLabelPen = new(new SolidColorBrush(Color.Parse("#38BDF8")), 1.5);
+        private static readonly Pen HoverLabelPen = new(new SolidColorBrush(Color.Parse("#93C5FD")), 1.1);
+        private static readonly Typeface LabelTypeface = new("Inter", FontStyle.Normal, FontWeight.SemiBold);
+        private static readonly Typeface HudTypeface = new("Inter");
 
-        DrawGroundGrid(context, w, h);
-        if (fx.ShowGroundShadows)
+        private readonly record struct SoftTri(Point A, Point B, Point C, Color Fill, float Depth);
+
+        public HudOverlayControl(Plant3DViewportControl owner) => _owner = owner;
+
+        private SolidColorBrush GetBrush(byte r, byte g, byte b, byte a = 255)
         {
-            DrawGroundShadows(context, w, h);
-        }
-        DrawConnectingPipes(context, w, h);
-
-        var faces = new List<Face3D>(384);
-
-        Color GetAssetColor(string id, Color defaultColor)
-        {
-            if (!eqMap.TryGetValue(id, out var eq)) return defaultColor;
-            if (fx.ShowThermalHeatmap)
+            uint key = ((uint)a << 24) | ((uint)r << 16) | ((uint)g << 8) | b;
+            if (!_brushCache.TryGetValue(key, out var brush))
             {
-                if (eq.LoadPercent >= 85) return Color.Parse("#EF4444");
-                if (eq.LoadPercent >= 70) return Color.Parse("#F59E0B");
-                if (eq.LoadPercent >= 40) return Color.Parse("#22C55E");
-                return Color.Parse("#38BDF8");
+                brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+                _brushCache[key] = brush;
             }
-            return eq.Status switch
-            {
-                EquipmentStatus.Warning => Color.Parse("#F59E0B"),
-                EquipmentStatus.Fault => Color.Parse("#EF4444"),
-                EquipmentStatus.Stopped => Color.Parse("#475569"),
-                _ => defaultColor
-            };
+            return brush;
         }
 
-        double GetVibrationOffset(string id)
+        public override void Render(DrawingContext context)
         {
-            if (!fx.EnableVibrationPhysics || !eqMap.TryGetValue(id, out var eq) || eq.Status == EquipmentStatus.Stopped)
-                return 0.0;
-            double amp = 0.02 + 0.03 * (eq.LoadPercent / 100.0);
-            return Math.Sin(_time * 28.0) * amp;
+            base.Render(context);
+            var w = Bounds.Width;
+            var h = Bounds.Height;
+            if (w < 40 || h < 40) return;
+
+            var fx = _owner.Effects ?? new Unity3DEffectSettings();
+            var eqMap = (_owner.Equipment ?? Array.Empty<EquipmentItem>()).ToDictionary(e => e.Id, e => e, StringComparer.OrdinalIgnoreCase);
+
+            var (view, proj, camPos) = Plant3DSceneData.BuildCameraMatrices(
+                _owner._yaw, _owner._pitch, _owner._zoom, _owner._targetX, _owner._targetZ, w, h, fx.IsOrthographic);
+            var viewProj = view * proj;
+
+            // If hardware OpenGL is not active (e.g., headless tests or software VM), render the High-Fidelity Pure-Avalonia 3D fallback
+            if (!_owner._glCanvas.IsHardwareActive)
+            {
+                RenderSoftwareFallback(context, w, h, viewProj, camPos, fx, eqMap);
+            }
+
+            // Always render crisp 2D HUD overlay on top
+            DrawDeclutteredLabels(context, w, h, viewProj, eqMap);
+            DrawHoverTooltip(context, w, h, eqMap);
+            DrawAxisGizmo(context, w);
+            DrawHudFooter(context, w, h, fx);
         }
 
-        // --- CRUSHING & CONVEYORS ---
-        AddBox(faces, new Vec3(-7.5, 0.9, -2.5), 2.2, 1.8, 2.0, GetAssetColor("CR-101", Color.Parse("#334155")));
-        AddPyramidHopper(faces, new Vec3(-7.5, 2.4, -2.5), 2.6, 1.2, Color.Parse("#D97706"));
-
-        AddSubdividedConveyorX(faces, -6.0, -2.4, 0.65, 1.25, -2.5, 0.95, 3, GetAssetColor("CV-101", Color.Parse("#1E3A5F")));
-        double scVib = GetVibrationOffset("SC-102");
-        AddBox(faces, new Vec3(-1.3, 1.25 + scVib, -2.5), 1.8, 1.5, 1.8, GetAssetColor("SC-102", Color.Parse("#0284C7")));
-        AddSubdividedConveyorZ(faces, -1.3, -1.3, 2.5, 0.95, 0.65, 1.0, 3, GetAssetColor("CV-102", Color.Parse("#1E3A5F")));
-
-        // --- THICKENER CIRCUIT ---
-        AddCylinder(faces, new Vec3(1.2, 0.0, 3.2), 2.8, 1.6, 20, GetAssetColor("TK-201", Color.Parse("#1E40AF")));
-        double rakeAngle = fx.AnimateConveyors ? _time * 0.45 : 0.2;
-        AddRotatedBar(faces, new Vec3(1.2, 1.78, 3.2), 5.8, 0.22, 0.42, rakeAngle, Color.Parse("#38BDF8"));
-
-        AddBox(faces, new Vec3(-2.4, 0.45, 4.2), 1.1, 0.9, 0.9, GetAssetColor("PP-201", Color.Parse("#0EA5E9")));
-        AddBox(faces, new Vec3(-2.4, 0.45, 5.5), 1.1, 0.9, 0.9, GetAssetColor("PP-202", Color.Parse("#475569")));
-        AddBox(faces, new Vec3(4.6, 0.40, 4.2), 0.9, 0.8, 0.8, GetAssetColor("PP-203", Color.Parse("#10B981")));
-
-        // --- MAGNETITE PREPARATION ---
-        AddCylinder(faces, new Vec3(5.8, 0.0, -2.2), 1.45, 2.4, 14, GetAssetColor("TK-301", Color.Parse("#B45309")));
-        AddCylinder(faces, new Vec3(3.2, 0.6, -2.2), 0.95, 1.4, 12, GetAssetColor("MS-301", Color.Parse("#0D9488")));
-        double drumAngle = fx.AnimateConveyors ? _time * 1.4 : 0.0;
-        AddRotatedBar(faces, new Vec3(3.2, 2.08, -2.2), 1.7, 0.16, 0.25, drumAngle, Color.Parse("#5EEAD4"));
-        AddBox(faces, new Vec3(5.8, 0.55, 0.8), 1.4, 1.1, 1.2, GetAssetColor("DM-301", Color.Parse("#0284C7")));
-        AddPyramidHopper(faces, new Vec3(5.8, 1.6, 0.8), 1.2, 0.9, Color.Parse("#38BDF8"));
-
-        // --- FINE COAL, DEWATERING & SILO LOADOUT ---
-        AddCylinder(faces, new Vec3(-5.8, 0.0, 3.6), 0.95, 3.0, 14, GetAssetColor("FC-401", Color.Parse("#0284C7")));
-        AddCylinder(faces, new Vec3(-5.8, 2.75, 3.6), 1.25, 0.35, 14, Color.Parse("#38BDF8"));
-        double cfVib = GetVibrationOffset("CF-501");
-        AddBox(faces, new Vec3(5.6, 0.7 + cfVib, 4.4), 2.0, 1.4, 1.3, GetAssetColor("CF-501", Color.Parse("#7C3AED")));
-        AddCylinder(faces, new Vec3(-8.2, 0.7, 1.6), 1.35, 2.9, 16, GetAssetColor("SL-601", Color.Parse("#059669")));
-        AddPyramidHopper(faces, new Vec3(-8.2, 0.35, 1.6), 2.0, 0.7, Color.Parse("#334155"));
-
-        faces.Sort((a, b) => b.Depth.CompareTo(a.Depth));
-
-        var lightDir = Normalize(new Vec3(0.45, 0.82, -0.35));
-        foreach (var face in faces)
+        private void RenderSoftwareFallback(
+            DrawingContext context, double w, double h,
+            Matrix4x4 viewProj, Vector3 camPos,
+            Unity3DEffectSettings fx, Dictionary<string, EquipmentItem> eqMap)
         {
-            var c0 = TransformToCamera(face.Vertices[0]);
-            var c1 = TransformToCamera(face.Vertices[1]);
-            var c2 = TransformToCamera(face.Vertices[2]);
-            var camCross = Cross(Sub(c1, c0), Sub(c2, c0));
-            if (camCross.Z <= 0) continue;
+            context.FillRectangle(FallbackBgBrush, new Rect(0, 0, w, h), 6);
 
-            var pts = new Point[face.Vertices.Length];
-            bool visible = true;
-            for (int i = 0; i < face.Vertices.Length; i++)
+            // Ground Grid
+            for (int i = -12; i <= 12; i += 2)
             {
-                if (!TryProject(face.Vertices[i], w, h, out pts[i]))
+                if (Plant3DSceneData.TryProjectToScreen(new(i, 0, -8), viewProj, w, h, out var a, out _) &&
+                    Plant3DSceneData.TryProjectToScreen(new(i, 0, 8), viewProj, w, h, out var b, out _))
+                    context.DrawLine(GridPen, a, b);
+            }
+            for (int j = -8; j <= 8; j += 2)
+            {
+                if (Plant3DSceneData.TryProjectToScreen(new(-12, 0, j), viewProj, w, h, out var c, out _) &&
+                    Plant3DSceneData.TryProjectToScreen(new(12, 0, j), viewProj, w, h, out var d, out _))
+                    context.DrawLine(GridPen, c, d);
+            }
+
+            // Concrete Foundation Pads
+            foreach (var pad in Plant3DSceneData.FoundationPads)
+            {
+                DrawProjectedQuad(context, viewProj, w, h,
+                    new Vector3(pad.Center.X - pad.Size.X * 0.5f, 0.01f, pad.Center.Z - pad.Size.Z * 0.5f),
+                    new Vector3(pad.Center.X + pad.Size.X * 0.5f, 0.01f, pad.Center.Z - pad.Size.Z * 0.5f),
+                    new Vector3(pad.Center.X + pad.Size.X * 0.5f, 0.01f, pad.Center.Z + pad.Size.Z * 0.5f),
+                    new Vector3(pad.Center.X - pad.Size.X * 0.5f, 0.01f, pad.Center.Z + pad.Size.Z * 0.5f),
+                    GetBrush(28, 37, 52, 200),
+                    new Pen(GetBrush(pad.AccentColor.R, pad.AccentColor.G, pad.AccentColor.B, 140), 1.4));
+            }
+
+            // Orthogonal 3D Pipes
+            foreach (var route in Plant3DSceneData.PipeRoutes)
+            {
+                var c = Plant3DSceneData.GetMediumColor(route.Medium);
+                var pipePen = new Pen(GetBrush(c.R, c.G, c.B, 165), 2.4);
+                for (int i = 0; i < route.Waypoints.Length - 1; i++)
                 {
-                    visible = false;
-                    break;
+                    if (Plant3DSceneData.TryProjectToScreen(route.Waypoints[i], viewProj, w, h, out var p0, out _) &&
+                        Plant3DSceneData.TryProjectToScreen(route.Waypoints[i + 1], viewProj, w, h, out var p1, out _))
+                    {
+                        context.DrawLine(pipePen, p0, p1);
+                    }
                 }
             }
-            if (!visible) continue;
 
-            double ndotl = Math.Max(0, Dot(face.Normal, lightDir));
-            double shade = 0.46 + 0.54 * ndotl + (ndotl > 0.82 ? 0.12 : 0.0);
-            double fog = Math.Clamp((face.Depth - 14.0) / 28.0, 0.0, 0.35);
+            // Project loaded GLB meshes (depth-sorted triangles with directional + hemisphere lighting)
+            var meshes = Plant3DSceneData.LoadAllGlbMeshes();
+            var lightDir = Vector3.Normalize(new Vector3(0.48f, 0.82f, 0.34f));
+            var tris = new List<SoftTri>(2048);
 
-            byte r = (byte)Math.Clamp(face.BaseColor.R * shade * (1 - fog) + 11 * fog, 0, 255);
-            byte g = (byte)Math.Clamp(face.BaseColor.G * shade * (1 - fog) + 19 * fog, 0, 255);
-            byte b = (byte)Math.Clamp(face.BaseColor.B * shade * (1 - fog) + 36 * fog, 0, 255);
+            foreach (var p in Plant3DSceneData.Placements)
+            {
+                eqMap.TryGetValue(p.Id, out var eq);
+                float vibY = (p.Vibrates && fx.EnableVibrationPhysics && eq is not null && eq.Status != EquipmentStatus.Stopped)
+                    ? MathF.Sin((float)(_owner._time * 28.0)) * (0.018f + 0.025f * (float)(eq.LoadPercent / 100.0))
+                    : 0f;
+
+                var model = Matrix4x4.CreateScale(p.Scale)
+                          * Matrix4x4.CreateRotationY(p.YawDegrees * (MathF.PI / 180f))
+                          * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + vibY, p.Position.Z);
+
+                var tint = Plant3DSceneData.GetStatusTint(p, eq, fx);
+                float tintMix = fx.ShowThermalHeatmap ? 0.78f
+                    : (eq?.Status is EquipmentStatus.Fault or EquipmentStatus.Warning or EquipmentStatus.Stopped ? 0.58f : 0.10f);
+
+                if (meshes.TryGetValue(p.GlbFileName, out var mesh))
+                {
+                    var verts = mesh.Vertices;
+                    var idx = mesh.Indices;
+                    for (int i = 0; i + 2 < idx.Length; i += 3)
+                    {
+                        int i0 = (int)idx[i] * GlbMeshData.FloatsPerVertex;
+                        int i1 = (int)idx[i + 1] * GlbMeshData.FloatsPerVertex;
+                        int i2 = (int)idx[i + 2] * GlbMeshData.FloatsPerVertex;
+
+                        var w0 = Vector3.Transform(new Vector3(verts[i0], verts[i0 + 1], verts[i0 + 2]), model);
+                        var w1 = Vector3.Transform(new Vector3(verts[i1], verts[i1 + 1], verts[i1 + 2]), model);
+                        var w2 = Vector3.Transform(new Vector3(verts[i2], verts[i2 + 1], verts[i2 + 2]), model);
+
+                        if (!Plant3DSceneData.TryProjectToScreen(w0, viewProj, w, h, out var s0, out float d0) ||
+                            !Plant3DSceneData.TryProjectToScreen(w1, viewProj, w, h, out var s1, out float d1) ||
+                            !Plant3DSceneData.TryProjectToScreen(w2, viewProj, w, h, out var s2, out float d2))
+                            continue;
+
+                        // Backface cull in screen space
+                        double cross = (s1.X - s0.X) * (s2.Y - s0.Y) - (s1.Y - s0.Y) * (s2.X - s0.X);
+                        if (cross >= 0) continue;
+
+                        var n = Vector3.Normalize(Vector3.Cross(w1 - w0, w2 - w0));
+                        float ndotl = MathF.Max(0f, Vector3.Dot(n, lightDir));
+                        float shade = 0.42f + 0.58f * ndotl;
+
+                        float br = verts[i0 + 6] * (1f - tintMix) + (tint.R / 255f) * tintMix;
+                        float bg = verts[i0 + 7] * (1f - tintMix) + (tint.G / 255f) * tintMix;
+                        float bb = verts[i0 + 8] * (1f - tintMix) + (tint.B / 255f) * tintMix;
+
+                        byte r = (byte)Math.Clamp(br * shade * 255f, 0, 255);
+                        byte g = (byte)Math.Clamp(bg * shade * 255f, 0, 255);
+                        byte b = (byte)Math.Clamp(bb * shade * 255f, 0, 255);
+
+                        tris.Add(new SoftTri(s0, s1, s2, Color.FromRgb(r, g, b), (d0 + d1 + d2) / 3f));
+                    }
+                }
+            }
+
+            tris.Sort((a, b) => b.Depth.CompareTo(a.Depth));
+            foreach (var t in tris)
+            {
+                var geom = new StreamGeometry();
+                using (var gctx = geom.Open())
+                {
+                    gctx.BeginFigure(t.A, true);
+                    gctx.LineTo(t.B);
+                    gctx.LineTo(t.C);
+                    gctx.EndFigure(true);
+                }
+                context.DrawGeometry(GetBrush(t.Fill.R, t.Fill.G, t.Fill.B), FaceEdgePen, geom);
+            }
+
+            // Telemetry-coupled flow particles
+            if (fx.ShowFlowParticles)
+            {
+                foreach (var route in Plant3DSceneData.PipeRoutes)
+                {
+                    eqMap.TryGetValue(route.SourceEquipmentId, out var srcEq);
+                    double speed = Plant3DSceneData.GetFlowSpeedFactor(srcEq);
+                    if (speed <= 0.0) continue;
+
+                    var c = Plant3DSceneData.GetMediumColor(route.Medium);
+                    var brush = GetBrush(c.R, c.G, c.B);
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float t = (float)((_owner._time * 0.28 * speed + i / 6.0) % 1.0);
+                        var pos = Plant3DSceneData.SamplePolyline(route.Waypoints, t);
+                        if (Plant3DSceneData.TryProjectToScreen(pos, viewProj, w, h, out var pt, out _))
+                            context.DrawEllipse(brush, null, pt, 3.2, 3.2);
+                    }
+                }
+            }
+
+            // Alarm halos & selection ring
+            double pulse = 0.55 + 0.45 * Math.Sin(_owner._time * 4.5);
+            foreach (var p in Plant3DSceneData.Placements)
+            {
+                eqMap.TryGetValue(p.Id, out var eq);
+                float rad = MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.3f;
+                if (fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
+                {
+                    var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
+                    DrawProjectedRing(context, viewProj, w, h, p.Position with { Y = 0.12f }, rad + (float)(0.2 * pulse),
+                        new Pen(GetBrush(ac.R, ac.G, ac.B, (byte)(220 * pulse)), 2.4));
+                }
+                if (string.Equals(_owner.SelectedEquipment?.Id, p.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    DrawProjectedRing(context, viewProj, w, h, p.Position with { Y = 0.14f }, rad + 0.18f, SelectedLabelPen);
+                }
+            }
+        }
+
+        private static void DrawProjectedQuad(
+            DrawingContext context, Matrix4x4 vp, double w, double h,
+            Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, IBrush fill, Pen? pen)
+        {
+            if (!Plant3DSceneData.TryProjectToScreen(p0, vp, w, h, out var s0, out _) ||
+                !Plant3DSceneData.TryProjectToScreen(p1, vp, w, h, out var s1, out _) ||
+                !Plant3DSceneData.TryProjectToScreen(p2, vp, w, h, out var s2, out _) ||
+                !Plant3DSceneData.TryProjectToScreen(p3, vp, w, h, out var s3, out _))
+                return;
 
             var geom = new StreamGeometry();
             using (var gctx = geom.Open())
             {
-                gctx.BeginFigure(pts[0], true);
-                for (int i = 1; i < pts.Length; i++)
-                    gctx.LineTo(pts[i]);
+                gctx.BeginFigure(s0, true);
+                gctx.LineTo(s1);
+                gctx.LineTo(s2);
+                gctx.LineTo(s3);
                 gctx.EndFigure(true);
             }
-
-            context.DrawGeometry(GetBrush(r, g, b), FaceEdgePen, geom);
+            context.DrawGeometry(fill, pen, geom);
         }
 
-        if (fx.ShowFlowParticles)
+        private static void DrawProjectedRing(
+            DrawingContext context, Matrix4x4 vp, double w, double h,
+            Vector3 center, float radius, Pen pen)
         {
-            DrawFlowParticles(context, w, h);
-        }
-
-        if (fx.ShowAlarmHalos)
-        {
-            DrawAlarmHalos(context, w, h, eqMap);
-        }
-
-        DrawSelectionRing(context, w, h);
-        DrawEquipmentLabels(context, w, h, eqMap);
-        DrawAxisGizmo(context, w);
-
-        string projMode = fx.IsOrthographic ? "ORTHO" : "PERSP";
-        var hint = new FormattedText(
-            $"[{projMode}] Left-Drag: Orbit  |  Right-Drag / WASD: Pan  |  Scroll: Zoom  |  F: Focus  |  R / Dbl-Click: Reset",
-            CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            HudTypeface,
-            11,
-            GetBrush(148, 163, 184));
-        context.DrawText(hint, new Point(12, h - 22));
-    }
-
-    private void DrawGroundGrid(DrawingContext context, double w, double h)
-    {
-        for (int i = -10; i <= 10; i += 2)
-        {
-            if (TryProject(new Vec3(i, 0, -8), w, h, out var a) && TryProject(new Vec3(i, 0, 8), w, h, out var b))
-                context.DrawLine(GridPen, a, b);
-            if (TryProject(new Vec3(-10, 0, i * 0.8), w, h, out var c) && TryProject(new Vec3(10, 0, i * 0.8), w, h, out var d))
-                context.DrawLine(GridPen, c, d);
-        }
-    }
-
-    private void DrawGroundShadows(DrawingContext context, double w, double h)
-    {
-        var shadowBrush = GetBrush(2, 6, 14, 130);
-        var shadowCenters = new (double X, double Z, double R)[]
-        {
-            (-7.3, -2.3, 1.5), (-1.1, -2.3, 1.3), (1.5, 3.4, 3.0),
-            (6.0, -2.0, 1.7), (-5.6, 3.8, 1.2), (5.8, 4.6, 1.3), (-8.0, 1.8, 1.6)
-        };
-        foreach (var (sx, sz, rad) in shadowCenters)
-        {
-            var geom = new StreamGeometry();
-            using var gctx = geom.Open();
-            bool started = false;
-            for (int i = 0; i < 12; i++)
+            Point? prev = null;
+            for (int i = 0; i <= 20; i++)
             {
-                double ang = i * Math.PI * 2 / 12;
-                if (TryProject(new Vec3(sx + Math.Cos(ang) * rad, 0.02, sz + Math.Sin(ang) * rad), w, h, out var pt))
+                float ang = i * MathF.PI * 2f / 20f;
+                var pt3 = new Vector3(center.X + MathF.Cos(ang) * radius, center.Y, center.Z + MathF.Sin(ang) * radius);
+                if (Plant3DSceneData.TryProjectToScreen(pt3, vp, w, h, out var pt, out _))
                 {
-                    if (!started) { gctx.BeginFigure(pt, true); started = true; }
-                    else gctx.LineTo(pt);
+                    if (prev.HasValue) context.DrawLine(pen, prev.Value, pt);
+                    prev = pt;
                 }
             }
-            if (started)
+        }
+
+        private void DrawDeclutteredLabels(
+            DrawingContext context, double w, double h,
+            Matrix4x4 viewProj, Dictionary<string, EquipmentItem> eqMap)
+        {
+            _owner._hitRects.Clear();
+            var placed = new List<Rect>(Plant3DSceneData.Placements.Count);
+
+            // Prioritize selected, hovered, and alarmed equipment so they always win overlap resolution
+            var ordered = Plant3DSceneData.Placements
+                .OrderByDescending(p => string.Equals(_owner.SelectedEquipment?.Id, p.Id, StringComparison.OrdinalIgnoreCase) ? 3
+                    : string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase) ? 2
+                    : (eqMap.TryGetValue(p.Id, out var e) && e.Status is EquipmentStatus.Fault or EquipmentStatus.Warning) ? 1 : 0);
+
+            foreach (var p in ordered)
             {
-                gctx.EndFigure(true);
-                context.DrawGeometry(shadowBrush, null, geom);
+                var anchor = new Vector3(p.Position.X, p.Position.Y + p.LabelHeight, p.Position.Z);
+                if (!Plant3DSceneData.TryProjectToScreen(anchor, viewProj, w, h, out var pt, out _))
+                    continue;
+
+                bool isSelected = string.Equals(_owner.SelectedEquipment?.Id, p.Id, StringComparison.OrdinalIgnoreCase);
+                bool isHovered = string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
+                bool showDetail = isSelected || isHovered || _owner._zoom >= 1.25;
+
+                string labelText = showDetail && eqMap.TryGetValue(p.Id, out var eq)
+                    ? $"{p.Id} · {eq.PrimaryMetricDisplay}"
+                    : p.Id;
+
+                var text = new FormattedText(labelText, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10.5, Brushes.White);
+                var bg = new Rect(pt.X - 6, pt.Y - 10, text.Width + 12, text.Height + 5);
+
+                // Nudge upward if colliding with a higher-priority label
+                int nudges = 0;
+                while (nudges < 3 && placed.Any(r => r.Intersects(bg)))
+                {
+                    bg = new Rect(bg.X, bg.Y - (bg.Height + 3), bg.Width, bg.Height);
+                    nudges++;
+                }
+
+                placed.Add(bg);
+                _owner._hitRects.Add((p.Id, bg));
+
+                var bgBrush = isSelected ? SelectedLabelBgBrush : isHovered ? HoverLabelBgBrush : LabelBgBrush;
+                var borderPen = isSelected ? SelectedLabelPen : isHovered ? HoverLabelPen : null;
+
+                context.DrawRectangle(bgBrush, borderPen, bg, 4);
+                context.DrawText(text, new Point(bg.X + 6, bg.Y + 2));
             }
         }
-    }
 
-    private void DrawConnectingPipes(DrawingContext context, double w, double h)
-    {
-        DrawPipeSegment(context, w, h, new Vec3(-1.3, 0.7, 2.5), new Vec3(-8.2, 1.5, 1.6));
-        DrawPipeSegment(context, w, h, new Vec3(-1.3, 1.1, -1.6), new Vec3(-5.8, 2.2, 3.6));
-        DrawPipeSegment(context, w, h, new Vec3(1.2, 0.5, 3.2), new Vec3(-2.4, 0.5, 4.2));
-        DrawPipeSegment(context, w, h, new Vec3(-2.4, 0.5, 4.2), new Vec3(5.8, 1.1, -2.2));
-        DrawPipeSegment(context, w, h, new Vec3(5.8, 0.8, -2.2), new Vec3(5.8, 0.8, 0.8));
-        DrawPipeSegment(context, w, h, new Vec3(5.8, 0.8, 0.8), new Vec3(5.6, 0.8, 4.4));
-    }
-
-    private void DrawPipeSegment(DrawingContext context, double w, double h, Vec3 a, Vec3 b)
-    {
-        if (TryProject(a, w, h, out var pa) && TryProject(b, w, h, out var pb))
-            context.DrawLine(PipePen, pa, pb);
-    }
-
-    private void DrawFlowParticles(DrawingContext context, double w, double h)
-    {
-        var coalBrush = GetBrush(245, 158, 11);
-        var slurryBrush = GetBrush(56, 189, 248);
-        var frothBrush = GetBrush(34, 197, 94);
-
-        for (int i = 0; i < 8; i++)
+        private void DrawHoverTooltip(DrawingContext context, double w, double h, Dictionary<string, EquipmentItem> eqMap)
         {
-            double t = (_time * 0.35 + i * 0.125) % 1.0;
-            if (TryProject(new Vec3(-6.4 + t * 5.1, 1.25, -2.5), w, h, out var pt))
-                context.DrawEllipse(coalBrush, null, pt, 3.2, 3.2);
+            if (_owner._hoveredId is null || _owner._hoverPointer is not Point ptr)
+                return;
+            if (!eqMap.TryGetValue(_owner._hoveredId, out var eq))
+                return;
+
+            string line1 = $"{eq.Id} — {eq.Name}";
+            string line2 = $"{eq.Status}  |  {eq.PrimaryMetricDisplay}  |  Load {eq.LoadPercent:0}%  |  {eq.PowerKw:0.0} kW";
+
+            var t1 = new FormattedText(line1, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 11.5, Brushes.White);
+            var t2 = new FormattedText(line2, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 10.5, GetBrush(148, 163, 184));
+
+            double boxW = Math.Max(t1.Width, t2.Width) + 20;
+            double boxH = t1.Height + t2.Height + 16;
+            double x = Math.Clamp(ptr.X + 14, 10, Math.Max(10, w - boxW - 10));
+            double y = Math.Clamp(ptr.Y - boxH - 10, 10, Math.Max(10, h - boxH - 30));
+
+            var rect = new Rect(x, y, boxW, boxH);
+            context.DrawRectangle(GetBrush(10, 18, 34, 238), SelectedLabelPen, rect, 6);
+            context.DrawText(t1, new Point(x + 10, y + 6));
+            context.DrawText(t2, new Point(x + 10, y + 8 + t1.Height));
         }
 
-        for (int i = 0; i < 6; i++)
+        private void DrawAxisGizmo(DrawingContext context, double w)
         {
-            double t = (_time * 0.38 + i * 0.16) % 1.0;
-            if (TryProject(new Vec3(-1.3 - t * 6.9, 1.1 + t * 0.8, 2.5 - t * 0.9), w, h, out var pt))
-                context.DrawEllipse(coalBrush, null, pt, 3.0, 3.0);
+            var origin = new Point(w - 46, 46);
+            double len = 22;
+            DrawAxisVec(context, origin, new Vector3(1, 0, 0), len, GetBrush(239, 68, 68), "X");
+            DrawAxisVec(context, origin, new Vector3(0, 1, 0), len, GetBrush(34, 197, 94), "Y");
+            DrawAxisVec(context, origin, new Vector3(0, 0, 1), len, GetBrush(56, 189, 248), "Z");
         }
 
-        for (int i = 0; i < 6; i++)
+        private void DrawAxisVec(DrawingContext context, Point origin, Vector3 axis, double len, IBrush brush, string label)
         {
-            double t = (_time * 0.32 + i * 0.16) % 1.0;
-            if (TryProject(new Vec3(-1.3 - t * 4.5, 1.2 + t * 1.1, -1.6 + t * 5.2), w, h, out var pt))
-                context.DrawEllipse(frothBrush, null, pt, 2.8, 2.8);
+            double cy = Math.Cos(_owner._yaw), sy = Math.Sin(_owner._yaw);
+            double x1 = axis.X * cy - axis.Z * sy;
+            double z1 = axis.X * sy + axis.Z * cy;
+            double cp = Math.Cos(_owner._pitch), sp = Math.Sin(_owner._pitch);
+            double y2 = axis.Y * cp - z1 * sp;
+
+            var tip = new Point(origin.X + x1 * len, origin.Y - y2 * len);
+            context.DrawLine(new Pen(brush, 1.8), origin, tip);
+            var txt = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 9, brush);
+            context.DrawText(txt, new Point(tip.X + 2, tip.Y - 5));
         }
 
-        for (int i = 0; i < 8; i++)
+        private void DrawHudFooter(DrawingContext context, double w, double h, Unity3DEffectSettings fx)
         {
-            double t = (_time * 0.30 + i * 0.125) % 1.0;
-            if (TryProject(new Vec3(1.2 + t * 4.6, 0.65, 3.2 - t * 5.4), w, h, out var pt))
-                context.DrawEllipse(slurryBrush, null, pt, 3.0, 3.0);
+            string mode = _owner._glCanvas.IsHardwareActive
+                ? $"GPU OpenGL · {_owner._glCanvas.LoadedGlbCount} GLB"
+                : $"Software 3D · {Plant3DSceneData.LoadAllGlbMeshes().Count} GLB";
+
+            var badgeTxt = new FormattedText(mode, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10, GetBrush(56, 189, 248));
+            var badgeRect = new Rect(12, 10, badgeTxt.Width + 14, badgeTxt.Height + 6);
+            context.DrawRectangle(LabelBgBrush, HoverLabelPen, badgeRect, 4);
+            context.DrawText(badgeTxt, new Point(19, 13));
+
+            string projMode = fx.IsOrthographic ? "ORTHO" : "PERSP";
+            var hint = new FormattedText(
+                $"[{projMode}] Click Machine: Select  |  Left-Drag: Orbit  |  Right-Drag / WASD: Pan  |  Scroll: Zoom  |  F: Focus  |  R: Reset",
+                CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 10.5, GetBrush(148, 163, 184));
+            context.DrawText(hint, new Point(12, h - 22));
         }
-        for (int i = 0; i < 5; i++)
-        {
-            double t = (_time * 0.34 + i * 0.2) % 1.0;
-            if (TryProject(new Vec3(5.8 - t * 0.2, 0.8, 0.8 + t * 3.6), w, h, out var pt))
-                context.DrawEllipse(slurryBrush, null, pt, 2.8, 2.8);
-        }
-    }
-
-    private void DrawAlarmHalos(DrawingContext context, double w, double h, Dictionary<string, EquipmentItem> eqMap)
-    {
-        double pulse = 0.55 + 0.45 * Math.Sin(_time * 4.5);
-        foreach (var (id, pos) in GetLabelPositions())
-        {
-            if (!eqMap.TryGetValue(id, out var eq)) continue;
-            if (eq.Status != EquipmentStatus.Warning && eq.Status != EquipmentStatus.Fault) continue;
-
-            var color = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
-            var pen = new Pen(GetBrush(color.R, color.G, color.B, (byte)(220 * pulse)), 2.5);
-            DrawRing(context, w, h, new Vec3(pos.X, 0.15, pos.Z), 1.45 + 0.2 * pulse, pen);
-        }
-    }
-
-    private void DrawSelectionRing(DrawingContext context, double w, double h)
-    {
-        if (SelectedEquipment is null) return;
-        foreach (var (id, pos) in GetLabelPositions())
-        {
-            if (id == SelectedEquipment.Id)
-            {
-                DrawRing(context, w, h, new Vec3(pos.X, 0.12, pos.Z), 1.75, SelectedLabelPen);
-                break;
-            }
-        }
-    }
-
-    private void DrawRing(DrawingContext context, double w, double h, Vec3 center, double radius, Pen pen)
-    {
-        Point? prev = null;
-        for (int i = 0; i <= 18; i++)
-        {
-            double ang = i * Math.PI * 2 / 18;
-            var world = new Vec3(center.X + Math.Cos(ang) * radius, center.Y, center.Z + Math.Sin(ang) * radius);
-            if (TryProject(world, w, h, out var pt))
-            {
-                if (prev.HasValue) context.DrawLine(pen, prev.Value, pt);
-                prev = pt;
-            }
-        }
-    }
-
-    private void DrawEquipmentLabels(DrawingContext context, double w, double h, Dictionary<string, EquipmentItem> eqMap)
-    {
-        _hitRects.Clear();
-        foreach (var (id, pos) in GetLabelPositions())
-        {
-            if (!TryProject(pos, w, h, out var pt)) continue;
-            bool isSelected = SelectedEquipment?.Id == id;
-            string metric = eqMap.TryGetValue(id, out var eq) ? $"{id} · {eq.PrimaryMetricDisplay}" : id;
-            var text = new FormattedText(
-                metric,
-                CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LabelTypeface,
-                11,
-                Brushes.White);
-
-            var bg = new Rect(pt.X - 6, pt.Y - 10, text.Width + 12, text.Height + 6);
-            _hitRects.Add((id, bg));
-            context.DrawRectangle(isSelected ? SelectedLabelBgBrush : LabelBgBrush, isSelected ? SelectedLabelPen : null, bg, 4);
-            context.DrawText(text, new Point(pt.X, pt.Y - 7));
-        }
-    }
-
-    private void DrawAxisGizmo(DrawingContext context, double w)
-    {
-        var origin = new Point(w - 46, 46);
-        double len = 24;
-        DrawAxisVec(context, origin, new Vec3(1, 0, 0), len, GetBrush(239, 68, 68), "X");
-        DrawAxisVec(context, origin, new Vec3(0, 1, 0), len, GetBrush(34, 197, 94), "Y");
-        DrawAxisVec(context, origin, new Vec3(0, 0, 1), len, GetBrush(56, 189, 248), "Z");
-    }
-
-    private void DrawAxisVec(DrawingContext context, Point origin, Vec3 axis, double len, IBrush brush, string label)
-    {
-        double cy = Math.Cos(_yaw), sy = Math.Sin(_yaw);
-        double x1 = axis.X * cy - axis.Z * sy;
-        double z1 = axis.X * sy + axis.Z * cy;
-        double cp = Math.Cos(_pitch), sp = Math.Sin(_pitch);
-        double y2 = axis.Y * cp - z1 * sp;
-
-        var tip = new Point(origin.X + x1 * len, origin.Y - y2 * len);
-        context.DrawLine(new Pen(brush, 1.8), origin, tip);
-        var txt = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 9, brush);
-        context.DrawText(txt, new Point(tip.X + 2, tip.Y - 5));
-    }
-
-    private static IEnumerable<(string Id, Vec3 Pos)> GetLabelPositions()
-    {
-        yield return ("CR-101", new Vec3(-7.5, 3.6, -2.5));
-        yield return ("CV-101", new Vec3(-4.2, 1.8, -2.5));
-        yield return ("SC-102", new Vec3(-1.3, 2.6, -2.5));
-        yield return ("CV-102", new Vec3(-1.3, 1.5, 0.8));
-        yield return ("TK-201", new Vec3(1.2, 2.5, 3.2));
-        yield return ("PP-201", new Vec3(-2.4, 1.5, 4.2));
-        yield return ("TK-301", new Vec3(5.8, 3.0, -2.2));
-        yield return ("MS-301", new Vec3(3.2, 2.3, -2.2));
-        yield return ("DM-301", new Vec3(5.8, 2.3, 0.8));
-        yield return ("FC-401", new Vec3(-5.8, 3.6, 3.6));
-        yield return ("CF-501", new Vec3(5.6, 2.0, 4.4));
-        yield return ("SL-601", new Vec3(-8.2, 4.2, 1.6));
-    }
-
-    private void AddSubdividedConveyorX(List<Face3D> faces, double x0, double x1, double y0, double y1, double z, double width, int segs, Color color)
-    {
-        for (int i = 0; i < segs; i++)
-        {
-            double sx = x0 + (x1 - x0) * (i + 0.5) / segs;
-            double sy = y0 + (y1 - y0) * (i + 0.5) / segs;
-            AddBox(faces, new Vec3(sx, sy, z), (x1 - x0) / segs - 0.04, 0.38, width, color);
-        }
-        AddBox(faces, new Vec3(x0 + 0.3, y0 * 0.5, z), 0.2, y0, 0.2, Color.Parse("#475569"));
-        AddBox(faces, new Vec3(x1 - 0.3, y1 * 0.5, z), 0.2, y1, 0.2, Color.Parse("#475569"));
-    }
-
-    private void AddSubdividedConveyorZ(List<Face3D> faces, double x, double z0, double z1, double y0, double y1, double width, int segs, Color color)
-    {
-        for (int i = 0; i < segs; i++)
-        {
-            double sz = z0 + (z1 - z0) * (i + 0.5) / segs;
-            double sy = y0 + (y1 - y0) * (i + 0.5) / segs;
-            AddBox(faces, new Vec3(x, sy, sz), width, 0.36, (z1 - z0) / segs - 0.04, color);
-        }
-        AddBox(faces, new Vec3(x, y1 * 0.5, z1 - 0.3), 0.2, y1, 0.2, Color.Parse("#475569"));
-    }
-
-    private void AddFace(List<Face3D> faces, Vec3[] pts, Color color)
-    {
-        var v1 = Sub(pts[1], pts[0]);
-        var v2 = Sub(pts[2], pts[0]);
-        faces.Add(new Face3D(pts, color, AvgDepth(pts), Normalize(Cross(v1, v2))));
-    }
-
-    private void AddBox(List<Face3D> faces, Vec3 center, double sx, double sy, double sz, Color color)
-    {
-        double hx = sx / 2, hy = sy / 2, hz = sz / 2;
-        var v = new[]
-        {
-            new Vec3(center.X - hx, center.Y - hy, center.Z - hz),
-            new Vec3(center.X + hx, center.Y - hy, center.Z - hz),
-            new Vec3(center.X + hx, center.Y + hy, center.Z - hz),
-            new Vec3(center.X - hx, center.Y + hy, center.Z - hz),
-            new Vec3(center.X - hx, center.Y - hy, center.Z + hz),
-            new Vec3(center.X + hx, center.Y - hy, center.Z + hz),
-            new Vec3(center.X + hx, center.Y + hy, center.Z + hz),
-            new Vec3(center.X - hx, center.Y + hy, center.Z + hz),
-        };
-
-        int[][] quads =
-        {
-            new[] { 0, 1, 2, 3 },
-            new[] { 5, 4, 7, 6 },
-            new[] { 4, 0, 3, 7 },
-            new[] { 1, 5, 6, 2 },
-            new[] { 3, 2, 6, 7 },
-        };
-
-        foreach (var q in quads)
-            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
-    }
-
-    private void AddRotatedBar(List<Face3D> faces, Vec3 center, double length, double height, double width, double angle, Color color)
-    {
-        double c = Math.Cos(angle), s = Math.Sin(angle);
-        double hx = length / 2, hy = height / 2, hz = width / 2;
-        Vec3 Rot(double x, double y, double z) =>
-            new(center.X + x * c - z * s, center.Y + y, center.Z + x * s + z * c);
-
-        var v = new[]
-        {
-            Rot(-hx, -hy, -hz), Rot(hx, -hy, -hz), Rot(hx, hy, -hz), Rot(-hx, hy, -hz),
-            Rot(-hx, -hy, hz),  Rot(hx, -hy, hz),  Rot(hx, hy, hz),  Rot(-hx, hy, hz)
-        };
-        int[][] quads =
-        {
-            new[] { 0, 1, 2, 3 }, new[] { 5, 4, 7, 6 },
-            new[] { 4, 0, 3, 7 }, new[] { 1, 5, 6, 2 }, new[] { 3, 2, 6, 7 }
-        };
-        foreach (var q in quads)
-            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
-    }
-
-    private void AddPyramidHopper(List<Face3D> faces, Vec3 center, double topSize, double height, Color color)
-    {
-        double t = topSize / 2, b = topSize * 0.25, h = height / 2;
-        var v = new[]
-        {
-            new Vec3(center.X - b, center.Y - h, center.Z - b),
-            new Vec3(center.X + b, center.Y - h, center.Z - b),
-            new Vec3(center.X + b, center.Y - h, center.Z + b),
-            new Vec3(center.X - b, center.Y - h, center.Z + b),
-            new Vec3(center.X - t, center.Y + h, center.Z - t),
-            new Vec3(center.X + t, center.Y + h, center.Z - t),
-            new Vec3(center.X + t, center.Y + h, center.Z + t),
-            new Vec3(center.X - t, center.Y + h, center.Z + t),
-        };
-        int[][] quads = { new[] { 0, 1, 5, 4 }, new[] { 1, 2, 6, 5 }, new[] { 2, 3, 7, 6 }, new[] { 3, 0, 4, 7 } };
-        foreach (var q in quads)
-            AddFace(faces, new[] { v[q[0]], v[q[1]], v[q[2]], v[q[3]] }, color);
-    }
-
-    private void AddCylinder(List<Face3D> faces, Vec3 baseCenter, double radius, double height, int segs, Color color)
-    {
-        var topPts = new Vec3[segs];
-        for (int i = 0; i < segs; i++)
-        {
-            double a0 = i * Math.PI * 2 / segs;
-            double a1 = (i + 1) * Math.PI * 2 / segs;
-            var b0 = new Vec3(baseCenter.X + Math.Cos(a0) * radius, baseCenter.Y, baseCenter.Z + Math.Sin(a0) * radius);
-            var b1 = new Vec3(baseCenter.X + Math.Cos(a1) * radius, baseCenter.Y, baseCenter.Z + Math.Sin(a1) * radius);
-            var t1 = new Vec3(b1.X, baseCenter.Y + height, b1.Z);
-            var t0 = new Vec3(b0.X, baseCenter.Y + height, b0.Z);
-            topPts[i] = t0;
-            AddFace(faces, new[] { b0, b1, t1, t0 }, color);
-        }
-        AddFace(faces, topPts, color);
-    }
-
-    private double AvgDepth(Vec3[] pts)
-    {
-        double sum = 0;
-        foreach (var p in pts) sum += TransformToCamera(p).Z;
-        return sum / pts.Length;
-    }
-
-    private Vec3 TransformToCamera(Vec3 world)
-    {
-        double x = world.X - _targetX;
-        double y = world.Y - 0.8;
-        double z = world.Z - _targetZ;
-
-        double cy = Math.Cos(_yaw), sy = Math.Sin(_yaw);
-        double x1 = x * cy - z * sy;
-        double z1 = x * sy + z * cy;
-
-        double cp = Math.Cos(_pitch), sp = Math.Sin(_pitch);
-        double y2 = y * cp - z1 * sp;
-        double z2 = y * sp + z1 * cp;
-
-        return new Vec3(x1, y2, z2 + 19.0 / _zoom);
-    }
-
-    private bool TryProject(Vec3 world, double w, double h, out Point screen)
-    {
-        var cam = TransformToCamera(world);
-        if (cam.Z <= 0.5)
-        {
-            screen = default;
-            return false;
-        }
-        if (Effects?.IsOrthographic == true)
-        {
-            double orthoScale = Math.Min(w, h) * 0.055 * _zoom;
-            screen = new Point(w * 0.5 + cam.X * orthoScale, h * 0.52 - cam.Y * orthoScale);
-            return true;
-        }
-        double fov = Math.Min(w, h) * 1.15;
-        screen = new Point(w * 0.5 + (cam.X / cam.Z) * fov, h * 0.52 - (cam.Y / cam.Z) * fov);
-        return true;
-    }
-
-    private static Vec3 Sub(Vec3 a, Vec3 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-    private static Vec3 Cross(Vec3 a, Vec3 b) => new(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X);
-    private static double Dot(Vec3 a, Vec3 b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
-    private static Vec3 Normalize(Vec3 v)
-    {
-        double len = Math.Sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z);
-        return len < 1e-6 ? new Vec3(0, 1, 0) : new Vec3(v.X / len, v.Y / len, v.Z / len);
     }
 }

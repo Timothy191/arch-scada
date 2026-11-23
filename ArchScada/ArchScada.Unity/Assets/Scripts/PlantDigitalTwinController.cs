@@ -153,6 +153,8 @@ namespace ArchScada.Unity
 
         private void Awake()
         {
+            _propertyBlock = new MaterialPropertyBlock();
+
             if (udpReceiver == null)
             {
                 udpReceiver = GetComponent<ScadaUdpReceiver>();
@@ -162,8 +164,9 @@ namespace ArchScada.Unity
                 }
             }
 
-            // Set the orbit centre to the plant centre (typically 0,0,0)
-            _orbitCenter = GameObject.Find("PlantCenter")?.transform ?? Vector3.zero;
+            // Set the orbit centre to the plant centre (optional scene marker)
+            var centerObj = GameObject.Find("PlantCenter");
+            _orbitCenter = centerObj != null ? centerObj.transform : null;
 
             RebuildLookups();
         }
@@ -211,14 +214,6 @@ namespace ArchScada.Unity
 
             // Read-only digital twin: never issue outbound commands.
             _activeEffects = frame.effects ?? _activeEffects;
-
-            // If orbit mode is enabled, update the orbit angle
-            if (_orbitEnabled && _orbitCenter != null)
-            {
-                _orbitAngle += (_orbitDirection == OrbitDirection.Clockwise ? 1f : -1f) * _orbitSpeed * deltaTime;
-                if (_orbitAngle >= 360f) _orbitAngle -= 360f;
-                if (_orbitAngle < 0f) _orbitAngle += 360f;
-            }
 
             if (frame.equipment == null)
             {
