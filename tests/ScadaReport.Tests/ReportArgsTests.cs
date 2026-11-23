@@ -1,3 +1,4 @@
+using Scada;
 using Scada.Report;
 using Xunit;
 

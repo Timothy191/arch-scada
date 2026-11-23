@@ -1,9 +1,11 @@
+using Scada;
 using Scada.Client;
 using Scada.Data.Entities;
 using Scada.Data.Models;
 using Scada.Data.Tables;
 using Scada.Lang;
 using Scada.Report;
+using System.Collections.Generic;
 using System.Globalization;
 using Xunit;
 
@@ -25,7 +27,7 @@ public class ReportContextTests
         var cssPath = "/opt/scada/css";
 
         // Act
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = configDb,
             ScadaClient = null!,
@@ -53,7 +55,7 @@ public class ReportContextTests
     public void FormatDateTime_Converts_Utc_To_Local_Time()
     {
         // Arrange
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = new ConfigDataset(),
             ScadaClient = null!,
@@ -78,7 +80,7 @@ public class ReportContextTests
     public void ConvertTimeFromUtc_Converts_To_Specified_TimeZone()
     {
         // Arrange
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = new ConfigDataset(),
             ScadaClient = null!,
@@ -103,7 +105,7 @@ public class ReportContextTests
     public void FindArchive_Throws_When_Archive_Not_Found()
     {
         // Arrange
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = new ConfigDataset(),
             ScadaClient = null!,
@@ -126,7 +128,7 @@ public class ReportContextTests
     public void FindChannels_Returns_Empty_List_For_Null_Input()
     {
         // Arrange
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = new ConfigDataset(),
             ScadaClient = null!,
@@ -151,7 +153,7 @@ public class ReportContextTests
     public void FindChannels_Returns_Empty_Channels_For_Missing_CnlNums()
     {
         // Arrange
-        var context = new ReportContext
+        IReportContext context = new ReportContext
         {
             ConfigDatabase = new ConfigDataset(),
             ScadaClient = null!,
