@@ -1,0 +1,191 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- macOS Light Mode Color Palette -->
+    <!-- Based on macOS Sonoma/Light appearance with subtle accents -->
+
+    <!-- Card backgrounds - macOS light uses light gray/white with subtle depth -->
+    <Style Selector="Border.scada-card">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#86868B" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="Border.scada-panel">
+        <Setter Property="Background" Value="#F8F9FA" />
+        <Setter Property="BorderBrush" Value="#D1D5DB" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="12" />
+    </Style>
+
+    <!-- Safety pill - macOS accent blue -->
+    <Style Selector="Border.safety-pill">
+        <Setter Property="Background" Value="#EFF6FF" />
+        <Setter Property="BorderBrush" Value="#3B82F6" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+
+    <!-- Text styles - macOS uses medium contrast text -->
+    <Style Selector="TextBlock.section-title">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="#18181B" />
+    </Style>
+
+    <Style Selector="TextBlock.card-label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+
+    <Style Selector="TextBlock.kpi-value">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="#18181B" />
+    </Style>
+
+    <!-- Button styles - macOS style -->
+    <Style Selector="Button.nav-item">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#18181B" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="Button.nav-item:pointerover">
+        <Setter Property="Background" Value="#F3F4F6" />
+    </Style>
+
+    <Style Selector="Button.primary-action">
+        <Setter Property="Background" Value="#0A84FF" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="18,10" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style Selector="Button.secondary-action">
+        <Setter Property="Background" Value="#F3F4F6" />
+        <Setter Property="BorderBrush" Value="#9CA3AF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#18181B" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- Divider/separator -->
+    <Style Selector="Separator">
+        <Setter Property="Background" Value="#E5E5E5" />
+        <Setter Property="Height" Value="1" />
+    </Style>
+
+    <!-- Horizontal line -->
+    <Style Selector="Border.divider">
+        <Setter Property="Background" Value="#E5E5E5" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="0,8" />
+    </Style>
+
+    <!-- Text input styles -->
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#D1D5DB" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#18181B" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="TextBox:focus">
+        <Setter Property="BorderBrush" Value="#0A84FF" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <!-- ScrollViewer -->
+    <Style Selector="ScrollViewer">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ProgressBar -->
+    <Style Selector="ProgressBar">
+        <Setter Property="Foreground" Value="#0A84FF" />
+        <Setter Property="Background" Value="#E5E7EB" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Height" Value="6" />
+        <Setter Property="CornerRadius" Value="3" />
+    </Style>
+
+    <!-- TabItem -->
+    <Style Selector="TabItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#6B7280" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="TabItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#F3F4F6" />
+    </Style>
+
+    <Style Selector="TabItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="#E5E7EB" />
+        <Setter Property="Foreground" Value="#0A84FF" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ListBoxItem -->
+    <Style Selector="ListBoxItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#18181B" />
+        <Setter Property="Padding" Value="10,6" />
+    </Style>
+
+    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#F3F4F6" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="#EFF6FF" />
+        <Setter Property="Foreground" Value="#0A84FF" />
+    </Style>
+
+    <!-- ComboBox -->
+    <Style Selector="ComboBox">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#D1D5DB" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#18181B" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <!-- Splash window border -->
+    <Style Selector="Border.splash-window-border">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#D1D5DB" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="24" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <!-- Splash card -->
+    <Style Selector="Border.splash-card">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="40" />
+    </Style>
+
+</Styles>

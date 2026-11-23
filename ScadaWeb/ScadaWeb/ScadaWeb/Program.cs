@@ -119,6 +119,10 @@ namespace Scada.Web
                 {
                     options.XmlRepository = new XmlRepository(webContext.Storage, webContext.Log);
                     options.XmlEncryptor = new XmlEncryptor(webContext.Log);
+
+            services
+                .AddHealthChecks()
+                    .AddCheck<ScadaServerHealthCheck>("scada_server", tags: new[] { "scada", "upstream" });
                 });
 
             services
@@ -253,6 +257,8 @@ namespace Scada.Web
             app.UseSession();
             app.MapRazorPages();
             app.MapControllers();
+            // Swagger/OpenAPI metadata
+            app.MapHealthChecks("/health");
         }
 
 

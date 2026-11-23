@@ -13,13 +13,8 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
-        var intro = new IntroViewModel(_unityBridgeService);
-        intro.Completed += (_, offlineMode) =>
-        {
-            CurrentContent = new MainShellViewModel(_telemetryService, _unityBridgeService, offlineMode);
-        };
-
-        CurrentContent = intro;
-        _ = intro.RunStartupChecksAsync();
+        // Splash screen has already run startup checks.
+        // Proceed directly to the main shell.
+        CurrentContent = new MainShellViewModel(_telemetryService, _unityBridgeService, offlineDemoMode: true);
     }
 }

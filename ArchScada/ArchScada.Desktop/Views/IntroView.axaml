@@ -5,7 +5,7 @@
              x:Class="ArchScada.Desktop.Views.IntroView"
              x:DataType="vm:IntroViewModel">
 
-    <Grid Background="#090D16">
+    <Grid Classes="scada-panel">
         <Border MaxWidth="820"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -19,15 +19,15 @@
                         <TextBlock Text="ARCH SCADA"
                                    FontSize="13"
                                    FontWeight="Bold"
-                                   Foreground="#38BDF8"
+                                   Foreground="#0A84FF"
                                    LetterSpacing="2" />
                         <TextBlock Text="{Binding PlantSiteTitle}"
                                    FontSize="26"
                                    FontWeight="Bold"
-                                   Foreground="#F8FAFC" />
+                                   Foreground="#18181B" />
                         <TextBlock Text="{Binding VersionLabel}"
                                    FontSize="12"
-                                   Foreground="#64748B" />
+                                   Foreground="#6B7280" />
                     </StackPanel>
 
                     <Border Grid.Column="1"
@@ -36,22 +36,22 @@
                         <TextBlock Text="OFFLINE-FIRST HMI"
                                    FontSize="11"
                                    FontWeight="SemiBold"
-                                   Foreground="#38BDF8" />
+                                   Foreground="#0A84FF" />
                     </Border>
                 </Grid>
 
                 <!-- Safety Boundary Banner -->
-                <Border Background="#0C2D48"
-                        BorderBrush="#0284C7"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="14,10">
+                <Border MaxWidth="820"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Classes="safety-pill"
+                        Padding="10,4">
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Ellipse Width="10" Height="10" Fill="#38BDF8" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding SafetyBannerText}"
                                    FontSize="12"
                                    FontWeight="SemiBold"
-                                   Foreground="#E0F2FE"
+                                   Foreground="#18181B"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
@@ -61,7 +61,7 @@
                     <TextBlock Text="{Binding StatusHeadline}"
                                FontSize="14"
                                FontWeight="Medium"
-                               Foreground="#CBD5E1" />
+                               Foreground="#6B7280" />
 
                     <ItemsControl ItemsSource="{Binding Checks}">
                         <ItemsControl.ItemTemplate>
@@ -76,10 +76,10 @@
                                             <TextBlock Text="{Binding Title}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9" />
+                                                       Foreground="#18181B" />
                                             <TextBlock Text="{Binding Detail}"
                                                        FontSize="12"
-                                                       Foreground="#94A3B8" />
+                                                       Foreground="#6B7280" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding State}"
@@ -99,7 +99,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <TextBlock Text="{Binding AutoAdvanceLabel}"
                                    FontSize="12"
-                                   Foreground="#94A3B8"
+                                   Foreground="#6B7280"
                                    VerticalAlignment="Center" />
                         <Button Content="Pause / Resume"
                                 Command="{Binding ToggleAutoAdvanceCommand}"

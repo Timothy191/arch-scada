@@ -65,11 +65,28 @@ public sealed class BoolToActiveNavBrushConverter : IValueConverter
 {
     public static readonly BoolToActiveNavBrushConverter Instance = new();
 
-    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#1E293B"));
+    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#E5E7EB"));
     private static readonly IBrush InactiveBg = Brushes.Transparent;
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is true ? ActiveBg : InactiveBg;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class ProgressToWidthConverter : IValueConverter
+{
+    public static readonly ProgressToWidthConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is double progress)
+        {
+            return progress * 3.0;
+        }
+        return 0.0;
+    }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();

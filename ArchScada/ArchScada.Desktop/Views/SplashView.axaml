@@ -1,0 +1,111 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ArchScada.Desktop.ViewModels"
+             xmlns:conv="using:ArchScada.Desktop.Converters"
+             x:Class="ArchScada.Desktop.Views.SplashView"
+             x:DataType="vm:SplashViewModel">
+
+    <Grid Classes="scada-panel">
+        <!-- Centered splash content -->
+        <Border Classes="splash-card"
+                MaxWidth="520"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <StackPanel Spacing="24" HorizontalAlignment="Center">
+
+                <!-- App Icon / Brand Mark -->
+                <Border Width="72" Height="72"
+                        CornerRadius="20"
+                        Background="#EFF6FF"
+                        HorizontalAlignment="Center">
+                    <Ellipse Fill="#0A84FF" Width="24" Height="24"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <!-- App Title -->
+                <TextBlock Text="{Binding AppTitle}"
+                           FontSize="32"
+                           FontWeight="Bold"
+                           Foreground="#18181B"
+                           HorizontalAlignment="Center" />
+
+                <TextBlock Text="{Binding AppSubtitle}"
+                           FontSize="15"
+                           Foreground="#6B7280"
+                           HorizontalAlignment="Center" />
+
+                <Separator Classes="divider" Margin="0,8" />
+
+                <!-- Version -->
+                <TextBlock Text="{Binding VersionLabel}"
+                           FontSize="11"
+                           Foreground="#9CA3AF"
+                           HorizontalAlignment="Center" />
+
+                <!-- Status Text -->
+                <TextBlock Text="{Binding StatusText}"
+                           FontSize="13"
+                           FontWeight="Medium"
+                           Foreground="#18181B"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0" />
+
+                <!-- Progress Bar -->
+                <Border Width="300" Height="6"
+                        CornerRadius="3"
+                        Background="#E5E7EB"
+                        HorizontalAlignment="Center">
+                    <Border Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}}"
+                            Height="6"
+                            CornerRadius="3"
+                            Background="#0A84FF"
+                            HorizontalAlignment="Left" />
+                </Border>
+
+                <TextBlock Text="{Binding ProgressText}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#0A84FF"
+                           HorizontalAlignment="Center"
+                           Margin="0,8,0,0" />
+
+                <!-- Startup Checks List -->
+                <ItemsControl ItemsSource="{Binding Checks}"
+                              MaxHeight="220"
+                              HorizontalAlignment="Center">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Classes="scada-panel" Margin="0,2" Width="460">
+                                <Grid ColumnDefinitions="18,*,Auto" ColumnSpacing="10">
+                                    <Ellipse Width="10" Height="10"
+                                             VerticalAlignment="Center"
+                                             Fill="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Title}"
+                                               FontSize="12"
+                                               FontWeight="Medium"
+                                               Foreground="#18181B"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding State}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Separator Classes="divider" Margin="0,16" />
+
+                <TextBlock Text="Press ESC to skip"
+                           FontSize="10"
+                           Foreground="#9CA3AF"
+                           HorizontalAlignment="Center" />
+
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
