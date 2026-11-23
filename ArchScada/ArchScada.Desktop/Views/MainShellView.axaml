@@ -595,11 +595,16 @@
 
                     <!-- 5. 3D DIGITAL TWIN (UNITY + BLENDER) -->
                     <StackPanel IsVisible="{Binding IsDigitalTwin3D}" Spacing="16">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel Spacing="4">
                                 <TextBlock Text="3D Digital Twin (Unity Engine &amp; Blender Pipeline)" Classes="section-title" />
-                                <TextBlock Text="Live read-only telemetry stream to Unity 3D runtime + headless Blender GLB model generation."
-                                           FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="8,3">
+                                        <TextBlock Text="{Binding TelemetrySourceBadgeText}" FontSize="11" FontWeight="Bold" Foreground="#92400E" />
+                                    </Border>
+                                    <TextBlock Text="Read-only 3D plant visualization — zero PLC write capability."
+                                               FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                                </StackPanel>
                             </StackPanel>
                             <Border Grid.Column="1" Classes="scada-panel" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding UnityStreamStatus}" FontSize="12" Foreground="#22C55E" />
@@ -617,12 +622,14 @@
                                     </Grid>
 
                                     <controls:Plant3DViewportControl
+                                        x:Name="Plant3DViewport"
                                         Equipment="{Binding Equipment}"
                                         Effects="{Binding UnityEffects}"
                                         CameraPreset="{Binding UnityEffects.CameraPreset}"
                                         SelectedEquipment="{Binding SelectedEquipment, Mode=TwoWay}"
                                         Selected3DNode="{Binding Selected3DNode, Mode=TwoWay}"
                                         FocusTargetId="{Binding FocusTargetId}"
+                                        TelemetrySourceBadge="{Binding TelemetrySourceBadgeText}"
                                         Height="470" />
 
                                     <WrapPanel Orientation="Horizontal">
@@ -666,6 +673,9 @@
                                 <Border Classes="scada-card">
                                     <StackPanel Spacing="6">
                                         <TextBlock Text="EQUIPMENT IDENTIFICATION &amp; PROCESS FLOW" Classes="card-label" />
+                                        <Border Background="#FFFBEB" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="8,4">
+                                            <TextBlock Text="{Binding TelemetrySourceBadgeText}" FontSize="10.5" FontWeight="Bold" Foreground="#92400E" TextWrapping="Wrap" />
+                                        </Border>
                                         <Grid ColumnDefinitions="*,Auto" DataContext="{Binding Selected3DNode}">
                                             <TextBlock Text="{Binding Id}" FontSize="16" FontWeight="Bold" Foreground="#0A84FF" />
                                             <TextBlock Grid.Column="1" Text="{Binding EquipmentType}" FontSize="11" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
@@ -676,6 +686,18 @@
                                             <StackPanel Spacing="3">
                                                 <TextBlock Text="MATERIAL FLOW (UPSTREAM → DOWNSTREAM)" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" />
                                                 <TextBlock Text="{Binding FlowSummary}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Classes="scada-panel" Padding="8,6" DataContext="{Binding Selected3DNode}">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="PLC / SCADA CHANNEL MAPPING" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" />
+                                                <TextBlock Text="{Binding PlcChannelMapping}" FontSize="11" FontWeight="SemiBold" Foreground="#0369A1" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Padding="8,6" DataContext="{Binding Selected3DNode}">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="ENGINEERING BASIS &amp; SITE CONFIG" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" />
+                                                <TextBlock Text="{Binding ProvisionalConfigNote}" FontSize="10.5" Foreground="#334155" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
                                         <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding DimensionsSpec, StringFormat='Spec: {0}'}" FontSize="11" Foreground="#475569" TextWrapping="Wrap" />

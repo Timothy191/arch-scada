@@ -168,6 +168,12 @@ public partial class MainShellViewModel : ViewModelBase
         ? "Authorized Real Control Active"
         : "Read-Only / Simulated (Real Control Disabled)";
 
+    public string TelemetrySourceBadgeText => _telemetry.IsServerConnected
+        ? "LIVE PLC/SCADA TELEMETRY · READ-ONLY"
+        : "SIMULATED DEMO TELEMETRY · READ-ONLY (No PLC Write)";
+
+    public bool IsTelemetryLive => _telemetry.IsServerConnected;
+
     public bool IsOverview => CurrentSection == PlantSection.Overview;
     public bool IsCrushing => CurrentSection == PlantSection.CrushingConveyors;
     public bool IsThickener => CurrentSection == PlantSection.ThickenerCircuit;
@@ -503,6 +509,8 @@ public partial class MainShellViewModel : ViewModelBase
     private void RefreshFromTelemetry()
     {
         ConnectionStatusLabel = _telemetry.ConnectionModeLabel;
+        OnPropertyChanged(nameof(TelemetrySourceBadgeText));
+        OnPropertyChanged(nameof(IsTelemetryLive));
         TotalFeedTonnageTph = _telemetry.TotalFeedTonnageTph;
         TotalPowerDrawKw = _telemetry.TotalPowerDrawKw;
         WaterRecoveryPercent = _telemetry.WaterRecoveryPercent;

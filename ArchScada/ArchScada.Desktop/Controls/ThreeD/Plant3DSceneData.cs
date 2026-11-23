@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -62,6 +63,8 @@ public sealed record Plant3DNode(
     public string UpstreamDisplay => UpstreamIds.Length == 0 ? "ROM Source" : string.Join(", ", UpstreamIds);
     public string DownstreamDisplay => DownstreamIds.Length == 0 ? "Final Stockpile / Product" : string.Join(", ", DownstreamIds);
     public string FlowSummary => $"{UpstreamDisplay}  →  {Id}  →  {DownstreamDisplay}";
+    public string PlcChannelMapping => Plant3DSceneData.GetPlcChannelMapping(Id, LinkedScadaId);
+    public string ProvisionalConfigNote => Plant3DSceneData.FormatProvisionalConfigNote(this, ChppEngineeringConfig.Current);
 }
 
 public sealed record ConveyorSpec(
@@ -134,6 +137,23 @@ public sealed record ProcessFlowState(
     bool IsStarved,
     double EstimatedTph);
 
+public sealed record Plant3DGlbMeshMetric(
+    string FileName,
+    long FileSizeBytes,
+    int VertexCount,
+    int TriangleCount,
+    long VboBytes);
+
+public sealed record Plant3DPerformanceMetrics(
+    IReadOnlyList<Plant3DGlbMeshMetric> Meshes,
+    int TotalGlbCount,
+    int TotalVertices,
+    int TotalTriangles,
+    double TotalGpuVboMiB,
+    double ColdGlbLoadMs,
+    double FlowAndPoseMicrosPerFrame,
+    long ManagedMemoryDeltaBytes);
+
 /// <summary>
 /// Shared 3D CHPP plant scene definition aligned to the General Arrangement (GA) drawing
 /// across Stages 1–6 and the Wash Plant / Medium Recovery circuit.
@@ -150,7 +170,7 @@ public static class Plant3DSceneData
             StageLabel: "Stage 1 — ROM Reception",
             EquipmentType: "Stockpile",
             GlbFileName: "stockpile_cone.glb",
-            Position: new(-13.8f, 0f, 13.8f),
+            Position: new(-13.8f, 0f, 16.4f),
             YawDegrees: 0f,
             Scale: new(1.1f, 0.9f, 1.1f),
             HalfExtents: new(2.1f, 1.35f, 2.1f),
@@ -169,7 +189,7 @@ public static class Plant3DSceneData
             StageLabel: "Stage 1 — ROM Reception",
             EquipmentType: "Mobile Wheel Loader",
             GlbFileName: "wheel_loader_chassis.glb",
-            Position: new(-13.8f, 0f, 11.8f),
+            Position: new(-13.8f, 0f, 13.4f),
             YawDegrees: 90f,
             Scale: new(1.0f, 1.0f, 1.0f),
             HalfExtents: new(1.1f, 1.1f, 1.4f),
@@ -783,7 +803,7 @@ public static class Plant3DSceneData
 
     public static readonly IReadOnlyList<FoundationPad> FoundationPads = new FoundationPad[]
     {
-        new("STAGE 1–2: ROM & PRIMARY FEED",    new(-13.8f, -0.06f, 9.2f),   new(5.4f, 0.12f, 12.2f), Color.Parse("#F59E0B")),
+        new("STAGE 1–2: ROM & PRIMARY FEED",    new(-13.8f, -0.06f, 11.4f),  new(6.0f, 0.12f, 15.8f), Color.Parse("#F59E0B")),
         new("STAGE 3–5: PRIMARY & ROLL CRUSH",  new(-10.5f, -0.06f, -0.8f),  new(10.2f, 0.12f, 4.4f), Color.Parse("#FB923C")),
         new("STAGE 6: CENTRAL SIZING SCREEN",   new(0.4f, -0.06f, 0.6f),     new(5.6f, 0.12f, 4.8f),  Color.Parse("#38BDF8")),
         new("SURGE & DESLIMING FEED",           new(10.4f, -0.06f, -5.2f),   new(6.2f, 0.12f, 12.0f), Color.Parse("#0EA5E9")),
@@ -930,9 +950,10 @@ public static class Plant3DSceneData
         float t = (float)(wrapped / cycleSeconds);
 
         const float x = -13.8f;
-        const float zStockpile = 12.6f;
-        const float zRampTop = 10.1f;
-        const float yRampTop = 0.85f;
+        const float zStockpile = 14.3f;
+        const float zRampTop = 11.75f;
+        const float zRampToe = 13.1f;
+        const float yRampTop = 0.88f;
 
         float z;
         float y;
@@ -956,11 +977,11 @@ public static class Plant3DSceneData
         }
         else if (t < 0.32f)
         {
-            // Stage 2: Turn toward BN-101 (North -Z, yaw +90) and climb ramp to Z=10.1, Y=0.85
+            // Stage 2: Turn toward BN-101 (North -Z, yaw +90) and climb ramp to Z=11.75, Y=0.88
             float u = Smooth01((t - 0.14f) / 0.18f);
             float turnU = Smooth01(Math.Clamp((t - 0.14f) / 0.08f, 0f, 1f));
             z = Lerp(zStockpile, zRampTop, u);
-            float rampFrac = Math.Clamp((11.4f - z) / (11.4f - zRampTop), 0f, 1f);
+            float rampFrac = Math.Clamp((zRampToe - z) / (zRampToe - zRampTop), 0f, 1f);
             y = rampFrac * yRampTop;
             yaw = Lerp(-90f, 90f, turnU);
             pitch = rampFrac * 14f;
@@ -969,7 +990,7 @@ public static class Plant3DSceneData
         }
         else if (t <= 0.48f)
         {
-            // Stage 3: Dump into BN-101 hopper
+            // Stage 3: Dump into BN-101 hopper (chassis halted at wheel-stop beam, bucket overhanging hopper)
             float u = (t - 0.32f) / 0.16f;
             z = zRampTop;
             y = yRampTop;
@@ -984,10 +1005,10 @@ public static class Plant3DSceneData
         }
         else if (t < 0.74f)
         {
-            // Stage 4: Reverse down ramp to stockpile staging Z=12.6
+            // Stage 4: Reverse down ramp to stockpile staging Z=14.3
             float u = Smooth01((t - 0.48f) / 0.26f);
             z = Lerp(zRampTop, zStockpile, u);
-            float rampFrac = Math.Clamp((11.4f - z) / (11.4f - zRampTop), 0f, 1f);
+            float rampFrac = Math.Clamp((zRampToe - z) / (zRampToe - zRampTop), 0f, 1f);
             y = rampFrac * yRampTop;
             yaw = 90f;
             pitch = rampFrac * 14f;
@@ -1028,20 +1049,104 @@ public static class Plant3DSceneData
     }
 
     /// <summary>
+    /// Authoritative PLC / SCADA channel mapping sourced from Projects/ArchCoalPlant/BaseXML/Device.xml &amp; Cnl.xml.
+    /// </summary>
+    public static string GetPlcChannelMapping(string nodeId, string linkedScadaId) => nodeId.ToUpperInvariant() switch
+    {
+        "JC-101" => "Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)",
+        "SS-101" => "Direct PLC: SC102 (Modbus 10.10.1.12:502 · Cnl 111–112)",
+        "CV-101" => "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122, 711)",
+        "CV-102" => "Direct PLC: CV102 (Modbus 10.10.1.14:502 · Cnl 131–132, 712)",
+        "TK-201" => "Direct PLC: TK201 (Modbus 10.10.2.21:502 · Cnl 201–203)",
+        "PP-201" => "Direct PLC: PP201 (Modbus 10.10.2.22:502 · Cnl 211–212)",
+        "PP-202" => "Direct PLC: PP202 (Modbus 10.10.2.23:502 · Cnl 221)",
+        "PP-203" => "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)",
+        "TK-301" or "MS-301" or "WP-301" => "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–305)",
+        _ => $"Derived Process Model (coupled to {linkedScadaId})"
+    };
+
+    /// <summary>
+    /// Formats provisional/confirmed engineering configuration parameters for the given 3D equipment or conveyor node.
+    /// </summary>
+    public static string FormatProvisionalConfigNote(Plant3DNode node, ChppEngineeringConfig cfg)
+    {
+        string status = cfg.IsSiteConfirmed
+            ? "[SITE CONFIRMED]"
+            : "[PROVISIONAL — Awaiting Site Confirmation]";
+
+        var parts = new List<string>(4);
+        if (cfg.GetRatedMotorKw(node.Id) is double motorKw)
+            parts.Add($"Motor: {motorKw:0.#} kW");
+
+        if (node.IsConveyor)
+        {
+            int beltWidth = node.Id.ToUpperInvariant() switch
+            {
+                "CV-101" or "CV-103" or "CV-104" or "CV-201" or "CV-202" or "CV-203" => cfg.PrimaryBeltWidthMm,
+                _ => cfg.SecondaryBeltWidthMm
+            };
+            parts.Add($"Belt Width: {beltWidth} mm");
+        }
+
+        switch (node.Id.ToUpperInvariant())
+        {
+            case "VF-101":
+                parts.Add($"Grizzly Aperture: {cfg.GrizzlyApertureMm:0.#} mm");
+                break;
+            case "SS-101":
+                parts.Add($"Decks: {cfg.SizingTopDeckApertureMm:0.#} / {cfg.SizingBottomDeckApertureMm:0.#} mm");
+                parts.Add($"Fines Dest: {cfg.DryFinesDestinationMode}");
+                break;
+            case "DS-201":
+                parts.Add($"Desliming Aperture: {cfg.DeslimingApertureMm:0.#} mm");
+                break;
+            case "JC-101":
+            case "DRC-101":
+            case "CV-103":
+            case "CV-104":
+                parts.Add($"Jaw Routing: {cfg.JawDischargeRoutingMode}");
+                break;
+            case "CV-105":
+                parts.Add($"Fines Dest: {cfg.DryFinesDestinationMode}");
+                break;
+        }
+
+        if (parts.Count == 0)
+        {
+            parts.Add($"Grizzly {cfg.GrizzlyApertureMm:0.#} mm");
+            parts.Add($"Sizing {cfg.SizingTopDeckApertureMm:0.#}/{cfg.SizingBottomDeckApertureMm:0.#} mm");
+            parts.Add($"Jaw Routing: {cfg.JawDischargeRoutingMode}");
+        }
+
+        return $"{status} {string.Join(" · ", parts)}";
+    }
+
+    /// <summary>
     /// Evaluates upstream-to-downstream coupled material flow across all 29 plant nodes.
     /// If an upstream feeder/crusher/conveyor stops or faults, downstream feed rates drop proportionally.
     /// </summary>
     public static IReadOnlyDictionary<string, ProcessFlowState> EvaluateProcessFlows(
         IReadOnlyDictionary<string, EquipmentItem> eqMap,
-        double simTime)
+        double simTime,
+        ChppEngineeringConfig? config = null,
+        IReadOnlySet<string>? localNodeFaultOverrides = null)
     {
+        var cfg = config ?? ChppEngineeringConfig.Current;
         var rates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var localSpeeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var node in AllNodes)
         {
-            eqMap.TryGetValue(node.LinkedScadaId, out var eq);
-            double local = GetFlowSpeedFactor(eq);
+            double local;
+            if (localNodeFaultOverrides is not null && localNodeFaultOverrides.Contains(node.Id))
+            {
+                local = 0.0;
+            }
+            else
+            {
+                eqMap.TryGetValue(node.LinkedScadaId, out var eq);
+                local = GetFlowSpeedFactor(eq);
+            }
             localSpeeds[node.Id] = local;
             rates[node.Id] = local;
         }
@@ -1049,21 +1154,31 @@ public static class Plant3DSceneData
         var loaderPose = ComputeLoaderPose(simTime, localSpeeds.GetValueOrDefault("FEL-101") > 0);
         double binSurgeWave = 0.92 + 0.16 * loaderPose.DumpIntensity;
 
-        // 4 iterative propagation passes handle converging streams & SS-101 -> CV-106 -> DRC-101 recirculation cleanly
-        for (int pass = 0; pass < 4; pass++)
+        // Iterative fixed-point propagation handles converging streams, recirculation (SS-101 -> CV-106 -> DRC-101),
+        // and multi-hop downstream Wash Plant / Stockpile starvation cleanly.
+        for (int pass = 0; pass < 16; pass++)
         {
+            double maxDelta = 0.0;
             foreach (var node in AllNodes)
             {
                 double local = localSpeeds[node.Id];
                 if (local <= 0.0)
                 {
-                    rates[node.Id] = 0.0;
+                    if (rates[node.Id] != 0.0)
+                    {
+                        maxDelta = Math.Max(maxDelta, Math.Abs(rates[node.Id]));
+                        rates[node.Id] = 0.0;
+                    }
                     continue;
                 }
 
                 if (node.UpstreamIds.Length == 0)
                 {
-                    rates[node.Id] = local;
+                    if (rates[node.Id] != local)
+                    {
+                        maxDelta = Math.Max(maxDelta, Math.Abs(rates[node.Id] - local));
+                        rates[node.Id] = local;
+                    }
                     continue;
                 }
 
@@ -1075,8 +1190,35 @@ public static class Plant3DSceneData
                 }
                 else if (string.Equals(node.Id, "DRC-101", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Primary stream (CV-103) + Recirculated oversize (CV-106)
-                    upstreamFactor = 0.72 * rates.GetValueOrDefault("CV-103") + 0.28 * rates.GetValueOrDefault("CV-106");
+                    if (string.Equals(cfg.JawDischargeRoutingMode, ChppEngineeringConfig.RoutingBypassToCv104, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Jaw discharge CV-103 bypasses DRC-101 directly onto CV-104; DRC-101 crushes SS-101 oversize (CV-106)
+                        upstreamFactor = rates.GetValueOrDefault("CV-106");
+                    }
+                    else if (string.Equals(cfg.JawDischargeRoutingMode, ChppEngineeringConfig.RoutingSplitDiverter50_50, StringComparison.OrdinalIgnoreCase))
+                    {
+                        upstreamFactor = 0.50 * rates.GetValueOrDefault("CV-103") + 0.50 * rates.GetValueOrDefault("CV-106");
+                    }
+                    else
+                    {
+                        // DivertThroughDoubleRollCrusher: Primary stream (CV-103) + Recirculated oversize (CV-106)
+                        upstreamFactor = 0.72 * rates.GetValueOrDefault("CV-103") + 0.28 * rates.GetValueOrDefault("CV-106");
+                    }
+                }
+                else if (string.Equals(node.Id, "CV-104", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.Equals(cfg.JawDischargeRoutingMode, ChppEngineeringConfig.RoutingBypassToCv104, StringComparison.OrdinalIgnoreCase))
+                    {
+                        upstreamFactor = 0.72 * rates.GetValueOrDefault("CV-103") + 0.28 * rates.GetValueOrDefault("DRC-101");
+                    }
+                    else if (string.Equals(cfg.JawDischargeRoutingMode, ChppEngineeringConfig.RoutingSplitDiverter50_50, StringComparison.OrdinalIgnoreCase))
+                    {
+                        upstreamFactor = 0.36 * rates.GetValueOrDefault("CV-103") + 0.64 * rates.GetValueOrDefault("DRC-101");
+                    }
+                    else
+                    {
+                        upstreamFactor = rates.GetValueOrDefault("DRC-101");
+                    }
                 }
                 else if (string.Equals(node.Id, "WP-301", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1096,8 +1238,13 @@ public static class Plant3DSceneData
                     upstreamFactor = maxUp;
                 }
 
-                rates[node.Id] = Math.Clamp(local * Math.Clamp(upstreamFactor, 0.0, 1.25), 0.0, 1.35);
+                double nextRate = Math.Clamp(local * Math.Clamp(upstreamFactor, 0.0, 1.25), 0.0, 1.35);
+                maxDelta = Math.Max(maxDelta, Math.Abs(nextRate - rates[node.Id]));
+                rates[node.Id] = nextRate;
             }
+
+            if (maxDelta < 1e-4)
+                break;
         }
 
         var result = new Dictionary<string, ProcessFlowState>(StringComparer.OrdinalIgnoreCase);
@@ -1116,6 +1263,86 @@ public static class Plant3DSceneData
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Benchmarks cold GLB loading, GPU VBO footprint, managed memory delta, and 1,000-iteration flow/pose evaluation.
+    /// </summary>
+    public static Plant3DPerformanceMetrics BenchmarkScenePerformance()
+    {
+        InvalidateMeshCache();
+        long memBefore = GC.GetTotalMemory(forceFullCollection: true);
+
+        var loadSw = Stopwatch.StartNew();
+        var meshes = LoadAllGlbMeshes();
+        loadSw.Stop();
+
+        long memAfter = GC.GetTotalMemory(forceFullCollection: false);
+        long memDelta = Math.Max(0, memAfter - memBefore);
+
+        var exportDir = FindAssetsExportDirectory();
+        var meshMetrics = new List<Plant3DGlbMeshMetric>(meshes.Count);
+        int totalVerts = 0;
+        int totalTris = 0;
+        long totalVboBytes = 0;
+
+        foreach (var (fileName, mesh) in meshes.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            long fileBytes = 0;
+            if (exportDir is not null)
+            {
+                var fullPath = Path.Combine(exportDir, fileName);
+                if (File.Exists(fullPath))
+                    fileBytes = new FileInfo(fullPath).Length;
+            }
+
+            long vboBytes = (long)mesh.Vertices.Length * sizeof(float) + (long)mesh.Indices.Length * sizeof(uint);
+            totalVerts += mesh.VertexCount;
+            totalTris += mesh.TriangleCount;
+            totalVboBytes += vboBytes;
+
+            meshMetrics.Add(new Plant3DGlbMeshMetric(
+                FileName: fileName,
+                FileSizeBytes: fileBytes,
+                VertexCount: mesh.VertexCount,
+                TriangleCount: mesh.TriangleCount,
+                VboBytes: vboBytes));
+        }
+
+        var eqMap = new Dictionary<string, EquipmentItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in AllNodes.Select(n => n.LinkedScadaId).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            eqMap[id] = new EquipmentItem
+            {
+                Id = id,
+                Status = EquipmentStatus.Running,
+                LoadPercent = 75.0
+            };
+        }
+
+        // Warmup JIT
+        _ = EvaluateProcessFlows(eqMap, 4.8);
+        _ = ComputeLoaderPose(4.8, active: true);
+
+        const int iterations = 1000;
+        var flowSw = Stopwatch.StartNew();
+        for (int i = 0; i < iterations; i++)
+        {
+            double t = i * 0.033;
+            _ = EvaluateProcessFlows(eqMap, t);
+            _ = ComputeLoaderPose(t, active: true);
+        }
+        flowSw.Stop();
+
+        return new Plant3DPerformanceMetrics(
+            Meshes: meshMetrics,
+            TotalGlbCount: meshes.Count,
+            TotalVertices: totalVerts,
+            TotalTriangles: totalTris,
+            TotalGpuVboMiB: Math.Round(totalVboBytes / (1024.0 * 1024.0), 3),
+            ColdGlbLoadMs: Math.Round(loadSw.Elapsed.TotalMilliseconds, 2),
+            FlowAndPoseMicrosPerFrame: Math.Round(flowSw.Elapsed.TotalMicroseconds / iterations, 2),
+            ManagedMemoryDeltaBytes: memDelta);
     }
 
     private static double GetNominalTph(string id) => id switch

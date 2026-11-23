@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using ArchScada.Desktop.Controls.ThreeD;
 using ArchScada.Desktop.Models;
@@ -43,6 +44,11 @@ public sealed class Plant3DViewportControl : Panel
 
     public static readonly StyledProperty<string?> FocusTargetIdProperty =
         AvaloniaProperty.Register<Plant3DViewportControl, string?>(nameof(FocusTargetId));
+
+    public static readonly StyledProperty<string> TelemetrySourceBadgeProperty =
+        AvaloniaProperty.Register<Plant3DViewportControl, string>(
+            nameof(TelemetrySourceBadge),
+            "SIMULATED DEMO TELEMETRY · READ-ONLY (No PLC Write)");
 
     public IReadOnlyList<EquipmentItem>? Equipment
     {
@@ -80,7 +86,20 @@ public sealed class Plant3DViewportControl : Panel
         set => SetValue(FocusTargetIdProperty, value);
     }
 
+    public string TelemetrySourceBadge
+    {
+        get => GetValue(TelemetrySourceBadgeProperty);
+        set => SetValue(TelemetrySourceBadgeProperty, value);
+    }
+
     public bool IsHardwareAccelerated => _glCanvas.IsHardwareActive;
+    public bool FreezeSimulationTime { get; set; }
+    public bool CaptureOpenGlFrame
+    {
+        get => _glCanvas.CaptureRequested;
+        set => _glCanvas.CaptureRequested = value;
+    }
+    internal Control OverlayControl => _overlay;
 
     private readonly Plant3DOpenGlCanvas _glCanvas;
     private readonly HudOverlayControl _overlay;
@@ -115,7 +134,8 @@ public sealed class Plant3DViewportControl : Panel
             CameraPresetProperty,
             SelectedEquipmentProperty,
             Selected3DNodeProperty,
-            FocusTargetIdProperty);
+            FocusTargetIdProperty,
+            TelemetrySourceBadgeProperty);
     }
 
     public Plant3DViewportControl()
@@ -136,7 +156,8 @@ public sealed class Plant3DViewportControl : Panel
             if (!IsEffectivelyVisible || Bounds.Width < 40 || Bounds.Height < 40)
                 return;
 
-            _time += 0.033;
+            if (!FreezeSimulationTime)
+                _time += 0.033;
             if (Effects?.AutoOrbit == true && _lastPointer is null)
             {
                 _goalYaw += 0.0045;
@@ -175,13 +196,36 @@ public sealed class Plant3DViewportControl : Panel
         else if (change.Property == EquipmentProperty ||
                  change.Property == EffectsProperty ||
                  change.Property == SelectedEquipmentProperty ||
-                 change.Property == Selected3DNodeProperty)
+                 change.Property == Selected3DNodeProperty ||
+                 change.Property == TelemetrySourceBadgeProperty)
         {
             SyncCanvasState();
             _glCanvas.RequestNextFrameRendering();
             _overlay.InvalidateVisual();
         }
     }
+
+    public void SnapCameraImmediate(double? simTimeOverride = null)
+    {
+        _yaw = _goalYaw;
+        _pitch = _goalPitch;
+        _zoom = _goalZoom;
+        _targetX = _goalTargetX;
+        _targetZ = _goalTargetZ;
+        if (simTimeOverride.HasValue)
+            _time = simTimeOverride.Value;
+        if (FreezeSimulationTime)
+        {
+            _hoverPointer = null;
+            _hoveredId = null;
+        }
+
+        SyncCanvasState();
+        _glCanvas.RequestNextFrameRendering();
+        _overlay.InvalidateVisual();
+    }
+
+    public WriteableBitmap? GetLastOpenGlBitmap() => _glCanvas.CaptureLastFrameBitmap();
 
     public void FocusOnEquipment(string equipmentId)
     {
@@ -235,16 +279,16 @@ public sealed class Plant3DViewportControl : Panel
         {
             case "Top-Down GA Layout":
             case "Top-Down Schematic":
-                _goalYaw = 0.0; _goalPitch = 1.46; _goalZoom = 0.68; _goalTargetX = -2.0; _goalTargetZ = -2.5;
+                _goalYaw = 0.0; _goalPitch = 1.48; _goalZoom = 0.42; _goalTargetX = -1.6; _goalTargetZ = -0.2;
                 break;
             case "Front View (South)":
-                _goalYaw = 0.0; _goalPitch = 0.24; _goalZoom = 0.85; _goalTargetX = -5.5; _goalTargetZ = 2.5;
+                _goalYaw = 0.0; _goalPitch = 0.24; _goalZoom = 0.72; _goalTargetX = -4.5; _goalTargetZ = 2.0;
                 break;
             case "Side View (West)":
-                _goalYaw = -1.57; _goalPitch = 0.28; _goalZoom = 1.12; _goalTargetX = -13.5; _goalTargetZ = 6.0;
+                _goalYaw = -1.57; _goalPitch = 0.28; _goalZoom = 0.92; _goalTargetX = -13.5; _goalTargetZ = 7.8;
                 break;
             case "Stage 1: Loader & Feeder":
-                _goalYaw = -0.82; _goalPitch = 0.42; _goalZoom = 1.42; _goalTargetX = -13.8; _goalTargetZ = 9.8;
+                _goalYaw = -1.18; _goalPitch = 0.38; _goalZoom = 1.18; _goalTargetX = -13.8; _goalTargetZ = 11.4;
                 break;
             case "Stage 2–3: Jaw Crusher":
                 _goalYaw = -0.55; _goalPitch = 0.44; _goalZoom = 1.48; _goalTargetX = -12.5; _goalTargetZ = 1.6;
@@ -256,10 +300,10 @@ public sealed class Plant3DViewportControl : Panel
                 _goalYaw = -0.48; _goalPitch = 0.48; _goalZoom = 1.48; _goalTargetX = 0.0; _goalTargetZ = 0.5;
                 break;
             case "Wash Plant & Thickener":
-                _goalYaw = 0.45; _goalPitch = 0.48; _goalZoom = 1.02; _goalTargetX = -0.5; _goalTargetZ = -11.2;
+                _goalYaw = -0.45; _goalPitch = 0.58; _goalZoom = 0.78; _goalTargetX = -0.8; _goalTargetZ = -11.8;
                 break;
             default: // "Plant Overview"
-                _goalYaw = -0.58; _goalPitch = 0.56; _goalZoom = 0.68; _goalTargetX = -2.0; _goalTargetZ = -3.0;
+                _goalYaw = -0.58; _goalPitch = 0.56; _goalZoom = 0.52; _goalTargetX = -1.8; _goalTargetZ = -1.2;
                 break;
         }
         SyncCanvasState();
@@ -794,7 +838,8 @@ public sealed class Plant3DViewportControl : Panel
         {
             var verts = mesh.Vertices;
             var idx = mesh.Indices;
-            for (int i = 0; i + 2 < idx.Length; i += 3)
+            int triStride = idx.Length > 12000 ? 6 : 3;
+            for (int i = 0; i + 2 < idx.Length; i += triStride)
             {
                 int i0 = (int)idx[i] * GlbMeshData.FloatsPerVertex;
                 int i1 = (int)idx[i + 1] * GlbMeshData.FloatsPerVertex;
@@ -912,7 +957,13 @@ public sealed class Plant3DViewportControl : Panel
             Matrix4x4 viewProj, Dictionary<string, EquipmentItem> eqMap, LoaderPose loaderPose)
         {
             _owner._hitRects.Clear();
-            var placed = new List<Rect>(Plant3DSceneData.AllNodes.Count);
+            var placed = new List<Rect>(Plant3DSceneData.AllNodes.Count + 3)
+            {
+                // Reserve top HUD bar, top-right axis gizmo, and bottom hint bar from label clutter
+                new Rect(0, 0, w, 40),
+                new Rect(Math.Max(0, w - 95), 0, 95, 88),
+                new Rect(0, Math.Max(0, h - 30), w, 30)
+            };
             string? activeSelected = _owner.Selected3DNode?.Id ?? _owner.SelectedEquipment?.Id;
 
             var ordered = Plant3DSceneData.AllNodes
@@ -1036,11 +1087,34 @@ public sealed class Plant3DViewportControl : Panel
             context.DrawRectangle(LabelBgBrush, HoverLabelPen, badgeRect, 4);
             context.DrawText(badgeTxt, new Point(19, 13));
 
+            string sourceBadge = string.IsNullOrWhiteSpace(_owner.TelemetrySourceBadge)
+                ? "SIMULATED DEMO TELEMETRY · READ-ONLY (No PLC Write)"
+                : _owner.TelemetrySourceBadge;
+            bool isLive = sourceBadge.Contains("LIVE", StringComparison.OrdinalIgnoreCase);
+            var srcBrush = isLive ? GetBrush(34, 197, 94) : GetBrush(251, 191, 36);
+            var srcBg = isLive ? GetBrush(6, 78, 59, 210) : GetBrush(120, 53, 15, 210);
+            var srcPen = new Pen(srcBrush, 1.1);
+            var srcTxt = new FormattedText(sourceBadge, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 9.8, srcBrush);
+            var srcRect = new Rect(badgeRect.Right + 8, 10, srcTxt.Width + 14, srcTxt.Height + 6);
+            if (srcRect.Right < w - 90)
+            {
+                context.DrawRectangle(srcBg, srcPen, srcRect, 4);
+                context.DrawText(srcTxt, new Point(srcRect.X + 7, 13));
+            }
+            else
+            {
+                srcRect = new Rect(12, badgeRect.Bottom + 6, srcTxt.Width + 14, srcTxt.Height + 6);
+                context.DrawRectangle(srcBg, srcPen, srcRect, 4);
+                context.DrawText(srcTxt, new Point(19, srcRect.Y + 3));
+            }
+
             string projMode = fx.IsOrthographic ? "ORTHO" : "PERSP";
             var hint = new FormattedText(
                 $"[{projMode}] Click Machine/Conveyor: Inspect  |  Left-Drag: Orbit  |  Right-Drag / WASD: Pan  |  Scroll: Zoom  |  F: Focus  |  R: Reset",
-                CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 10.5, GetBrush(148, 163, 184));
-            context.DrawText(hint, new Point(12, h - 22));
+                CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HudTypeface, 10.5, GetBrush(203, 213, 225));
+            var hintRect = new Rect(8, h - 26, hint.Width + 14, hint.Height + 6);
+            context.DrawRectangle(LabelBgBrush, null, hintRect, 4);
+            context.DrawText(hint, new Point(15, h - 23));
         }
     }
 }

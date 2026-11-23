@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -240,5 +241,132 @@ public class Plant3DTests
 
         Assert.InRange(nearNdcZ, -1.0001f, -0.9999f);
         Assert.InRange(farNdcZ, 0.9999f, 1.0001f);
+    }
+
+    [Fact]
+    public void ChppEngineeringConfig_LoadsProvisionalDefaultsAndNodeMetadata()
+    {
+        var cfg = ChppEngineeringConfig.Load();
+        Assert.False(cfg.IsSiteConfirmed);
+        Assert.Equal(ChppEngineeringConfig.RoutingBypassToCv104, cfg.JawDischargeRoutingMode);
+        Assert.Equal(ChppEngineeringConfig.FinesDryThermalBlend, cfg.DryFinesDestinationMode);
+        Assert.Equal(75.0, cfg.GrizzlyApertureMm);
+        Assert.Equal(50.0, cfg.SizingTopDeckApertureMm);
+        Assert.Equal(6.0, cfg.SizingBottomDeckApertureMm);
+        Assert.Equal(0.5, cfg.DeslimingApertureMm);
+        Assert.Equal(1200, cfg.PrimaryBeltWidthMm);
+        Assert.Equal(900, cfg.SecondaryBeltWidthMm);
+        Assert.True(cfg.RatedMotorKw.ContainsKey("JC-101"));
+        Assert.True(cfg.RatedMotorKw.ContainsKey("CV-101"));
+        Assert.True(cfg.RatedMotorKw.ContainsKey("CV-302"));
+
+        var jc = Plant3DSceneData.FindNode("JC-101")!;
+        var fel = Plant3DSceneData.FindNode("FEL-101")!;
+        Assert.Contains("Direct PLC: CR101", jc.PlcChannelMapping);
+        Assert.Contains("10.10.1.11:502", jc.PlcChannelMapping);
+        Assert.Contains("Derived Process Model (coupled to AF-001)", fel.PlcChannelMapping);
+        Assert.StartsWith("[PROVISIONAL — Awaiting Site Confirmation]", jc.ProvisionalConfigNote);
+
+        var confirmedCfg = new ChppEngineeringConfig { IsSiteConfirmed = true };
+        var confirmedNote = Plant3DSceneData.FormatProvisionalConfigNote(jc, confirmedCfg);
+        Assert.StartsWith("[SITE CONFIRMED]", confirmedNote);
+    }
+
+    [Fact]
+    public void Plant3DSceneData_EvaluateProcessFlows_IsolatesIndividualNodeFaults()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "archscada-fault-iso-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var telemetry = new SimulatedTelemetryService(tempDir);
+            var eqMap = telemetry.Equipment.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+            var cfg = new ChppEngineeringConfig
+            {
+                JawDischargeRoutingMode = ChppEngineeringConfig.RoutingDivertThroughDoubleRollCrusher
+            };
+
+            var baseline = Plant3DSceneData.EvaluateProcessFlows(eqMap, simTime: 4.8, cfg);
+
+            // Trip CV-102 locally -> Stream #1 starves, Path A still feeds SS-101 (~55% rate)
+            var tripCv102 = Plant3DSceneData.EvaluateProcessFlows(
+                eqMap, simTime: 4.8, cfg,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CV-102" });
+            Assert.Equal(0.0, tripCv102["CV-102"].NormalizedRate);
+            Assert.True(tripCv102["CV-104"].NormalizedRate > 0.5);
+            Assert.InRange(tripCv102["SS-101"].NormalizedRate / baseline["SS-101"].NormalizedRate, 0.35, 0.70);
+
+            // Trip JC-101 locally -> Path A starves, Path B (CV-102) still feeds SS-101 (~45% rate)
+            var tripJc101 = Plant3DSceneData.EvaluateProcessFlows(
+                eqMap, simTime: 4.8, cfg,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "JC-101" });
+            Assert.Equal(0.0, tripJc101["JC-101"].NormalizedRate);
+            Assert.Equal(0.0, tripJc101["CV-103"].NormalizedRate);
+            Assert.True(tripJc101["CV-103"].IsStarved);
+            Assert.True(tripJc101["CV-102"].NormalizedRate > 0.5);
+            Assert.InRange(tripJc101["SS-101"].NormalizedRate / baseline["SS-101"].NormalizedRate, 0.35, 0.65);
+
+            // Trip BOTH CV-102 and JC-101 -> SS-101, CV-201, DS-201, and WP-301 are all starved
+            var tripBoth = Plant3DSceneData.EvaluateProcessFlows(
+                eqMap, simTime: 4.8, cfg,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CV-102", "JC-101" });
+            Assert.True(tripBoth["SS-101"].IsStarved);
+            Assert.True(tripBoth["CV-201"].IsStarved);
+            Assert.True(tripBoth["DS-201"].IsStarved);
+            Assert.True(tripBoth["WP-301"].IsStarved);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Plant3DSceneData_EvaluateProcessFlows_RespectsJawDischargeRoutingModeOnDrcFault()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "archscada-routing-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var telemetry = new SimulatedTelemetryService(tempDir);
+            var eqMap = telemetry.Equipment.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+            var drcFault = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "DRC-101" };
+
+            var bypassCfg = new ChppEngineeringConfig
+            {
+                JawDischargeRoutingMode = ChppEngineeringConfig.RoutingBypassToCv104
+            };
+            var bypassFlow = Plant3DSceneData.EvaluateProcessFlows(eqMap, simTime: 4.8, bypassCfg, drcFault);
+            Assert.Equal(0.0, bypassFlow["DRC-101"].NormalizedRate);
+            Assert.True(bypassFlow["CV-103"].NormalizedRate > 0.5);
+            Assert.True(bypassFlow["CV-104"].NormalizedRate > 0.5, "BypassToCv104 must preserve CV-103 -> CV-104 flow when DRC-101 faults");
+
+            var divertCfg = new ChppEngineeringConfig
+            {
+                JawDischargeRoutingMode = ChppEngineeringConfig.RoutingDivertThroughDoubleRollCrusher
+            };
+            var divertFlow = Plant3DSceneData.EvaluateProcessFlows(eqMap, simTime: 4.8, divertCfg, drcFault);
+            Assert.Equal(0.0, divertFlow["DRC-101"].NormalizedRate);
+            Assert.Equal(0.0, divertFlow["CV-104"].NormalizedRate);
+            Assert.True(divertFlow["CV-104"].IsStarved, "DivertThroughDoubleRollCrusher must halt CV-104 when DRC-101 faults");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Plant3DSceneData_BenchmarkScenePerformance_MeetsLatencyAndBudgetTargets()
+    {
+        var metrics = Plant3DSceneData.BenchmarkScenePerformance();
+
+        Assert.Equal(22, metrics.TotalGlbCount);
+        Assert.Equal(22, metrics.Meshes.Count);
+        Assert.True(metrics.TotalVertices > 0);
+        Assert.True(metrics.TotalTriangles > 0);
+        Assert.True(metrics.TotalGpuVboMiB > 0.0);
+        Assert.True(metrics.ColdGlbLoadMs < 2000.0, $"Cold GLB load took {metrics.ColdGlbLoadMs} ms (expected < 2000 ms)");
+        Assert.True(metrics.FlowAndPoseMicrosPerFrame < 500.0, $"Flow+Pose took {metrics.FlowAndPoseMicrosPerFrame} µs/frame (expected < 500 µs)");
     }
 }

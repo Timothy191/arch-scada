@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
+using Avalonia.Platform;
 using ArchScada.Desktop.Models;
 
 namespace ArchScada.Desktop.Controls.ThreeD;
@@ -36,6 +39,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_FRAGMENT_SHADER = 0x8B30;
     private const int GL_COMPILE_STATUS = 0x8B81;
     private const int GL_LINK_STATUS = 0x8B82;
+    private const int GL_RGBA = 0x1908;
+    private const int GL_UNSIGNED_BYTE = 0x1401;
+    private const int GL_PACK_ALIGNMENT = 0x0D05;
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlViewportDel(int x, int y, int w, int h);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlClearColorDel(float r, float g, float b, float a);
@@ -71,6 +77,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlVertexAttribPointerDel(uint index, int size, int type, byte normalized, int stride, nint pointer);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawElementsDel(int mode, int count, int type, nint indices);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawArraysDel(int mode, int first, int count);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlReadPixelsDel(int x, int y, int width, int height, int format, int type, void* pixels);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlPixelStoreiDel(int pname, int param);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlFinishDel();
 
     private GlViewportDel? _glViewport;
     private GlClearColorDel? _glClearColor;
@@ -106,6 +115,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GlVertexAttribPointerDel? _glVertexAttribPointer;
     private GlDrawElementsDel? _glDrawElements;
     private GlDrawArraysDel? _glDrawArrays;
+    private GlReadPixelsDel? _glReadPixels;
+    private GlPixelStoreiDel? _glPixelStorei;
+    private GlFinishDel? _glFinish;
+
+    private readonly object _captureLock = new();
+    private byte[]? _lastFrameRgba;
+    private int _lastFrameWidth;
+    private int _lastFrameHeight;
 
     private sealed class GpuMesh
     {
@@ -148,6 +165,39 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
     public bool IsHardwareActive { get; private set; }
     public int LoadedGlbCount => _glbGpuMeshes.Count;
+    public volatile bool CaptureRequested;
+
+    public WriteableBitmap? CaptureLastFrameBitmap()
+    {
+        byte[]? rgba;
+        int w;
+        int h;
+        lock (_captureLock)
+        {
+            if (_lastFrameRgba is null || _lastFrameWidth <= 0 || _lastFrameHeight <= 0)
+                return null;
+            rgba = (byte[])_lastFrameRgba.Clone();
+            w = _lastFrameWidth;
+            h = _lastFrameHeight;
+        }
+
+        var bmp = new WriteableBitmap(
+            new PixelSize(w, h),
+            new Avalonia.Vector(96, 96),
+            PixelFormat.Rgba8888,
+            AlphaFormat.Opaque);
+
+        using var fb = bmp.Lock();
+        int rowBytes = w * 4;
+        for (int y = 0; y < h; y++)
+        {
+            int srcOffset = (h - 1 - y) * rowBytes;
+            IntPtr dstRow = IntPtr.Add(fb.Address, y * fb.RowBytes);
+            Marshal.Copy(rgba, srcOffset, dstRow, rowBytes);
+        }
+
+        return bmp;
+    }
 
     private T? LoadProc<T>(GlInterface gl, string name) where T : Delegate
     {
@@ -196,6 +246,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glVertexAttribPointer = LoadProc<GlVertexAttribPointerDel>(gl, "glVertexAttribPointer");
             _glDrawElements = LoadProc<GlDrawElementsDel>(gl, "glDrawElements");
             _glDrawArrays = LoadProc<GlDrawArraysDel>(gl, "glDrawArrays");
+            _glReadPixels = LoadProc<GlReadPixelsDel>(gl, "glReadPixels");
+            _glPixelStorei = LoadProc<GlPixelStoreiDel>(gl, "glPixelStorei");
+            _glFinish = LoadProc<GlFinishDel>(gl, "glFinish");
 
             if (_glCreateProgram is null || _glGenVertexArrays is null || _glDrawElements is null)
                 return;
@@ -553,6 +606,23 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 }
             }
             _glDepthMask!(1);
+        }
+
+        if (CaptureRequested && _glReadPixels is not null && pw > 0 && ph > 0)
+        {
+            _glFinish?.Invoke();
+            _glPixelStorei?.Invoke(GL_PACK_ALIGNMENT, 1);
+            var buf = new byte[pw * ph * 4];
+            fixed (byte* pBuf = buf)
+            {
+                _glReadPixels(0, 0, pw, ph, GL_RGBA, GL_UNSIGNED_BYTE, pBuf);
+            }
+            lock (_captureLock)
+            {
+                _lastFrameRgba = buf;
+                _lastFrameWidth = pw;
+                _lastFrameHeight = ph;
+            }
         }
 
         _glBindVertexArray!(0);
