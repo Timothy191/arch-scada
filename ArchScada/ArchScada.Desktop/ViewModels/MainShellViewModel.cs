@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ArchScada.ControlBoundary;
 using ArchScada.Desktop.Controls;
+using ArchScada.Desktop.Controls.ThreeD;
 using ArchScada.Desktop.Models;
 using ArchScada.Desktop.Services;
 
@@ -51,16 +52,19 @@ public partial class MainShellViewModel : ViewModelBase
 
     public Unity3DEffectSettings UnityEffects { get; } = new();
 
+    public IReadOnlyList<Plant3DNode> All3DNodes => Plant3DSceneData.AllNodes;
+
     public IReadOnlyList<string> CameraPresets { get; } = new[]
     {
         "Plant Overview",
-        "Crushing & Conveyors",
-        "Thickener Circuit",
-        "Magnetite Prep",
-        "Fine Coal & Flotation",
-        "Dewatering & Tailings",
-        "ROM & Silo Loadout",
-        "Top-Down Schematic"
+        "Top-Down GA Layout",
+        "Front View (South)",
+        "Side View (West)",
+        "Stage 1: Loader & Feeder",
+        "Stage 2–3: Jaw Crusher",
+        "Stage 4–5: Double Roll Crusher",
+        "Stage 6: Central Sizing Screen",
+        "Wash Plant & Thickener"
     };
 
     [ObservableProperty]
@@ -137,6 +141,9 @@ public partial class MainShellViewModel : ViewModelBase
     public partial EquipmentItem? SelectedEquipment { get; set; }
 
     [ObservableProperty]
+    public partial Plant3DNode? Selected3DNode { get; set; }
+
+    [ObservableProperty]
     public partial TelemetryTag? SelectedTrendTag { get; set; }
 
     [ObservableProperty]
@@ -195,6 +202,7 @@ public partial class MainShellViewModel : ViewModelBase
         }
 
         SelectedEquipment = _telemetry.Equipment.FirstOrDefault();
+        Selected3DNode = Plant3DSceneData.AllNodes.FirstOrDefault();
         SelectedTrendTag = _telemetry.AllTags.FirstOrDefault();
 
         _telemetry.TelemetryUpdated += (_, _) => RefreshFromTelemetry();
@@ -348,12 +356,70 @@ public partial class MainShellViewModel : ViewModelBase
         LastControlAuditResult = $"{result.Status} (Simulated={result.IsSimulated}) · Audit #{shortAuditId} · {result.Message}";
     }
 
+    partial void OnSelected3DNodeChanged(Plant3DNode? value)
+    {
+        if (value is null) return;
+        var linked = _telemetry.Equipment.FirstOrDefault(e =>
+            string.Equals(e.Id, value.LinkedScadaId, StringComparison.OrdinalIgnoreCase));
+        if (linked is not null)
+        {
+            SelectedEquipment = linked;
+        }
+    }
+
     [RelayCommand]
     private void FocusSelected3D()
     {
-        if (SelectedEquipment is null) return;
+        var id = Selected3DNode?.Id ?? SelectedEquipment?.Id;
+        if (string.IsNullOrWhiteSpace(id)) return;
         FocusTargetId = null;
-        FocusTargetId = SelectedEquipment.Id;
+        FocusTargetId = id;
+    }
+
+    [RelayCommand]
+    private void SelectNext3DNode()
+    {
+        var nodes = Plant3DSceneData.AllNodes;
+        if (nodes.Count == 0) return;
+        int idx = -1;
+        if (Selected3DNode is not null)
+        {
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                if (string.Equals(nodes[i].Id, Selected3DNode.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        var next = nodes[(idx + 1) % nodes.Count];
+        Selected3DNode = next;
+        FocusTargetId = null;
+        FocusTargetId = next.Id;
+    }
+
+    [RelayCommand]
+    private void SelectPrev3DNode()
+    {
+        var nodes = Plant3DSceneData.AllNodes;
+        if (nodes.Count == 0) return;
+        int idx = 0;
+        if (Selected3DNode is not null)
+        {
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                if (string.Equals(nodes[i].Id, Selected3DNode.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        var prev = nodes[(idx - 1 + nodes.Count) % nodes.Count];
+        Selected3DNode = prev;
+        FocusTargetId = null;
+        FocusTargetId = prev.Id;
     }
 
     [RelayCommand]
@@ -363,8 +429,12 @@ public partial class MainShellViewModel : ViewModelBase
         if (alarm is null) return;
         var eq = _telemetry.Equipment.FirstOrDefault(e => e.Id == alarm.EquipmentId);
         if (eq is not null) SelectedEquipment = eq;
+        var node = Plant3DSceneData.AllNodes.FirstOrDefault(n =>
+            string.Equals(n.Id, alarm.EquipmentId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(n.LinkedScadaId, alarm.EquipmentId, StringComparison.OrdinalIgnoreCase));
+        if (node is not null) Selected3DNode = node;
         FocusTargetId = null;
-        FocusTargetId = alarm.EquipmentId;
+        FocusTargetId = node?.Id ?? alarm.EquipmentId;
     }
 
     [RelayCommand]

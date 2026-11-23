@@ -172,6 +172,12 @@ public partial class Unity3DEffectSettings : ObservableObject
     public partial bool EnableVibrationPhysics { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool ShowEquipmentLabels { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowFlowDirection { get; set; } = true;
+
+    [ObservableProperty]
     public partial string CameraPreset { get; set; } = "Plant Overview";
 }
 

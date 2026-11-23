@@ -3,6 +3,7 @@
              xmlns:vm="using:ArchScada.Desktop.ViewModels"
              xmlns:models="using:ArchScada.Desktop.Models"
              xmlns:controls="using:ArchScada.Desktop.Controls"
+             xmlns:threed="using:ArchScada.Desktop.Controls.ThreeD"
              xmlns:conv="using:ArchScada.Desktop.Converters"
              x:Class="ArchScada.Desktop.Views.MainShellView"
              x:DataType="vm:MainShellViewModel">
@@ -620,13 +621,27 @@
                                         Effects="{Binding UnityEffects}"
                                         CameraPreset="{Binding UnityEffects.CameraPreset}"
                                         SelectedEquipment="{Binding SelectedEquipment, Mode=TwoWay}"
+                                        Selected3DNode="{Binding Selected3DNode, Mode=TwoWay}"
                                         FocusTargetId="{Binding FocusTargetId}"
-                                        Height="420" />
+                                        Height="470" />
 
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Focus Selected (F)" Command="{Binding FocusSelected3DCommand}" Classes="primary-action" Padding="12,6" FontSize="11" />
-                                        <Button Content="Focus Active Alarm" Command="{Binding FocusActiveAlarm3DCommand}" Classes="secondary-action" Padding="12,6" FontSize="11" />
-                                    </StackPanel>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Content="◀ Prev" Command="{Binding SelectPrev3DNodeCommand}" Classes="secondary-action" Padding="10,6" FontSize="11" Margin="0,0,6,6" />
+                                        <Button Content="Next ▶" Command="{Binding SelectNext3DNodeCommand}" Classes="secondary-action" Padding="10,6" FontSize="11" Margin="0,0,8,6" />
+                                        <ComboBox ItemsSource="{Binding All3DNodes}" SelectedItem="{Binding Selected3DNode}" MinWidth="240" Margin="0,0,8,6" FontSize="11">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="threed:Plant3DNode">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding Id}" FontWeight="Bold" Foreground="#0A84FF" />
+                                                        <TextBlock Text="·" Foreground="#94A3B8" />
+                                                        <TextBlock Text="{Binding GaLabel}" Foreground="#18181B" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Content="Focus Selected (F)" Command="{Binding FocusSelected3DCommand}" Classes="primary-action" Padding="12,6" FontSize="11" Margin="0,0,8,6" />
+                                        <Button Content="Focus Active Alarm" Command="{Binding FocusActiveAlarm3DCommand}" Classes="secondary-action" Padding="12,6" FontSize="11" Margin="0,0,0,6" />
+                                    </WrapPanel>
 
                                     <ItemsControl ItemsSource="{Binding CameraPresets}">
                                         <ItemsControl.ItemsPanel>
@@ -646,30 +661,54 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- 3D Effects & Blender Controls -->
-                            <StackPanel Grid.Column="1" Spacing="14">
-                                <Border Classes="scada-card" DataContext="{Binding SelectedEquipment}">
+                            <!-- Equipment Identification, Process Flow & 3D FX Controls -->
+                            <StackPanel Grid.Column="1" Spacing="12">
+                                <Border Classes="scada-card">
                                     <StackPanel Spacing="6">
-                                        <TextBlock Text="SELECTED 3D ASSET" Classes="card-label" />
-                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Bold" Foreground="#18181B" />
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="SemiBold" Foreground="#0A84FF" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="12" FontWeight="Bold"
-                                                       Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                        <TextBlock Text="EQUIPMENT IDENTIFICATION &amp; PROCESS FLOW" Classes="card-label" />
+                                        <Grid ColumnDefinitions="*,Auto" DataContext="{Binding Selected3DNode}">
+                                            <TextBlock Text="{Binding Id}" FontSize="16" FontWeight="Bold" Foreground="#0A84FF" />
+                                            <TextBlock Grid.Column="1" Text="{Binding EquipmentType}" FontSize="11" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
                                         </Grid>
-                                        <TextBlock Text="{Binding PrimaryMetricDisplay, StringFormat='Primary: {0}'}" FontSize="12" Foreground="#6B7280" />
-                                        <TextBlock Text="{Binding PowerKw, StringFormat='Power: {0:0.0} kW'}" FontSize="12" Foreground="#94A3B8" />
+                                        <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding GaLabel}" FontSize="14" FontWeight="Bold" Foreground="#18181B" TextWrapping="Wrap" />
+                                        <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding StageLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#0284C7" />
+                                        <Border Classes="scada-panel" Padding="8,6" DataContext="{Binding Selected3DNode}">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="MATERIAL FLOW (UPSTREAM → DOWNSTREAM)" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" />
+                                                <TextBlock Text="{Binding FlowSummary}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding DimensionsSpec, StringFormat='Spec: {0}'}" FontSize="11" Foreground="#475569" TextWrapping="Wrap" />
+                                        <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding MechanicalPrinciple}" FontSize="11" Foreground="#334155" TextWrapping="Wrap" />
+                                        <TextBlock DataContext="{Binding Selected3DNode}" Text="{Binding ComponentDescription}" FontSize="11" Foreground="#64748B" TextWrapping="Wrap" />
+
+                                        <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,4,0,0" DataContext="{Binding SelectedEquipment}">
+                                            <StackPanel Spacing="3">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding Id, StringFormat='Linked SCADA: {0}'}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0A84FF" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Status}" FontSize="11.5" FontWeight="Bold"
+                                                               Foreground="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding PrimaryMetricDisplay, StringFormat='Primary: {0}'}" FontSize="11.5" Foreground="#475569" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='Power: {0:0.0} kW'}" FontSize="11.5" Foreground="#64748B" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding LoadPercent, StringFormat='Load: {0:0}%'}" FontSize="11.5" Foreground="#64748B" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
                                 <Border Classes="scada-card">
-                                    <StackPanel Spacing="8">
+                                    <StackPanel Spacing="7">
                                         <TextBlock Text="3D Physics, Camera &amp; FX" FontSize="14" FontWeight="SemiBold" Foreground="#18181B" />
+                                        <CheckBox Content="Equipment Tags &amp; Labels" IsChecked="{Binding UnityEffects.ShowEquipmentLabels}" Foreground="#6B7280" />
+                                        <CheckBox Content="Flow Direction Arrows (&gt;&gt;&gt;)" IsChecked="{Binding UnityEffects.ShowFlowDirection}" Foreground="#6B7280" />
                                         <CheckBox Content="Material Flow Particles" IsChecked="{Binding UnityEffects.ShowFlowParticles}" Foreground="#6B7280" />
                                         <CheckBox Content="Thermal / Load Heatmap" IsChecked="{Binding UnityEffects.ShowThermalHeatmap}" Foreground="#6B7280" />
                                         <CheckBox Content="Equipment Alarm Halos" IsChecked="{Binding UnityEffects.ShowAlarmHalos}" Foreground="#6B7280" />
-                                        <CheckBox Content="Animate Conveyors / Rake" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#6B7280" />
-                                        <CheckBox Content="Vibration Physics (SC/CF)" IsChecked="{Binding UnityEffects.EnableVibrationPhysics}" Foreground="#6B7280" />
+                                        <CheckBox Content="Animate Conveyors / Loader / Crushers" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#6B7280" />
+                                        <CheckBox Content="Vibration Physics (VF / SS / DS)" IsChecked="{Binding UnityEffects.EnableVibrationPhysics}" Foreground="#6B7280" />
                                         <CheckBox Content="Ground Cast Shadows" IsChecked="{Binding UnityEffects.ShowGroundShadows}" Foreground="#6B7280" />
                                         <CheckBox Content="Auto-Orbit Camera" IsChecked="{Binding UnityEffects.AutoOrbit}" Foreground="#6B7280" />
                                         <CheckBox Content="Orthographic Projection" IsChecked="{Binding UnityEffects.IsOrthographic}" Foreground="#6B7280" />
