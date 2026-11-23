@@ -28,6 +28,9 @@ dotnet build ScadaAdmin/ScadaAdmin/ScadaAdmin.sln -c "$CONFIG"
 step "ScadaReport"
 dotnet build ScadaReport/ScadaReport.sln -c "$CONFIG"
 
+step "ScadaReport.Tests"
+dotnet test tests/ScadaReport.Tests/ScadaReport.Tests.csproj -c "$CONFIG"
+
 step "OpenDrivers"
 dotnet build ScadaComm/OpenDrivers/OpenDrivers.sln -c "$CONFIG"
 

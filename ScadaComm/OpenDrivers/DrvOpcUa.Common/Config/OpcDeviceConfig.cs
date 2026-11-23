@@ -61,7 +61,7 @@ namespace Scada.Comm.Drivers.DrvOpcUa.Config
                         CommandType.WriteItem => new WriteItemCommandConfig(),
                         CommandType.ReadHistory => new ReadHistoryCommandConfig(),
                         CommandType.CallMethod => new CallMethodCommandConfig(),
-                        _ => throw new NotImplementedException()
+                        _ => new UnknownCommandConfig(cmdType)
                     };
                     commandConfig.LoadFromXml(commandElem);
                     Commands.Add(commandConfig);
