@@ -1035,7 +1035,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 {
                     var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
                     var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
-                           * Matrix4x4.CreateTranslation(pos.X, 0.08f, pos.Z);
+                           * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.08f, pos.Z);
                     SetModelAndNormalMatrix(rm);
                     _glUniform3f!(_uTint, ac.R / 255f, ac.G / 255f, ac.B / 255f);
                     _glUniform1f!(_uAlpha, 0.42f + 0.42f * pulse);
@@ -1048,7 +1048,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 {
                     var sc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
                     var rm = Matrix4x4.CreateScale(baseR + 0.16f, 1f, baseR + 0.16f)
-                           * Matrix4x4.CreateTranslation(pos.X, p.IsConveyor ? pos.Y : 0.10f, pos.Z);
+                           * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.10f, pos.Z);
                     SetModelAndNormalMatrix(rm);
                     _glUniform3f!(_uTint, sc.R / 255f, sc.G / 255f, sc.B / 255f);
                     _glUniform1f!(_uAlpha, isSel ? 0.92f : 0.62f);
@@ -1157,7 +1157,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _fillCylinders.Clear();
         _softParticleBoxes.Clear();
 
-        // 1. Concrete Foundation Pads + Circuit Accent Trim (rough non-metal concrete + painted trim)
+        // 1. Concrete Foundation Pads + Stage 1-2 Elevated ROM Hill Terraces & Retaining Wall
         foreach (var pad in Plant3DSceneData.FoundationPads)
         {
             var padMat = Matrix4x4.CreateScale(pad.Size) * Matrix4x4.CreateTranslation(pad.Center);
@@ -1167,6 +1167,37 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                         * Matrix4x4.CreateTranslation(pad.Center.X, 0.02f, pad.Center.Z + pad.Size.Z * 0.5f - 0.06f);
             _groundPadBoxes.Add(new InstanceItem(trimMat, pad.AccentColor.R / 255f, pad.AccentColor.G / 255f, pad.AccentColor.B / 255f, 1.0f, 0.25f, 0.45f));
         }
+
+        // Multi-tier Stage 1 ROM Hill embankment (SP-001, FEL-101, BN-101 atop +4.35 m plateau)
+        _groundPadBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(7.8f, 2.20f, 13.0f) * Matrix4x4.CreateTranslation(-13.8f, 1.10f, 13.8f),
+            0.22f, 0.19f, 0.15f, 1.0f, 0.04f, 0.92f));
+        _groundPadBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(6.8f, 1.20f, 12.2f) * Matrix4x4.CreateTranslation(-13.8f, 2.80f, 13.4f),
+            0.25f, 0.21f, 0.17f, 1.0f, 0.04f, 0.90f));
+        _groundPadBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(5.8f, 0.95f, 11.4f) * Matrix4x4.CreateTranslation(-13.8f, 3.875f, 13.0f),
+            0.24f, 0.26f, 0.30f, 1.0f, 0.08f, 0.85f));
+
+        // Shadow-casting North concrete retaining wall at Z=7.25 + VF-101 elevated structural steel tower
+        _casterBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(6.2f, 4.38f, 0.36f) * Matrix4x4.CreateTranslation(-13.8f, 2.19f, 7.25f),
+            0.32f, 0.36f, 0.42f, 1.0f, 0.10f, 0.80f));
+        foreach (float xCol in new[] { -14.85f, -12.75f })
+        {
+            foreach (float zCol in new[] { 5.25f, 7.05f })
+            {
+                _casterBoxes.Add(new InstanceItem(
+                    Matrix4x4.CreateScale(0.18f, 4.55f, 0.18f) * Matrix4x4.CreateTranslation(xCol, 2.275f, zCol),
+                    0.28f, 0.35f, 0.44f, 1.0f, 0.75f, 0.40f));
+            }
+        }
+        _casterBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(2.28f, 0.16f, 1.98f) * Matrix4x4.CreateTranslation(-13.8f, 4.47f, 6.15f),
+            0.28f, 0.35f, 0.44f, 1.0f, 0.75f, 0.40f));
+        _casterBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(2.20f, 0.12f, 1.90f) * Matrix4x4.CreateTranslation(-13.8f, 2.30f, 6.15f),
+            0.26f, 0.32f, 0.40f, 1.0f, 0.72f, 0.42f));
 
         // 2. Machine Mechanical Sub-Parts & Live Fill Levels
         foreach (var p in Plant3DSceneData.MachineNodes)
@@ -1220,7 +1251,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                                * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f)
                                * chassisWorld;
             var dumpOrigin = Vector3.Transform(new Vector3(2.45f, -0.95f, 0f), glbBucketWorld);
-            var binTarget = new Vector3(-13.8f, 2.15f, 8.8f);
+            var binTarget = new Vector3(-13.8f, 6.50f, 8.8f);
             for (int i = 0; i < 7; i++)
             {
                 float frac = (float)((SimTime * 2.8 + i / 7.0) % 1.0);

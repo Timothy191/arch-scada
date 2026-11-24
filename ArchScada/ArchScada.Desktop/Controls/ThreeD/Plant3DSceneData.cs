@@ -172,22 +172,22 @@ public static class Plant3DSceneData
 {
     public static readonly IReadOnlyList<Plant3DNode> MachineNodes = new Plant3DNode[]
     {
-        // Stage 1 — ROM Reception
+        // Stage 1 — ROM Reception (Elevated ROM Hill Bench +4.35 m)
         new(
             Id: "SP-001",
             GaLabel: "ROM Raw Coal Stockpile",
             StageLabel: "Stage 1 — ROM Reception",
             EquipmentType: "Stockpile",
             GlbFileName: "stockpile_cone.glb",
-            Position: new(-13.8f, 0f, 16.4f),
+            Position: new(-13.8f, 4.35f, 16.4f),
             YawDegrees: 0f,
             Scale: new(1.1f, 0.9f, 1.1f),
             HalfExtents: new(2.1f, 1.35f, 2.1f),
             LabelHeight: 2.9f,
             DefaultColor: Color.Parse("#475569"),
-            DimensionsSpec: "Ø 16 m × 5.2 m cone (4.2 m × 2.7 m model)",
-            MechanicalPrinciple: "Bulk run-of-mine coal stockpile reclaimed via front-end wheel loader bucket cycles.",
-            ComponentDescription: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 primary hopper loading.",
+            DimensionsSpec: "Ø 16 m × 5.2 m cone on +4.35 m ROM hill",
+            MechanicalPrinciple: "Bulk run-of-mine coal stockpile on elevated ROM hill bench reclaimed via front-end wheel loader bucket cycles.",
+            ComponentDescription: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 elevated primary hopper loading.",
             UpstreamIds: Array.Empty<string>(),
             DownstreamIds: new[] { "FEL-101" },
             LinkedScadaId: "AF-001"),
@@ -198,15 +198,15 @@ public static class Plant3DSceneData
             StageLabel: "Stage 1 — ROM Reception",
             EquipmentType: "Mobile Wheel Loader",
             GlbFileName: "wheel_loader_chassis.glb",
-            Position: new(-13.8f, 0f, 13.4f),
+            Position: new(-13.8f, 4.35f, 13.4f),
             YawDegrees: 90f,
             Scale: new(1.0f, 1.0f, 1.0f),
             HalfExtents: new(1.1f, 1.1f, 1.4f),
             LabelHeight: 2.6f,
             DefaultColor: Color.Parse("#EAB308"),
             DimensionsSpec: "3.4 m × 1.9 m × 2.4 m · 4.5 m³ rock bucket",
-            MechanicalPrinciple: "4-stage shuttle cycle: scoop ROM at SP-001, climb BN-101 earthen ramp, raise boom (38°), tilt bucket (-58°) to dump, reverse.",
-            ComponentDescription: "Articulated diesel wheel loader with hydraulic lift arms and high-dump coal bucket.",
+            MechanicalPrinciple: "4-stage shuttle cycle: scoop ROM off +4.35 m hill bench at SP-001, climb BN-101 ramp crest (+5.23 m), lift boom (38°), dump (-58°), reverse.",
+            ComponentDescription: "Articulated diesel wheel loader operating atop the ROM hill plateau with hydraulic lift arms and high-dump coal bucket.",
             UpstreamIds: new[] { "SP-001" },
             DownstreamIds: new[] { "BN-101" },
             LinkedScadaId: "AF-001"),
@@ -217,15 +217,15 @@ public static class Plant3DSceneData
             StageLabel: "Stage 1 — ROM Reception",
             EquipmentType: "Receiving Hopper",
             GlbFileName: "feeder_bin_bn101.glb",
-            Position: new(-13.8f, 0f, 8.8f),
+            Position: new(-13.8f, 4.35f, 8.8f),
             YawDegrees: 90f, // Right-handed CreateRotationY(+90°) maps -X ramp South (+Z) toward FEL-101
             Scale: new(1.0f, 1.0f, 1.0f),
             HalfExtents: new(1.7f, 1.55f, 1.9f),
             LabelHeight: 3.35f,
             DefaultColor: Color.Parse("#B45309"),
-            DimensionsSpec: "4.0 m × 3.6 m × 3.2 m · 45 t surge capacity",
-            MechanicalPrinciple: "Gravity surge hopper with inclined steel dump ramp and wear-lined discharge throat onto grizzly feeder.",
-            ComponentDescription: "Heavy-plate ROM receiving bin with loader ramp (-X rotated South toward FEL-101) and surge level monitoring.",
+            DimensionsSpec: "4.0 m × 3.6 m × 3.2 m · +4.35 m bench · 45 t surge",
+            MechanicalPrinciple: "Elevated gravity surge hopper on ROM hill retaining bench with inclined loader ramp and discharge throat onto grizzly feeder.",
+            ComponentDescription: "Heavy-plate ROM receiving bin mounted at +4.35 m elevation with ramp (-X rotated South toward FEL-101) and surge level monitoring.",
             UpstreamIds: new[] { "FEL-101" },
             DownstreamIds: new[] { "VF-101" },
             LinkedScadaId: "AF-001",
@@ -234,22 +234,22 @@ public static class Plant3DSceneData
             FillBaseY: 1.45f,
             FillMaxHeight: 1.35f),
 
-        // Stage 2 — Initial Separation
+        // Stage 2 — Initial Separation (Elevated Structural Feeder Tower +4.55 m)
         new(
             Id: "VF-101",
             GaLabel: "Primary Vibro Grizzly Feeder",
             StageLabel: "Stage 2 — Initial Separation",
             EquipmentType: "Vibrating Grizzly Feeder",
             GlbFileName: "vibro_feeder_vf101.glb",
-            Position: new(-13.8f, 0.2f, 6.2f),
+            Position: new(-13.8f, 4.55f, 6.2f),
             YawDegrees: 90f,
             Scale: new(1.0f, 1.0f, 1.0f),
             HalfExtents: new(1.1f, 0.95f, 1.4f),
             LabelHeight: 2.35f,
             DefaultColor: Color.Parse("#0284C7"),
-            DimensionsSpec: "3.2 m × 1.8 m × 1.7 m · 75 mm grizzly bar aperture",
-            MechanicalPrinciple: "Dual eccentric unbalanced motors impart linear throw, scalping <75 mm fines onto CV-102 while advancing +75 mm oversize onto CV-101.",
-            ComponentDescription: "Heavy-duty tapered-bar grizzly feeder splitting ROM coal into Path A (Jaw Feed) and Path B (Undersize Bypass).",
+            DimensionsSpec: "3.2 m × 1.8 m × 1.7 m · +4.55 m steel tower · 75 mm",
+            MechanicalPrinciple: "Elevated dual-eccentric grizzly feeder scalping <75 mm fines downhill onto CV-102 while feeding +75 mm oversize downhill onto CV-101.",
+            ComponentDescription: "Heavy-duty tapered-bar grizzly feeder supported at +4.55 m on steel columns, splitting ROM coal into downhill CV-101 and CV-102.",
             UpstreamIds: new[] { "BN-101" },
             DownstreamIds: new[] { "CV-101", "CV-102" },
             LinkedScadaId: "AF-001",
@@ -553,34 +553,34 @@ public static class Plant3DSceneData
             Id: "CV-101",
             GaLabel: "Jaw feed conv",
             StageLabel: "Stage 2 — Initial Separation",
-            TailPos: new(-13.8f, 0.85f, 5.4f),
-            HeadPos: new(-13.8f, 3.55f, 0.8f),
+            TailPos: new(-13.8f, 4.75f, 5.4f),
+            HeadPos: new(-13.8f, 3.35f, 0.8f),
             Width: 0.95f,
             HeadDropTargetY: 2.15f,
             MaterialClass: CoalMaterialClass.RawRom,
             LinkedScadaId: "CV-101",
             UpstreamIds: new[] { "VF-101" },
             DownstreamIds: new[] { "JC-101" },
-            DimensionsSpec: "5.3 m inclined · 1200 mm belt · 35° trough",
-            MechanicalPrinciple: "Troughed belt elevating +75 mm grizzly oversize from VF-101 into Primary Jaw Crusher JC-101 feed throat.",
-            ComponentDescription: "Stage 2 Path A conveyor with tail skirtboard, safety walkway, and enclosed head chute into JC-101.",
+            DimensionsSpec: "4.8 m declined (-17°) · 1200 mm belt · 35° trough",
+            MechanicalPrinciple: "Declined troughed belt conveying +75 mm grizzly oversize downhill from elevated VF-101 into Primary Jaw Crusher JC-101 feed throat.",
+            ComponentDescription: "Stage 2 Path A downhill conveyor with tail skirtboard, safety walkway, and enclosed head chute into JC-101.",
             HeadDischargeOffset: new(0f, 0f, -0.95f)),
 
         new(
             Id: "CV-102",
             GaLabel: "Under size conv",
             StageLabel: "Stage 2 — Initial Separation",
-            TailPos: new(-12.8f, 0.65f, 6.1f),
-            HeadPos: new(-1.9f, 4.15f, 1.15f),
+            TailPos: new(-12.8f, 4.55f, 6.1f),
+            HeadPos: new(-1.9f, 3.85f, 1.15f),
             Width: 0.85f,
             HeadDropTargetY: 2.95f,
             MaterialClass: CoalMaterialClass.ScalpedUndersize,
             LinkedScadaId: "CV-102",
             UpstreamIds: new[] { "VF-101" },
             DownstreamIds: new[] { "SS-101" },
-            DimensionsSpec: "12.5 m diagonal NE · 900 mm belt · 16° incline",
-            MechanicalPrinciple: "Scalped <75 mm grizzly undersize bypasses crushing and conveys directly NE into Central Sizing Screen SS-101 dual feed box (Stream #1).",
-            ComponentDescription: "Stage 2 Path B bypass conveyor with structural support bents and maintenance walkway.",
+            DimensionsSpec: "12.0 m diagonal NE declined (-3.4°) · 900 mm belt",
+            MechanicalPrinciple: "Scalped <75 mm grizzly undersize bypasses crushing and conveys downhill NE from elevated VF-101 into Central Sizing Screen SS-101 dual feed box (Stream #1).",
+            ComponentDescription: "Stage 2 Path B downhill bypass conveyor with structural support bents and maintenance walkway.",
             HeadDischargeOffset: new(0.65f, 0f, -0.25f)),
 
         new(
@@ -947,19 +947,22 @@ public static class Plant3DSceneData
     }
 
     /// <summary>
-    /// Computes the 4-stage articulated wheel loader pose for FEL-101:
-    ///   [0.00..0.14): Scoop ROM at SP-001 (Z = 12.6)
-    ///   [0.14..0.32): Drive North and climb BN-101 ramp (Z = 12.6 -> 10.1, Y = 0 -> 0.85) while lifting boom (0 -> 38 deg)
+    /// Computes the 4-stage articulated wheel loader pose for FEL-101 atop the +4.35 m ROM hill:
+    ///   [0.00..0.14): Scoop ROM at SP-001 (Z = 14.3, Y = 4.35)
+    ///   [0.14..0.32): Drive North and climb BN-101 ramp (Z = 14.3 -> 11.75, Y = 4.35 -> 5.23) while lifting boom (0 -> 38 deg)
     ///   [0.32..0.48]: Dump raw coal boulders into BN-101 (boom 38 deg, bucket dump 0 -> -58 deg)
-    ///   [0.48..0.74): Reverse down ramp (Z = 10.1 -> 12.6, Y = 0.85 -> 0) and lower boom
+    ///   [0.48..0.74): Reverse down ramp (Z = 11.75 -> 14.3, Y = 5.23 -> 4.35) and lower boom
     ///   [0.74..1.00): Turn & reposition at SP-001 for next scoop
     /// </summary>
     public static LoaderPose ComputeLoaderPose(double simTime, bool active)
     {
+        const float yHillBase = 4.35f;
+        const float yRampRise = 0.88f;
+
         if (!active)
         {
             return new LoaderPose(
-                ChassisPosition: new(-13.8f, 0f, 11.8f),
+                ChassisPosition: new(-13.8f, yHillBase, 11.8f),
                 YawDegrees: 90f,
                 PitchDegrees: 0f,
                 BoomAngleDegrees: 8f,
@@ -982,7 +985,6 @@ public static class Plant3DSceneData
         const float zStockpile = 14.3f;
         const float zRampTop = 11.75f;
         const float zRampToe = 13.1f;
-        const float yRampTop = 0.88f;
 
         float z;
         float y;
@@ -998,7 +1000,7 @@ public static class Plant3DSceneData
             // Stage 1: Scoop at SP-001 (facing South +Z, yaw -90)
             float u = Smooth01(t / 0.14f);
             z = zStockpile + MathF.Sin(u * MathF.PI) * 0.25f;
-            y = 0f;
+            y = yHillBase;
             yaw = -90f;
             pitch = 0f;
             boom = 4f + u * 6f;
@@ -1006,12 +1008,12 @@ public static class Plant3DSceneData
         }
         else if (t < 0.32f)
         {
-            // Stage 2: Turn toward BN-101 (North -Z, yaw +90) and climb ramp to Z=11.75, Y=0.88
+            // Stage 2: Turn toward BN-101 (North -Z, yaw +90) and climb ramp to Z=11.75, Y=5.23
             float u = Smooth01((t - 0.14f) / 0.18f);
             float turnU = Smooth01(Math.Clamp((t - 0.14f) / 0.08f, 0f, 1f));
             z = Lerp(zStockpile, zRampTop, u);
             float rampFrac = Math.Clamp((zRampToe - z) / (zRampToe - zRampTop), 0f, 1f);
-            y = rampFrac * yRampTop;
+            y = yHillBase + rampFrac * yRampRise;
             yaw = Lerp(-90f, 90f, turnU);
             pitch = rampFrac * 14f;
             boom = Lerp(10f, 38f, u);
@@ -1022,7 +1024,7 @@ public static class Plant3DSceneData
             // Stage 3: Dump into BN-101 hopper (chassis halted at wheel-stop beam, bucket overhanging hopper)
             float u = (t - 0.32f) / 0.16f;
             z = zRampTop;
-            y = yRampTop;
+            y = yHillBase + yRampRise;
             yaw = 90f;
             pitch = 14f;
             boom = 38f;
@@ -1034,11 +1036,11 @@ public static class Plant3DSceneData
         }
         else if (t < 0.74f)
         {
-            // Stage 4: Reverse down ramp to stockpile staging Z=14.3
+            // Stage 4: Reverse down ramp to stockpile staging Z=14.3, Y=4.35
             float u = Smooth01((t - 0.48f) / 0.26f);
             z = Lerp(zRampTop, zStockpile, u);
             float rampFrac = Math.Clamp((zRampToe - z) / (zRampToe - zRampTop), 0f, 1f);
-            y = rampFrac * yRampTop;
+            y = yHillBase + rampFrac * yRampRise;
             yaw = 90f;
             pitch = rampFrac * 14f;
             boom = Lerp(38f, 6f, u);
@@ -1049,7 +1051,7 @@ public static class Plant3DSceneData
             // Reposition & turn South toward SP-001 ready to scoop
             float u = Smooth01((t - 0.74f) / 0.26f);
             z = zStockpile;
-            y = 0f;
+            y = yHillBase;
             yaw = Lerp(90f, -90f, u);
             pitch = 0f;
             boom = Lerp(6f, 4f, u);
@@ -1628,7 +1630,7 @@ public static class Plant3DSceneData
         // Fugitive coal dust plumes at dry comminution transfer/crushing throats
         if (loaderPose.IsDumpingCoal || (flowMap.TryGetValue("BN-101", out var bnFlow) && bnFlow.IsRunning && bnFlow.NormalizedRate > 0.05))
         {
-            EmitPlume("BN-101", new Vector3(-13.8f, 2.35f, 8.8f), 0.85f, 1.85f, 0.48f, isWater: false, count: 10);
+            EmitPlume("BN-101", new Vector3(-13.8f, 6.70f, 8.8f), 0.85f, 1.85f, 0.48f, isWater: false, count: 10);
         }
         EmitPlume("JC-101", new Vector3(-13.8f, 3.15f, -0.6f), 0.72f, 1.95f, 0.44f, isWater: false, count: 10);
         EmitPlume("DRC-101", new Vector3(-7.2f, 2.85f, -0.6f), 0.68f, 1.75f, 0.42f, isWater: false, count: 9);

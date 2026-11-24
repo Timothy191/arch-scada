@@ -286,13 +286,13 @@ public sealed class Plant3DViewportControl : Panel
                 _goalYaw = 0.0; _goalPitch = 0.24; _goalZoom = 0.72; _goalTargetX = -4.5; _goalTargetZ = 2.0;
                 break;
             case "Side View (West)":
-                _goalYaw = -1.57; _goalPitch = 0.28; _goalZoom = 0.92; _goalTargetX = -13.5; _goalTargetZ = 7.8;
+                _goalYaw = -1.57; _goalPitch = 0.24; _goalZoom = 0.78; _goalTargetX = -13.5; _goalTargetZ = 8.4;
                 break;
             case "Stage 1: Loader & Feeder":
-                _goalYaw = -1.18; _goalPitch = 0.38; _goalZoom = 1.18; _goalTargetX = -13.8; _goalTargetZ = 11.4;
+                _goalYaw = -1.16; _goalPitch = 0.34; _goalZoom = 0.94; _goalTargetX = -13.8; _goalTargetZ = 10.6;
                 break;
             case "Stage 2–3: Jaw Crusher":
-                _goalYaw = -0.55; _goalPitch = 0.44; _goalZoom = 1.48; _goalTargetX = -12.5; _goalTargetZ = 1.6;
+                _goalYaw = 0.92; _goalPitch = 0.42; _goalZoom = 1.16; _goalTargetX = -12.8; _goalTargetZ = 1.8;
                 break;
             case "Stage 4–5: Double Roll Crusher":
                 _goalYaw = -0.35; _goalPitch = 0.46; _goalZoom = 1.48; _goalTargetX = -5.2; _goalTargetZ = -0.8;

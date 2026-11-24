@@ -459,4 +459,33 @@ public class Plant3DTests
         Assert.True(fx.EnableWetCoalClearcoat);
         Assert.True(fx.EnableContrastSharpening);
     }
+
+    [Fact]
+    public void Plant3DSceneData_Stage1And2_ElevatesBn101OnHillAndRunsCv101AndCv102Downwards()
+    {
+        var sp001 = Plant3DSceneData.FindNode("SP-001")!;
+        var fel101 = Plant3DSceneData.FindNode("FEL-101")!;
+        var bn101 = Plant3DSceneData.FindNode("BN-101")!;
+        var vf101 = Plant3DSceneData.FindNode("VF-101")!;
+        var jc101 = Plant3DSceneData.FindNode("JC-101")!;
+        var ss101 = Plant3DSceneData.FindNode("SS-101")!;
+
+        Assert.True(sp001.Position.Y >= 4.3f);
+        Assert.True(fel101.Position.Y >= 4.3f);
+        Assert.True(bn101.Position.Y >= 4.3f);
+        Assert.True(vf101.Position.Y >= 4.3f);
+        Assert.Equal(0f, jc101.Position.Y);
+        Assert.Equal(0f, ss101.Position.Y);
+
+        var cv101 = Plant3DSceneData.FindConveyor("CV-101")!;
+        var cv102 = Plant3DSceneData.FindConveyor("CV-102")!;
+        Assert.True(cv101.TailPos.Y > cv101.HeadPos.Y, "CV-101 Jaw feed conv must run downwards from elevated VF-101 to JC-101");
+        Assert.True(cv102.TailPos.Y > cv102.HeadPos.Y, "CV-102 Under size conv must run downwards from elevated VF-101 to SS-101");
+
+        for (double t = 0.0; t <= 12.0; t += 1.2)
+        {
+            var pose = Plant3DSceneData.ComputeLoaderPose(t, active: true);
+            Assert.True(pose.ChassisPosition.Y >= 4.35f, $"Loader FEL-101 must remain on elevated ROM hill (t={t}, Y={pose.ChassisPosition.Y})");
+        }
+    }
 }

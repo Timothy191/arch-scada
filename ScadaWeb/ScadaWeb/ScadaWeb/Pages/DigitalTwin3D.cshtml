@@ -564,10 +564,10 @@
 // Authoritative 29-Node CHPP GA Scene Definition (100% synced with Desktop & Unity)
 // =============================================================================
 const MACHINE_NODES = [
-    { id: "SP-001", ga: "ROM Raw Coal Stockpile", stage: "Stage 1 — ROM Reception", type: "Stockpile", glb: "stockpile_cone.glb", pos: [-13.8, 0, 16.4], yaw: 0, scale: [1.1, 0.9, 1.1], half: [2.1, 1.35, 2.1], labelH: 2.9, color: "#475569", spec: "Ø 16 m × 5.2 m cone (0–300 mm ROM)", principle: "Bulk run-of-mine coal stockpile reclaimed via front-end wheel loader bucket cycles.", desc: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 primary hopper loading.", up: [], down: ["FEL-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
-    { id: "FEL-101", ga: "Front-End Wheel Loader", stage: "Stage 1 — ROM Reception", type: "Mobile Wheel Loader", glb: "wheel_loader_chassis.glb", pos: [-13.8, 0, 13.4], yaw: 90, scale: [1, 1, 1], half: [1.1, 1.1, 1.4], labelH: 2.6, color: "#EAB308", spec: "3.4 m × 1.9 m × 2.4 m · 4.5 m³ rock bucket · 260 kW", principle: "4-stage shuttle cycle: scoop ROM at SP-001, climb BN-101 earthen ramp, raise boom (38°), tilt bucket (-58°) to dump, reverse.", desc: "Articulated diesel wheel loader with hydraulic lift arms and high-dump coal bucket.", up: ["SP-001"], down: ["BN-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
-    { id: "BN-101", ga: "Feeder Bin / Receiving Hopper", stage: "Stage 1 — ROM Reception", type: "Receiving Hopper", glb: "feeder_bin_bn101.glb", pos: [-13.8, 0, 8.8], yaw: 90, scale: [1, 1, 1], half: [1.7, 1.55, 1.9], labelH: 3.35, color: "#B45309", spec: "4.0 m × 3.6 m × 3.2 m · 45 t surge capacity", principle: "Gravity surge hopper with inclined steel dump ramp and wear-lined discharge throat onto grizzly feeder.", desc: "Heavy-plate ROM receiving bin with loader ramp (-X rotated South toward FEL-101) and surge level monitoring.", up: ["FEL-101"], down: ["VF-101"], scada: "AF-001", nomTph: 650, fill: { r: 0.95, baseY: 1.45, maxH: 1.35, color: "#F59E0B" }, plc: "Derived Process Model (coupled to AF-001)" },
-    { id: "VF-101", ga: "Primary Vibro Grizzly Feeder", stage: "Stage 2 — Initial Separation", type: "Vibrating Grizzly Feeder", glb: "vibro_feeder_vf101.glb", pos: [-13.8, 0.2, 6.2], yaw: 90, scale: [1, 1, 1], half: [1.1, 0.95, 1.4], labelH: 2.35, color: "#0284C7", spec: "3.2 m × 1.8 m × 1.7 m · 75 mm grizzly bar aperture · 30 kW", principle: "Dual eccentric unbalanced motors impart linear throw, scalping <75 mm fines onto CV-102 while advancing +75 mm oversize onto CV-101.", desc: "Heavy-duty tapered-bar grizzly feeder splitting ROM coal into Path A (Jaw Feed) and Path B (Undersize Bypass).", up: ["BN-101"], down: ["CV-101", "CV-102"], scada: "AF-001", nomTph: 650, vibrates: true, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "SP-001", ga: "ROM Raw Coal Stockpile", stage: "Stage 1 — ROM Reception", type: "Stockpile", glb: "stockpile_cone.glb", pos: [-13.8, 4.35, 16.4], yaw: 0, scale: [1.1, 0.9, 1.1], half: [2.1, 1.35, 2.1], labelH: 2.9, color: "#475569", spec: "Ø 16 m × 5.2 m cone on +4.35 m ROM hill", principle: "Bulk run-of-mine coal stockpile on elevated ROM hill bench reclaimed via front-end wheel loader bucket cycles.", desc: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 elevated primary hopper loading.", up: [], down: ["FEL-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "FEL-101", ga: "Front-End Wheel Loader", stage: "Stage 1 — ROM Reception", type: "Mobile Wheel Loader", glb: "wheel_loader_chassis.glb", pos: [-13.8, 4.35, 13.4], yaw: 90, scale: [1, 1, 1], half: [1.1, 1.1, 1.4], labelH: 2.6, color: "#EAB308", spec: "3.4 m × 1.9 m × 2.4 m · 4.5 m³ rock bucket · 260 kW", principle: "4-stage shuttle cycle: scoop ROM off +4.35 m hill bench at SP-001, climb BN-101 ramp crest (+5.23 m), lift boom (38°), dump (-58°), reverse.", desc: "Articulated diesel wheel loader operating atop the ROM hill plateau with hydraulic lift arms and high-dump coal bucket.", up: ["SP-001"], down: ["BN-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "BN-101", ga: "Feeder Bin / Receiving Hopper", stage: "Stage 1 — ROM Reception", type: "Receiving Hopper", glb: "feeder_bin_bn101.glb", pos: [-13.8, 4.35, 8.8], yaw: 90, scale: [1, 1, 1], half: [1.7, 1.55, 1.9], labelH: 3.35, color: "#B45309", spec: "4.0 m × 3.6 m × 3.2 m · +4.35 m bench · 45 t surge", principle: "Elevated gravity surge hopper on ROM hill retaining bench with inclined loader ramp and discharge throat onto grizzly feeder.", desc: "Heavy-plate ROM receiving bin mounted at +4.35 m elevation with ramp (-X rotated South toward FEL-101) and surge level monitoring.", up: ["FEL-101"], down: ["VF-101"], scada: "AF-001", nomTph: 650, fill: { r: 0.95, baseY: 1.45, maxH: 1.35, color: "#F59E0B" }, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "VF-101", ga: "Primary Vibro Grizzly Feeder", stage: "Stage 2 — Initial Separation", type: "Vibrating Grizzly Feeder", glb: "vibro_feeder_vf101.glb", pos: [-13.8, 4.55, 6.2], yaw: 90, scale: [1, 1, 1], half: [1.1, 0.95, 1.4], labelH: 2.35, color: "#0284C7", spec: "3.2 m × 1.8 m × 1.7 m · +4.55 m steel tower · 75 mm · 30 kW", principle: "Elevated dual-eccentric grizzly feeder scalping <75 mm fines downhill onto CV-102 while feeding +75 mm oversize downhill onto CV-101.", desc: "Heavy-duty tapered-bar grizzly feeder supported at +4.55 m on steel columns, splitting ROM coal into downhill CV-101 and CV-102.", up: ["BN-101"], down: ["CV-101", "CV-102"], scada: "AF-001", nomTph: 650, vibrates: true, plc: "Derived Process Model (coupled to AF-001)" },
     { id: "JC-101", ga: "Primary Jaw Crusher", stage: "Stage 3 — Jaw Crushing", type: "Jaw Crusher", glb: "jaw_crusher_jc101.glb", pos: [-13.8, 0, -0.6], yaw: 0, scale: [1, 1, 1], half: [1.4, 1.55, 1.3], labelH: 3.35, color: "#334155", spec: "3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW", principle: "Eccentric shaft and twin flywheels drive a reciprocating corrugated swing jaw against a fixed manganese jaw plate.", desc: "Single-toggle primary jaw crusher reducing +75 mm ROM lumps to <110 mm before East discharge onto CV-103.", up: ["CV-101"], down: ["CV-103"], scada: "CR-101", nomTph: 420, plc: "Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)" },
     { id: "DRC-101", ga: "Double Roller Crusher & Surge Hopper", stage: "Stage 4 — Double Roll Crushing", type: "Double Roll Crusher", glb: "double_roll_crusher_drc101.glb", pos: [-7.2, 0, -0.6], yaw: 0, scale: [1, 1, 1], half: [1.3, 1.65, 1.2], labelH: 3.55, color: "#475569", spec: "2.8 m × 2.4 m × 3.2 m · Ø 760 mm toothed rolls · 160 kW", principle: "Two counter-rotating toothed steel rolls nip and shear recirculated +50 mm oversize lumps with minimal fines generation.", desc: "Secondary toothed double-roll crusher with overhead feed surge hopper receiving CV-106 oversize and CV-103 primary crushed feed.", up: ["CV-106", "CV-103"], down: ["CV-104"], scada: "CR-101", nomTph: 530, plc: "Derived Process Model (coupled to CR-101)" },
     { id: "SS-101", ga: "Central Multi-Deck Sizing Screen", stage: "Stage 6 — Central Sizing Screen", type: "Multi-Deck Vibrating Screen", glb: "central_sizing_screen_ss101.glb", pos: [0.2, 0, 0.5], yaw: 0, scale: [1, 1, 1], half: [2.1, 1.85, 1.45], labelH: 4.15, color: "#0284C7", spec: "4.4 m × 2.8 m × 3.7 m · 50 mm / 6 mm dual decks · 55 kW", principle: "Dual-shaft circular-motion screen classifies converged streams (CV-102 + CV-104) into +50 mm oversize (CV-106), 6–50 mm plant feed (CV-201), and <6 mm fines (CV-105).", desc: "Central sizing tower with twin overhead feed box, top-deck curved oversize chute, middlings chute, and under-screen fines hopper.", up: ["CV-102", "CV-104"], down: ["CV-106", "CV-201", "CV-105"], scada: "SC-102", nomTph: 760, vibrates: true, plc: "Direct PLC: SC102 (Modbus 10.10.1.12:502 · Cnl 111–112)" },
@@ -585,8 +585,8 @@ const MACHINE_NODES = [
 ];
 
 const CONVEYORS = [
-    { id: "CV-101", ga: "Jaw feed conv", stage: "Stage 2 — Initial Separation", tail: [-13.8, 0.85, 5.4], head: [-13.8, 3.55, 0.8], width: 0.95, dropY: 2.15, dropOff: [0, 0, -0.95], matCol: "#A16207", lump: 0.23, scada: "CV-101", up: ["VF-101"], down: ["JC-101"], nomTph: 420, spec: "5.3 m inclined · 1200 mm belt · 35° trough · 142 kW", principle: "Troughed belt elevating +75 mm grizzly oversize from VF-101 into Primary Jaw Crusher JC-101 feed throat.", desc: "Stage 2 Path A conveyor with tail skirtboard, safety walkway, and enclosed head chute into JC-101.", plc: "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122, 711)" },
-    { id: "CV-102", ga: "Under size conv", stage: "Stage 2 — Initial Separation", tail: [-12.8, 0.65, 6.1], head: [-1.9, 4.15, 1.15], width: 0.85, dropY: 2.95, dropOff: [0.65, 0, -0.25], matCol: "#64748B", lump: 0.15, scada: "CV-102", up: ["VF-101"], down: ["SS-101"], nomTph: 230, spec: "12.5 m diagonal NE · 900 mm belt · 16° incline · 118.6 kW", principle: "Scalped <75 mm grizzly undersize bypasses crushing and conveys directly NE into Central Sizing Screen SS-101 dual feed box (Stream #1).", desc: "Stage 2 Path B bypass conveyor with structural support bents and maintenance walkway.", plc: "Direct PLC: CV102 (Modbus 10.10.1.14:502 · Cnl 131–132, 712)" },
+    { id: "CV-101", ga: "Jaw feed conv", stage: "Stage 2 — Initial Separation", tail: [-13.8, 4.75, 5.4], head: [-13.8, 3.35, 0.8], width: 0.95, dropY: 2.15, dropOff: [0, 0, -0.95], matCol: "#A16207", lump: 0.23, scada: "CV-101", up: ["VF-101"], down: ["JC-101"], nomTph: 420, spec: "4.8 m declined (-17°) · 1200 mm belt · 35° trough · 142 kW", principle: "Declined troughed belt conveying +75 mm grizzly oversize downhill from elevated VF-101 into Primary Jaw Crusher JC-101 feed throat.", desc: "Stage 2 Path A downhill conveyor with tail skirtboard, safety walkway, and enclosed head chute into JC-101.", plc: "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122, 711)" },
+    { id: "CV-102", ga: "Under size conv", stage: "Stage 2 — Initial Separation", tail: [-12.8, 4.55, 6.1], head: [-1.9, 3.85, 1.15], width: 0.85, dropY: 2.95, dropOff: [0.65, 0, -0.25], matCol: "#64748B", lump: 0.15, scada: "CV-102", up: ["VF-101"], down: ["SS-101"], nomTph: 230, spec: "12.0 m diagonal NE declined (-3.4°) · 900 mm belt · 118.6 kW", principle: "Scalped <75 mm grizzly undersize bypasses crushing and conveys downhill NE from elevated VF-101 into Central Sizing Screen SS-101 dual feed box (Stream #1).", desc: "Stage 2 Path B downhill bypass conveyor with structural support bents and maintenance walkway.", plc: "Direct PLC: CV102 (Modbus 10.10.1.14:502 · Cnl 131–132, 712)" },
     { id: "CV-103", ga: "Sizing screen feed", stage: "Stage 3 — Jaw Crushing", tail: [-12.5, 0.75, -0.6], head: [-8.3, 2.75, -0.6], width: 0.95, dropY: 1.35, dropOff: [0.85, 0, 0.10], matCol: "#94A3B8", lump: 0.17, scada: "CV-101", up: ["JC-101"], down: ["DRC-101"], nomTph: 420, spec: "4.6 m East · 1200 mm belt · 24° incline · 55 kW", principle: "Collects <110 mm primary crushed discharge under JC-101 and transfers East into DRC-101 bypass/transfer chute onto CV-104.", desc: "Jaw crusher discharge conveyor linking Stage 3 to the Stage 4–5 transfer tower.", plc: "Derived Process Model (coupled to CV-101)" },
     { id: "CV-106", ga: "Oversize conv", stage: "Stage 4 — Double Roll Crushing", tail: [1.8, 2.55, -1.8], head: [-7.2, 4.35, -1.8], width: 0.82, dropY: 2.85, dropOff: [0, 0, 0.85], matCol: "#F59E0B", lump: 0.21, scada: "CV-102", up: ["SS-101"], down: ["DRC-101"], nomTph: 110, feedChute: [[2.2, 3.15, 0.3], [2.4, 2.85, -1.8], [1.8, 2.55, -1.8]], spec: "9.2 m West return · 900 mm belt · closed circuit · 45 kW", principle: "Closed-circuit recirculation conveyor returning +50 mm top-deck oversize from SS-101 curved chute West into DRC-101 surge hopper.", desc: "Elevated return belt with curved SS-101 oversize entry chute and overhead discharge into Double Roller Crusher.", plc: "Derived Process Model (coupled to CV-102)" },
     { id: "CV-104", ga: "Sizing screen feed conv", stage: "Stage 5 — Secondary Transfer", tail: [-6.3, 0.80, -0.4], head: [-1.9, 4.20, 0.15], width: 0.95, dropY: 2.95, dropOff: [0.65, 0, 0.15], matCol: "#CBD5E1", lump: 0.13, scada: "CV-101", up: ["DRC-101"], down: ["SS-101"], nomTph: 530, spec: "5.6 m East incline · 1200 mm belt · 75 kW", principle: "Elevates combined DRC-101 roll-crushed product and CV-103 primary stream into SS-101 dual feed box alongside CV-102 (Stream #2).", desc: "Stage 5 convergence conveyor delivering crushed coal to Central Sizing Screen SS-101.", plc: "Derived Process Model (coupled to CV-101)" },
@@ -645,9 +645,9 @@ const CAMERA_PRESETS = [
     { name: "Plant Overview", yaw: -0.58, pitch: 0.56, zoom: 0.52, tx: -1.8, tz: -1.2 },
     { name: "Top-Down GA Layout", yaw: 0.0, pitch: 1.48, zoom: 0.42, tx: -1.6, tz: -0.2 },
     { name: "Front View (South)", yaw: 0.0, pitch: 0.24, zoom: 0.72, tx: -4.5, tz: 2.0 },
-    { name: "Side View (West)", yaw: -1.57, pitch: 0.28, zoom: 0.92, tx: -13.5, tz: 7.8 },
-    { name: "Stage 1: Loader & Feeder", yaw: -1.18, pitch: 0.38, zoom: 1.18, tx: -13.8, tz: 11.4 },
-    { name: "Stage 2–3: Jaw Crusher", yaw: -0.55, pitch: 0.44, zoom: 1.48, tx: -12.5, tz: 1.6 },
+    { name: "Side View (West)", yaw: -1.57, pitch: 0.24, zoom: 0.78, tx: -13.5, tz: 8.4 },
+    { name: "Stage 1: Loader & Feeder", yaw: -1.16, pitch: 0.34, zoom: 0.94, tx: -13.8, tz: 10.6 },
+    { name: "Stage 2–3: Jaw Crusher", yaw: 0.92, pitch: 0.42, zoom: 1.16, tx: -12.8, tz: 1.8 },
     { name: "Stage 4–5: Double Roll Crusher", yaw: -0.35, pitch: 0.46, zoom: 1.48, tx: -5.2, tz: -0.8 },
     { name: "Stage 6: Central Sizing Screen", yaw: -0.48, pitch: 0.48, zoom: 1.48, tx: 0.0, tz: 0.5 },
     { name: "Wash Plant & Thickener", yaw: -0.45, pitch: 0.58, zoom: 0.78, tx: -0.8, tz: -11.8 }
@@ -673,27 +673,28 @@ function lerp(a, b, t) { return a + (b - a) * t; }
 function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
 
 function computeLoaderPose(simTime, active) {
+    const yHill = 4.35, yRise = 0.88;
     if (!active) {
-        return { x: -13.8, y: 0, z: 13.4, yaw: 90, pitch: 0, boom: 8, dump: 0, dumping: false, dumpInt: 0, binPulse: 0 };
+        return { x: -13.8, y: yHill, z: 13.4, yaw: 90, pitch: 0, boom: 8, dump: 0, dumping: false, dumpInt: 0, binPulse: 0 };
     }
     const cycle = 12.0;
     const t = ((simTime % cycle) + cycle) % cycle / cycle;
-    const zStock = 14.3, zTop = 11.75, zToe = 13.1, yTop = 0.88;
+    const zStock = 14.3, zTop = 11.75, zToe = 13.1;
     let z, y, yaw, pitch, boom, dump = 0, dumping = false, dumpInt = 0;
 
     if (t < 0.14) {
         const u = smooth01(t / 0.14);
         z = zStock + Math.sin(u * Math.PI) * 0.25;
-        y = 0; yaw = -90; pitch = 0; boom = 4 + u * 6; dump = 12 * (1 - u);
+        y = yHill; yaw = -90; pitch = 0; boom = 4 + u * 6; dump = 12 * (1 - u);
     } else if (t < 0.32) {
         const u = smooth01((t - 0.14) / 0.18);
         const turnU = smooth01(Math.min(1, (t - 0.14) / 0.08));
         z = lerp(zStock, zTop, u);
         const rf = Math.max(0, Math.min(1, (zToe - z) / (zToe - zTop)));
-        y = rf * yTop; yaw = lerp(-90, 90, turnU); pitch = rf * 14; boom = lerp(10, 38, u);
+        y = yHill + rf * yRise; yaw = lerp(-90, 90, turnU); pitch = rf * 14; boom = lerp(10, 38, u);
     } else if (t <= 0.48) {
         const u = (t - 0.32) / 0.16;
-        z = zTop; y = yTop; yaw = 90; pitch = 14; boom = 38;
+        z = zTop; y = yHill + yRise; yaw = 90; pitch = 14; boom = 38;
         const dc = Math.sin(u * Math.PI);
         dump = (u >= 0.18 && u <= 0.78) ? -58 : -58 * smooth01(Math.min(u * 2.2, 1) * (u < 0.85 ? 1 : (1 - (u - 0.85) / 0.15)));
         dumping = true; dumpInt = dc;
@@ -701,11 +702,11 @@ function computeLoaderPose(simTime, active) {
         const u = smooth01((t - 0.48) / 0.26);
         z = lerp(zTop, zStock, u);
         const rf = Math.max(0, Math.min(1, (zToe - z) / (zToe - zTop)));
-        y = rf * yTop; yaw = 90; pitch = rf * 14; boom = lerp(38, 6, u);
+        y = yHill + rf * yRise; yaw = 90; pitch = rf * 14; boom = lerp(38, 6, u);
         dump = lerp(-58, 0, Math.min(1, u * 1.6));
     } else {
         const u = smooth01((t - 0.74) / 0.26);
-        z = zStock; y = 0; yaw = lerp(90, -90, u); pitch = 0; boom = lerp(6, 4, u); dump = lerp(0, 12, u);
+        z = zStock; y = yHill; yaw = lerp(90, -90, u); pitch = 0; boom = lerp(6, 4, u); dump = lerp(0, 12, u);
     }
     return { x: -13.8, y, z, yaw, pitch, boom, dump, dumping, dumpInt, binPulse: dumping ? 0.14 * dumpInt : 0 };
 }
@@ -1104,6 +1105,35 @@ try {
         scene.add(trim);
     }
 
+    // Elevated Stage 1 ROM Hill Terraces, North Retaining Wall & VF-101 Structural Tower
+    const hillMat1 = new THREE.MeshStandardMaterial({ color: 0x383026, roughness: 0.92, metalness: 0.04 });
+    const hillMat2 = new THREE.MeshStandardMaterial({ color: 0x40362b, roughness: 0.90, metalness: 0.04 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x525c6b, roughness: 0.80, metalness: 0.10 });
+    [
+        { pos: [-13.8, 1.10, 13.8], size: [7.8, 2.20, 13.0], mat: hillMat1 },
+        { pos: [-13.8, 2.80, 13.4], size: [6.8, 1.20, 12.2], mat: hillMat2 },
+        { pos: [-13.8, 3.875, 13.0], size: [5.8, 0.95, 11.4], mat: padMat },
+        { pos: [-13.8, 2.19, 7.25], size: [6.2, 4.38, 0.36], mat: wallMat }
+    ].forEach(h => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(...h.size), h.mat);
+        m.position.set(...h.pos);
+        m.castShadow = true; m.receiveShadow = true;
+        scene.add(m);
+    });
+    const vfTowerMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.42, metalness: 0.72 });
+    for (const xc of [-14.85, -12.75]) {
+        for (const zc of [5.25, 7.05]) {
+            const col = new THREE.Mesh(new THREE.BoxGeometry(0.18, 4.55, 0.18), vfTowerMat);
+            col.position.set(xc, 2.275, zc);
+            col.castShadow = true; col.receiveShadow = true;
+            scene.add(col);
+        }
+    }
+    const vfDeck = new THREE.Mesh(new THREE.BoxGeometry(2.28, 0.16, 1.98), vfTowerMat);
+    vfDeck.position.set(-13.8, 4.47, 6.15);
+    vfDeck.castShadow = true; vfDeck.receiveShadow = true;
+    scene.add(vfDeck);
+
     // 6 Orthogonal Slurry / Magnetite / Water Pipes + Flow Spheres
     const pipeFlowSpheres = [];
     const sphereGeo = new THREE.SphereGeometry(0.11, 10, 10);
@@ -1425,7 +1455,7 @@ try {
         const ringR = Math.max(m.half[0], m.half[2]) + 0.35;
         const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
         ring.rotation.x = -Math.PI / 2;
-        ring.position.set(m.pos[0], 0.08, m.pos[2]);
+        ring.position.set(m.pos[0], m.pos[1] + 0.08, m.pos[2]);
         ring.scale.set(ringR, ringR, 1);
         ring.visible = false;
         scene.add(ring);
@@ -1436,7 +1466,7 @@ try {
             fillMesh = new THREE.Mesh(fillCylGeo, new THREE.MeshStandardMaterial({
                 color: m.fill.color, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.55
             }));
-            fillMesh.position.set(m.pos[0], m.fill.baseY + m.fill.maxH * 0.3, m.pos[2]);
+            fillMesh.position.set(m.pos[0], m.pos[1] + m.fill.baseY + m.fill.maxH * 0.3, m.pos[2]);
             fillMesh.scale.set(m.fill.r, m.fill.maxH * 0.6, m.fill.r);
             scene.add(fillMesh);
         }
@@ -1672,7 +1702,7 @@ try {
                 entry.root.rotation.order = "YXZ";
                 entry.root.rotation.y = THREE.MathUtils.degToRad(lp.yaw);
                 entry.root.rotation.z = THREE.MathUtils.degToRad(lp.pitch);
-                entry.ring.position.set(lp.x, 0.08, lp.z);
+                entry.ring.position.set(lp.x, lp.y + 0.08, lp.z);
                 if (entry.bucketPivot) {
                     entry.bucketPivot.rotation.z = THREE.MathUtils.degToRad(lp.boom + lp.dump * 0.45);
                 }
@@ -1723,7 +1753,7 @@ try {
                 if (m.id === "BN-101") frac = Math.min(0.98, frac + lp.binPulse);
                 const fh = m.fill.maxH * frac;
                 entry.fillMesh.scale.y = fh;
-                entry.fillMesh.position.y = m.fill.baseY + fh * 0.5;
+                entry.fillMesh.position.y = m.pos[1] + m.fill.baseY + fh * 0.5;
             }
 
             // Rotating top (MS-301 / TK-201)
@@ -1803,7 +1833,7 @@ try {
             } else {
                 const f = (t * 2.6 + i / dumpLumps) % 1.0;
                 const ox = lp.x, oy = lp.y + 2.35, oz = lp.z - 2.1;
-                const tx = -13.8, ty = 2.15, tz = 8.8;
+                const tx = -13.8, ty = 6.50, tz = 8.8;
                 dummy.position.set(
                     lerp(ox, tx, f) + Math.sin(i * 2.1) * 0.22,
                     lerp(oy, ty, f) - f * f * 0.35,
@@ -1843,7 +1873,7 @@ try {
                 dustSprayInstanced.setColorAt(dsIdx++, tmpColor);
             }
         };
-        emitSoft("BN-101", -13.8, 2.35, 8.8, 0.85, 1.85, 0.48, false, 10);
+        emitSoft("BN-101", -13.8, 6.70, 8.8, 0.85, 1.85, 0.48, false, 10);
         emitSoft("JC-101", -13.8, 3.15, -0.6, 0.72, 1.95, 0.44, false, 10);
         emitSoft("DRC-101", -7.2, 2.85, -0.6, 0.68, 1.75, 0.42, false, 9);
         emitSoft("SS-101", 0.2, 3.30, 0.5, 0.95, 1.45, 0.40, false, 8);

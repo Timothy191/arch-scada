@@ -23,10 +23,10 @@ Coordinate convention: Right-handed glTF / OpenGL (`+X` = East, `-X` = West, `+Y
 
 | Tag | Exact GA Label | Stage | GLB Asset | World Pos `(X, Y, Z)` m | Yaw | Nominal Dimensions / Spec | PLC / Telemetry Provenance (`BaseXML/`) |
 |---|---|---|---|---|---:|---|---|
-| `SP-001` | ROM Raw Coal Stockpile | Stage 1 — ROM Reception | `stockpile_cone.glb` | `(-13.8, 0.0, 16.4)` | `0°` | Ø 16 m × 5.2 m cone (0–300 mm ROM) | Derived Process Model (`AF-001`) |
-| `FEL-101` | Front-End Wheel Loader | Stage 1 — ROM Reception | `wheel_loader_chassis.glb` + `wheel_loader_bucket.glb` | `(-13.8, 0.0, 13.4)` *(shuttle `Z: 14.3 ↔ 11.75`)* | `±90°` | 3.4 m × 1.9 m × 2.4 m · 4.5 m³ bucket · 260 kW* | Derived Process Model (`AF-001`) |
-| `BN-101` | Feeder Bin / Receiving Hopper | Stage 1 — ROM Reception | `feeder_bin_bn101.glb` | `(-13.8, 0.0, 8.8)` | `90°` | 4.0 m × 3.6 m × 3.2 m · 45 t surge | **Direct PLC:** `ROM101` (`10.10.1.15:502` · Cnl `141–142`) |
-| `VF-101` | Primary Vibro Grizzly Feeder | Stage 2 — Initial Separation | `vibro_feeder_vf101.glb` | `(-13.8, 0.2, 6.2)` | `90°` | 3.2 m × 1.8 m × 1.7 m · `75 mm`* grizzly · 30 kW* | **Direct PLC:** `ROM101` (`10.10.1.15:502` · Cnl `143`) |
+| `SP-001` | ROM Raw Coal Stockpile | Stage 1 — ROM Reception | `stockpile_cone.glb` | `(-13.8, 4.35, 16.4)` | `0°` | Ø 16 m × 5.2 m cone on +4.35 m ROM hill | Derived Process Model (`AF-001`) |
+| `FEL-101` | Front-End Wheel Loader | Stage 1 — ROM Reception | `wheel_loader_chassis.glb` + `wheel_loader_bucket.glb` | `(-13.8, 4.35, 13.4)` *(shuttle `Z: 14.3 ↔ 11.75`)* | `±90°` | 3.4 m × 1.9 m × 2.4 m · 4.5 m³ bucket · 260 kW* | Derived Process Model (`AF-001`) |
+| `BN-101` | Feeder Bin / Receiving Hopper | Stage 1 — ROM Reception | `feeder_bin_bn101.glb` | `(-13.8, 4.35, 8.8)` | `90°` | 4.0 m × 3.6 m × 3.2 m · +4.35 m bench · 45 t surge | **Direct PLC:** `ROM101` (`10.10.1.15:502` · Cnl `141–142`) |
+| `VF-101` | Primary Vibro Grizzly Feeder | Stage 2 — Initial Separation | `vibro_feeder_vf101.glb` | `(-13.8, 4.55, 6.2)` | `90°` | 3.2 m × 1.8 m × 1.7 m · +4.55 m tower · `75 mm`* grizzly · 30 kW* | **Direct PLC:** `ROM101` (`10.10.1.15:502` · Cnl `143`) |
 | `JC-101` | Primary Jaw Crusher | Stage 3 — Jaw Crushing | `jaw_crusher_jc101.glb` | `(-13.8, 0.0, -0.6)` | `0°` | 3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW* | **Direct PLC:** `CR101` (`10.10.1.11:502` · Cnl `101–103`) |
 | `DRC-101` | Double Roller Crusher & Surge Hopper | Stage 4 — Double Roll Crushing | `double_roll_crusher_drc101.glb` | `(-7.2, 0.0, -0.6)` | `0°` | 2.8 m × 2.4 m × 3.2 m · Ø 760 mm toothed rolls · 160 kW* | **Direct PLC:** `DRC101` (`10.10.1.16:502` · Cnl `151–153`) |
 | `SS-101` | Central Multi-Deck Sizing Screen | Stage 6 — Central Sizing Screen | `central_sizing_screen_ss101.glb` | `(0.2, 0.0, 0.5)` | `0°` | 4.4 m × 2.8 m × 3.7 m · `50 / 6 mm`* decks · 55 kW* | **Direct PLC:** `SC102` (`10.10.1.12:502` · Cnl `111–112`) |
@@ -50,8 +50,8 @@ Coordinate convention: Right-handed glTF / OpenGL (`+X` = East, `-X` = West, `+Y
 
 | Conveyor ID | Exact GA Label | Upstream Source(s) | Tail `(X, Y, Z)` m | Head `(X, Y, Z)` m | Chute Drop `Y` m | Downstream Receiver(s) | Belt Width* | Motor kW* | Material Stream | PLC / SCADA Provenance |
 |---|---|---|---|---|---:|---|---:|---:|---|---|
-| `CV-101` | `Jaw feed conv` | `VF-101` (Grizzly `+75 mm`) | `(-13.8, 0.85, 5.4)` | `(-13.8, 3.55, 0.8)` | `2.65` | `JC-101` (Feed throat) | `1200 mm` | `142.0` | `RawRom` (`+75 mm`) | **Direct PLC:** `CV101` (`10.10.1.13:502` · Cnl `121–122, 711`) |
-| `CV-102` | `Under size conv` | `VF-101` (Grizzly `<75 mm`) | `(-12.8, 0.65, 6.1)` | `(-1.9, 4.15, 1.15)` | `3.35` | `SS-101` (Dual Feed Box #1) | `900 mm` | `118.6` | `ScalpedUndersize` (`<75 mm`) | **Direct PLC:** `CV102` (`10.10.1.14:502` · Cnl `131–132, 712`) |
+| `CV-101` | `Jaw feed conv` | `VF-101` (Grizzly `+75 mm`) | `(-13.8, 4.75, 5.4)` | `(-13.8, 3.35, 0.8)` | `2.15` | `JC-101` (Feed throat, downhill) | `1200 mm` | `142.0` | `RawRom` (`+75 mm`) | **Direct PLC:** `CV101` (`10.10.1.13:502` · Cnl `121–122, 711`) |
+| `CV-102` | `Under size conv` | `VF-101` (Grizzly `<75 mm`) | `(-12.8, 4.55, 6.1)` | `(-1.9, 3.85, 1.15)` | `2.95` | `SS-101` (Dual Feed Box #1, downhill) | `900 mm` | `118.6` | `ScalpedUndersize` (`<75 mm`) | **Direct PLC:** `CV102` (`10.10.1.14:502` · Cnl `131–132, 712`) |
 | `CV-103` | `Sizing screen feed` | `JC-101` (Crushed `<110 mm`) | `(-12.5, 0.75, -0.6)` | `(-8.3, 2.75, -0.6)` | `1.15` | `DRC-101` / `CV-104` Transfer* | `1200 mm` | `55.0` | `CrushedPrimary` (`<110 mm`) | **Direct PLC:** `CV_DRY` (`10.10.1.17:502` · Cnl `161`) |
 | `CV-106` | `Oversize conv` | `SS-101` (Curved `+50 mm` chute) | `(1.8, 2.55, -1.8)` | `(-7.2, 4.35, -1.8)` | `3.25` | `DRC-101` (Surge Hopper) | `900 mm` | `45.0` | `ScreenOversize` (`+50 mm`) | **Direct PLC:** `CV_DRY` (`10.10.1.17:502` · Cnl `164`) |
 | `CV-104` | `Sizing screen feed conv` | `DRC-101` + `CV-103` Transfer | `(-6.3, 0.80, -0.4)` | `(-1.9, 4.20, 0.15)` | `3.35` | `SS-101` (Dual Feed Box #2) | `1200 mm` | `75.0` | `CrushedRoll` (`<50 mm`) | **Direct PLC:** `CV_DRY` (`10.10.1.17:502` · Cnl `162`) |
