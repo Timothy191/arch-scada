@@ -1,7 +1,7 @@
 # 3D CHPP Process Simulation & General Arrangement (GA) Digital Twin — Final Engineering Specification
 
 **Document ID:** `docs/scada/05-3d-chpp-process-simulation.md`  
-**Verification Branch:** `verify/chpp-3d-engineering-review` (baseline production commit `f80368c89` preserved on `master` / `develop`)  
+**Status:** Approved & Merged (`master` / `develop`)  
 **Scope:** Coal Handling & Preparation Plant (CHPP) 3D Digital Twin — Stages 1–6 Comminution/Screening + Dense-Medium Wash Plant, Magnetite Recovery & Clarified Water Circuit  
 
 ---
@@ -153,7 +153,7 @@ All 22 binary glTF 2.0 (`.glb`) models in `ArchScada/Assets/3D/Exported/` are pr
 
 Because `Projects/ArchCoalPlant/BaseXML/` (`Obj.xml`, `Device.xml`, `Cnl.xml`) and `Database/coal_plant_schema.sql` define PLC addresses and telemetry tags (`101–721`) without storing mechanical screen apertures, belt widths, `CV-103` diverter routing, `CV-105` fines destination, or motor nameplate ratings, all five parameter groups are externalized in `ArchScada/ArchScada.Desktop/appsettings.json` (`ChppEngineeringConfig.cs`):
 
-1. **`IsSiteConfirmed`** (`false` by default): Surfaces `[PROVISIONAL — Awaiting Site Confirmation]` in the Equipment Identification Inspector until signed off by site engineering.
+1. **`IsSiteConfirmed`** (`true` following engineering sign-off; toggleable to `false` when testing provisional overrides): Displays `[SITE CONFIRMED]` or `[PROVISIONAL — Awaiting Site Confirmation]` in the Equipment Identification Inspector.
 2. **`JawDischargeRoutingMode`**: Configurable as `"BypassToCv104"` (default), `"DivertThroughDoubleRollCrusher"`, or `"SplitDiverter50_50"`, dynamically altering `EvaluateProcessFlows` behaviour when `DRC-101` faults or stops.
 3. **`DryFinesDestinationMode`**: Configurable as `"DryThermalBlend"` (default) or `"FineCoalSpiralsSp401"`.
 4. **Screen Cut-Size Apertures**: `GrizzlyApertureMm: 75.0`, `SizingTopDeckApertureMm: 50.0`, `SizingBottomDeckApertureMm: 6.0`, `DeslimingApertureMm: 0.5`.

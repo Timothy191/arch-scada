@@ -244,10 +244,10 @@ public class Plant3DTests
     }
 
     [Fact]
-    public void ChppEngineeringConfig_LoadsProvisionalDefaultsAndNodeMetadata()
+    public void ChppEngineeringConfig_LoadsConfirmedDefaultsAndNodeMetadata()
     {
         var cfg = ChppEngineeringConfig.Load();
-        Assert.False(cfg.IsSiteConfirmed);
+        Assert.True(cfg.IsSiteConfirmed);
         Assert.Equal(ChppEngineeringConfig.RoutingBypassToCv104, cfg.JawDischargeRoutingMode);
         Assert.Equal(ChppEngineeringConfig.FinesDryThermalBlend, cfg.DryFinesDestinationMode);
         Assert.Equal(75.0, cfg.GrizzlyApertureMm);
@@ -265,11 +265,11 @@ public class Plant3DTests
         Assert.Contains("Direct PLC: CR101", jc.PlcChannelMapping);
         Assert.Contains("10.10.1.11:502", jc.PlcChannelMapping);
         Assert.Contains("Derived Process Model (coupled to AF-001)", fel.PlcChannelMapping);
-        Assert.StartsWith("[PROVISIONAL — Awaiting Site Confirmation]", jc.ProvisionalConfigNote);
+        Assert.StartsWith("[SITE CONFIRMED]", jc.ProvisionalConfigNote);
 
-        var confirmedCfg = new ChppEngineeringConfig { IsSiteConfirmed = true };
-        var confirmedNote = Plant3DSceneData.FormatProvisionalConfigNote(jc, confirmedCfg);
-        Assert.StartsWith("[SITE CONFIRMED]", confirmedNote);
+        var provisionalCfg = new ChppEngineeringConfig { IsSiteConfirmed = false };
+        var provisionalNote = Plant3DSceneData.FormatProvisionalConfigNote(jc, provisionalCfg);
+        Assert.StartsWith("[PROVISIONAL — Awaiting Site Confirmation]", provisionalNote);
     }
 
     [Fact]
