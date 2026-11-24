@@ -4,15 +4,16 @@
         xmlns:views="using:ArchScada.Desktop.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="700"
-        Width="600" Height="700"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="800"
+        Width="700" Height="800"
+        CanResize="False"
         WindowStartupLocation="CenterScreen"
         WindowDecorations="None"
         TransparencyLevelHint="AcrylicBlur"
         Background="Transparent"
         x:Class="ArchScada.Desktop.Views.SplashWindow"
         x:DataType="vm:SplashViewModel"
-        Title="Arch SCADA">
+        Title="Arch SCADA — Deployment Readiness">
 
     <Border Classes="splash-window-border">
         <views:SplashView />

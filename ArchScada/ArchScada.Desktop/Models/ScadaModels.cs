@@ -50,13 +50,32 @@ public enum PlantSection
 public partial class StartupCheckItem : ObservableObject
 {
     public string Id { get; init; } = string.Empty;
+    public string Category { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
+    public bool IsCritical { get; init; } = true;
 
     [ObservableProperty]
     public partial string Detail { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial StartupCheckState State { get; set; } = StartupCheckState.Pending;
+
+    [ObservableProperty]
+    public partial string DurationText { get; set; } = string.Empty;
+
+    public string StateLabel => State switch
+    {
+        StartupCheckState.Passed => "PASSED",
+        StartupCheckState.Warning => "WARN",
+        StartupCheckState.Failed => "FAILED",
+        StartupCheckState.Running => "CHECKING",
+        _ => "PENDING"
+    };
+
+    partial void OnStateChanged(StartupCheckState value)
+    {
+        OnPropertyChanged(nameof(StateLabel));
+    }
 }
 
 public partial class TelemetryTag : ObservableObject

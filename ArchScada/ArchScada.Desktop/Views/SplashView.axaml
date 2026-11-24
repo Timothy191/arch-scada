@@ -1,106 +1,200 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ArchScada.Desktop.ViewModels"
+             xmlns:models="using:ArchScada.Desktop.Models"
              xmlns:conv="using:ArchScada.Desktop.Converters"
              x:Class="ArchScada.Desktop.Views.SplashView"
              x:DataType="vm:SplashViewModel">
 
-    <Grid Classes="scada-panel">
-        <!-- Centered splash content -->
+    <Grid Background="Transparent" Margin="10">
         <Border Classes="splash-card"
-                MaxWidth="520"
+                MaxWidth="672"
+                Padding="26,20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
-            <StackPanel Spacing="24" HorizontalAlignment="Center">
+            <StackPanel Spacing="11" HorizontalAlignment="Stretch">
 
-                <!-- App Icon / Brand Mark -->
-                <Border Width="72" Height="72"
-                        CornerRadius="20"
-                        Background="#EFF6FF"
-                        HorizontalAlignment="Center">
-                    <Ellipse Fill="#0A84FF" Width="24" Height="24"
-                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <!-- Header: Brand Badge + Title + Version -->
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Border Width="48" Height="48"
+                            CornerRadius="13"
+                            Background="#EFF6FF"
+                            BorderBrush="#BFDBFE"
+                            BorderThickness="1"
+                            VerticalAlignment="Center">
+                        <Ellipse Fill="#0A84FF" Width="18" Height="18"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{Binding AppTitle}"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="#18181B" />
+                        <TextBlock Text="{Binding AppSubtitle}"
+                                   FontSize="12"
+                                   FontWeight="Medium"
+                                   Foreground="#6B7280" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2"
+                            Background="#F3F4F6"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8,4"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding VersionLabel}"
+                                   FontSize="10"
+                                   FontWeight="Medium"
+                                   Foreground="#6B7280" />
+                    </Border>
+                </Grid>
+
+                <!-- Readiness Summary Banner -->
+                <Border Background="#F8FAFC"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="14,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                        <Ellipse Width="12" Height="12"
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding ReadinessState, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Text="{Binding ReadinessBannerTitle}"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#18181B" />
+                            <TextBlock Text="{Binding ReadinessBannerDetail}"
+                                       FontSize="11"
+                                       Foreground="#4B5563" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding ProgressText}"
+                                   FontSize="14"
+                                   FontWeight="Bold"
+                                   Foreground="#0A84FF"
+                                   VerticalAlignment="Center" />
+                    </Grid>
                 </Border>
 
-                <!-- App Title -->
-                <TextBlock Text="{Binding AppTitle}"
-                           FontSize="32"
-                           FontWeight="Bold"
-                           Foreground="#18181B"
-                           HorizontalAlignment="Center" />
-
-                <TextBlock Text="{Binding AppSubtitle}"
-                           FontSize="15"
-                           Foreground="#6B7280"
-                           HorizontalAlignment="Center" />
-
-                <Separator Classes="divider" Margin="0,8" />
-
-                <!-- Version -->
-                <TextBlock Text="{Binding VersionLabel}"
-                           FontSize="11"
-                           Foreground="#9CA3AF"
-                           HorizontalAlignment="Center" />
-
-                <!-- Status Text -->
-                <TextBlock Text="{Binding StatusText}"
-                           FontSize="13"
-                           FontWeight="Medium"
-                           Foreground="#18181B"
-                           HorizontalAlignment="Center"
-                           Margin="0,16,0,0" />
-
-                <!-- Progress Bar -->
-                <Border Width="300" Height="6"
-                        CornerRadius="3"
-                        Background="#E5E7EB"
-                        HorizontalAlignment="Center">
-                    <Border Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}}"
-                            Height="6"
+                <!-- Progress Bar & Active Step Text -->
+                <StackPanel Spacing="4" HorizontalAlignment="Center" Width="560">
+                    <Border Width="560" Height="6"
                             CornerRadius="3"
-                            Background="#0A84FF"
-                            HorizontalAlignment="Left" />
-                </Border>
+                            Background="#E5E7EB"
+                            HorizontalAlignment="Center">
+                        <Border Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}, ConverterParameter=5.6}"
+                                Height="6"
+                                CornerRadius="3"
+                                Background="#0A84FF"
+                                HorizontalAlignment="Left" />
+                    </Border>
+                    <TextBlock Text="{Binding StatusText}"
+                               FontSize="11"
+                               FontWeight="Medium"
+                               Foreground="#6B7280"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
 
-                <TextBlock Text="{Binding ProgressText}"
-                           FontSize="12"
-                           FontWeight="SemiBold"
-                           Foreground="#0A84FF"
-                           HorizontalAlignment="Center"
-                           Margin="0,8,0,0" />
+                <!-- 8-Point Deployment Requirements Verification List -->
+                <ScrollViewer MaxHeight="470" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Checks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:StartupCheckItem">
+                                <Border Background="#F9FAFB"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="10,6"
+                                        Margin="0,2">
+                                    <Grid ColumnDefinitions="12,Auto,*,Auto,Auto" ColumnSpacing="10">
+                                        <Ellipse Width="9" Height="9"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
 
-                <!-- Startup Checks List -->
-                <ItemsControl ItemsSource="{Binding Checks}"
-                              MaxHeight="220"
-                              HorizontalAlignment="Center">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Classes="scada-panel" Margin="0,2" Width="460">
-                                <Grid ColumnDefinitions="18,*,Auto" ColumnSpacing="10">
-                                    <Ellipse Width="10" Height="10"
-                                             VerticalAlignment="Center"
-                                             Fill="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding Title}"
-                                               FontSize="12"
-                                               FontWeight="Medium"
-                                               Foreground="#18181B"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding State}"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="#6B7280"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                        <Border Grid.Column="1"
+                                                Background="#EEF2FF"
+                                                BorderBrush="#C7D2FE"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="6,2"
+                                                Width="64"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Category}"
+                                                       FontSize="9"
+                                                       FontWeight="Bold"
+                                                       Foreground="#3730A3"
+                                                       HorizontalAlignment="Center" />
+                                        </Border>
 
-                <Separator Classes="divider" Margin="0,16" />
+                                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#18181B" />
+                                            <TextBlock Text="{Binding Detail}"
+                                                       FontSize="11"
+                                                       Foreground="#4B5563"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
 
-                <TextBlock Text="Press ESC to skip"
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding DurationText}"
+                                                   FontSize="10"
+                                                   Foreground="#9CA3AF"
+                                                   VerticalAlignment="Center" />
+
+                                        <Border Grid.Column="4"
+                                                Background="White"
+                                                BorderBrush="#E5E7EB"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="8,2"
+                                                MinWidth="66"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding StateLabel}"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}"
+                                                       HorizontalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Classes="divider" Margin="0,2" />
+
+                <!-- Footer Action Bar -->
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <CheckBox IsChecked="{Binding HoldOnSplash}"
+                              Content="Hold screen to inspect results"
+                              FontSize="11"
+                              Foreground="#4B5563"
+                              VerticalAlignment="Center" />
+
+                    <Button Grid.Column="1"
+                            Content="Re-run Checks"
+                            Command="{Binding RerunChecksCommand}"
+                            IsEnabled="{Binding !IsRunning}"
+                            Classes="secondary-action"
+                            Padding="14,8"
+                            FontSize="12" />
+
+                    <Button Grid.Column="2"
+                            Content="{Binding LaunchButtonText}"
+                            Command="{Binding ContinueToAppCommand}"
+                            Classes="primary-action"
+                            Padding="16,8"
+                            FontSize="12" />
+                </Grid>
+
+                <TextBlock Text="ESC to skip · R to re-run checks · Read-Only Safety Boundary Enforced"
                            FontSize="10"
                            Foreground="#9CA3AF"
                            HorizontalAlignment="Center" />

@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using ArchScada.Desktop.Services;
 using ArchScada.Desktop.ViewModels;
@@ -11,25 +12,50 @@ public partial class SplashWindow : Window
 {
     private readonly SplashViewModel _viewModel;
 
+    public SplashViewModel ViewModel => _viewModel;
+
     public SplashWindow()
+        : this(new SplashViewModel(new UnityBridgeService()), autoStart: true)
     {
-        InitializeComponent();
-        _viewModel = new SplashViewModel(new UnityBridgeService());
-        DataContext = _viewModel;
-        _ = RunSplashAsync();
     }
 
-    private async System.Threading.Tasks.Task RunSplashAsync()
+    public SplashWindow(SplashViewModel viewModel, bool autoStart = true)
     {
-        await _viewModel.RunStartupSequenceAsync();
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        InitializeComponent();
+        DataContext = _viewModel;
 
-        // Signal the app to transition to the main window
-        // The App class listens for this via the Completed event
-        _viewModel.Completed += (_, _) =>
+        _viewModel.Completed += OnViewModelCompleted;
+        KeyDown += OnSplashKeyDown;
+
+        if (autoStart)
         {
-            // Close the splash window; App will show MainWindow
-            Close();
-        };
+            _ = _viewModel.RunStartupSequenceAsync();
+        }
+    }
+
+    private void OnViewModelCompleted(object? sender, bool e)
+    {
+        Close();
+    }
+
+    private void OnSplashKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            _viewModel.SkipSplashCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && _viewModel.IsComplete)
+        {
+            _viewModel.ContinueToAppCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.R && _viewModel.IsComplete)
+        {
+            _viewModel.RerunChecksCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void InitializeComponent()
@@ -39,8 +65,10 @@ public partial class SplashWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _viewModel.Completed -= OnViewModelCompleted;
+        KeyDown -= OnSplashKeyDown;
         base.OnClosed(e);
-        // Notify the application that splash is done
+
         if (Application.Current is App app)
         {
             app.OnSplashCompleted();

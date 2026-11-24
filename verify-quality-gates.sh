@@ -146,6 +146,10 @@ if [[ -x "./ArchScada/ArchScada.PlcSimulator/bin/Release/net10.0/ArchScada.PlcSi
   echo "Running ArchScada.PlcSimulator --self-test..."
   ./ArchScada/ArchScada.PlcSimulator/bin/Release/net10.0/ArchScada.PlcSimulator --self-test
 fi
+if [[ -x "./ArchScada/ArchScada.Desktop/bin/Release/net10.0/ArchScada.Desktop" ]]; then
+  echo "Running ArchScada.Desktop --verify-deployment..."
+  ./ArchScada/ArchScada.Desktop/bin/Release/net10.0/ArchScada.Desktop --verify-deployment
+fi
 echo "[GATE 4/6] Backup & Tamper-Evident Audit Self-Test Gate PASS"
 
 # ==============================================================================

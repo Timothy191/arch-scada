@@ -14,14 +14,19 @@ namespace ArchScada.Desktop.Tests;
 public class DesktopTests
 {
     [Fact]
-    public void SplashViewModel_InitializesWithFivePendingChecks()
+    public void SplashViewModel_InitializesWithEightPendingChecks()
     {
         using var bridge = new UnityBridgeService();
         var vm = new SplashViewModel(bridge);
 
-        Assert.Equal(5, vm.Checks.Count);
-        Assert.All(vm.Checks, check => Assert.Equal(StartupCheckState.Pending, check.State));
-        Assert.Equal(new[] { "cfg", "srv", "comm", "hist", "3d" }, vm.Checks.Select(c => c.Id).ToArray());
+        Assert.Equal(8, vm.Checks.Count);
+        Assert.All(vm.Checks, check =>
+        {
+            Assert.Equal(StartupCheckState.Pending, check.State);
+            Assert.Equal("PENDING", check.StateLabel);
+            Assert.False(string.IsNullOrWhiteSpace(check.Category));
+        });
+        Assert.Equal(new[] { "cfg", "xml", "sec", "srv", "comm", "hist", "3d", "ops" }, vm.Checks.Select(c => c.Id).ToArray());
     }
 
     [Fact]

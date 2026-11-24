@@ -4,7 +4,8 @@
 # ==============================================================================
 # Installs user-space systemd unit files from deploy/systemd-user/ into
 # ~/.config/systemd/user/, reloads the user systemd daemon, enables the daily
-# backup timer, and prints service management instructions.
+# backup timer and the login-started PLC simulator, and prints service
+# management instructions.
 # ==============================================================================
 
 set -euo pipefail
@@ -41,8 +42,19 @@ systemctl --user daemon-reload
 echo "Enabling archscada-backup.timer..."
 systemctl --user enable archscada-backup.timer
 
+# The PLC simulator must run at every login so the HMI splash SERVER/DRIVERS
+# readiness checks find live endpoints (HTTP :5000, Native TCP :10000, Modbus :1502).
+# Set ARCHSCADA_SKIP_PLC_SIM=1 to opt out (e.g. when a real ScadaServer owns these ports).
+if [[ "${ARCHSCADA_SKIP_PLC_SIM:-0}" != "1" ]]; then
+    echo "Enabling and (re)starting archscada-plc-sim.service..."
+    systemctl --user enable archscada-plc-sim.service
+    systemctl --user restart archscada-plc-sim.service
+else
+    echo "Skipping archscada-plc-sim.service enablement (ARCHSCADA_SKIP_PLC_SIM=1)."
+fi
+
 echo
-echo "User-space systemd units installed and archscada-backup.timer enabled."
+echo "User-space systemd units installed; archscada-backup.timer and archscada-plc-sim.service enabled."
 echo "Installed unit files:"
 systemctl --user list-unit-files "archscada*" --no-pager || true
 echo

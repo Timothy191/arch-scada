@@ -222,6 +222,11 @@ public static class CauseAndEffectMatrixLoader
     }
 
     /// <summary>
+    /// Creates the default Cause-and-Effect interlock matrix covering all 6 CHPP circuits.
+    /// </summary>
+    public static IReadOnlyList<CauseAndEffectRule> CreateDefault() => GetDefaultMatrix();
+
+    /// <summary>
     /// Returns the built-in fallback Cause-and-Effect matrix covering equipment across all 6 CHPP circuits.
     /// </summary>
     public static IReadOnlyList<CauseAndEffectRule> GetDefaultMatrix()

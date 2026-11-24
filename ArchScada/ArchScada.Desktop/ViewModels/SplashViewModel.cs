@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,7 +13,10 @@ namespace ArchScada.Desktop.ViewModels;
 
 public partial class SplashViewModel : ViewModelBase
 {
-    private readonly UnityBridgeService _unityBridge;
+    private readonly IDeploymentReadinessService _readinessService;
+    private readonly int _stepVisualDelayMs;
+    private readonly int _completionPauseMs;
+    private int _completedSignaled;
 
     public ObservableCollection<StartupCheckItem> Checks { get; } = new();
 
@@ -26,113 +32,249 @@ public partial class SplashViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsComplete { get; set; }
 
+    [ObservableProperty]
+    public partial bool IsRunning { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFailures))]
+    [NotifyPropertyChangedFor(nameof(HasWarnings))]
+    public partial int PassedCount { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWarnings))]
+    public partial int WarningCount { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFailures))]
+    [NotifyPropertyChangedFor(nameof(LaunchButtonText))]
+    public partial int FailedCount { get; set; }
+
+    [ObservableProperty]
+    public partial string ReadinessBannerTitle { get; set; } = "CHECKING DEPLOYMENT REQUIREMENTS...";
+
+    [ObservableProperty]
+    public partial string ReadinessBannerDetail { get; set; } = "0/8 verified · 0 Passed · 0 Warnings · 0 Failed";
+
+    [ObservableProperty]
+    public partial StartupCheckState ReadinessState { get; set; } = StartupCheckState.Running;
+
+    [ObservableProperty]
+    public partial bool HoldOnSplash { get; set; }
+
+    public bool HasFailures => FailedCount > 0;
+    public bool HasWarnings => WarningCount > 0;
+    public string LaunchButtonText => HasFailures ? "Override & Launch" : "Launch Plant HMI";
+
     public string AppTitle => "Arch SCADA";
-    public string AppSubtitle => "Coal Processing Plant HMI";
+    public string AppSubtitle => "Coal Processing Plant HMI · Deployment Readiness Gate";
     public string VersionLabel => "v6.5-arch  |  .NET 10 / Avalonia 12";
 
     public event EventHandler<bool>? Completed;
 
     public SplashViewModel(UnityBridgeService unityBridge)
+        : this(new DeploymentReadinessService(unityBridge))
     {
-        _unityBridge = unityBridge;
-
-        Checks.Add(new StartupCheckItem
-        {
-            Id = "cfg",
-            Title = "Configuration Cache",
-            Detail = "Pending...",
-            State = StartupCheckState.Pending
-        });
-        Checks.Add(new StartupCheckItem
-        {
-            Id = "srv",
-            Title = "ScadaServer Engine",
-            Detail = "Pending...",
-            State = StartupCheckState.Pending
-        });
-        Checks.Add(new StartupCheckItem
-        {
-            Id = "comm",
-            Title = "Field Drivers",
-            Detail = "Pending...",
-            State = StartupCheckState.Pending
-        });
-        Checks.Add(new StartupCheckItem
-        {
-            Id = "hist",
-            Title = "Historian & Alarms",
-            Detail = "Pending...",
-            State = StartupCheckState.Pending
-        });
-        Checks.Add(new StartupCheckItem
-        {
-            Id = "3d",
-            Title = "Unity 3D Twin Bridge",
-            Detail = "Pending...",
-            State = StartupCheckState.Pending
-        });
     }
 
-    public async Task RunStartupSequenceAsync()
+    public SplashViewModel(
+        IDeploymentReadinessService readinessService,
+        int stepVisualDelayMs = 90,
+        int completionPauseMs = 850)
     {
-        var steps = new Func<Task<(StartupCheckState state, string detail)>>[]
+        _readinessService = readinessService ?? throw new ArgumentNullException(nameof(readinessService));
+        _stepVisualDelayMs = Math.Max(0, stepVisualDelayMs);
+        _completionPauseMs = Math.Max(0, completionPauseMs);
+
+        foreach (var spec in _readinessService.Checks)
         {
-            async () =>
+            Checks.Add(new StartupCheckItem
             {
-                await Task.Delay(400);
-                return (StartupCheckState.Passed, "Plant topology cached (3 circuits, 11 assets)");
-            },
-            async () =>
-            {
-                await Task.Delay(500);
-                return (StartupCheckState.Warning, "ScadaServer offline — Demo mode active");
-            },
-            async () =>
-            {
-                await Task.Delay(400);
-                return (StartupCheckState.Passed, "Modbus TCP / OPC UA / MQTT configured");
-            },
-            async () =>
-            {
-                await Task.Delay(350);
-                return (StartupCheckState.Passed, "Local ring buffer ready (60-sample window)");
-            },
-            async () =>
-            {
-                await Task.Delay(350);
-                var blender = _unityBridge.IsBlenderInstalled ? "Blender ready" : "Blender not found";
-                var unity = _unityBridge.IsUnityHubInstalled ? "Unity Hub ready" : "Unity Hub not found";
-                var models = _unityBridge.GetExportedModels().Count;
-                return (StartupCheckState.Passed, $"{unity} · {blender} · {models} model(s)");
-            },
-        };
-
-        for (int i = 0; i < steps.Length; i++)
-        {
-            var item = Checks[i];
-            item.State = StartupCheckState.Running;
-            item.Detail = $"Step {i + 1} of {steps.Length}...";
-
-            var (state, detail) = await steps[i]();
-            item.State = state;
-            item.Detail = detail;
-
-            Progress = ((double)(i + 1) / steps.Length) * 100.0;
-            ProgressText = $"{Progress:F0}%";
-            StatusText = item.Title;
+                Id = spec.Id,
+                Category = spec.Category,
+                Title = spec.Title,
+                IsCritical = spec.IsCritical,
+                Detail = "Pending...",
+                State = StartupCheckState.Pending,
+                DurationText = string.Empty
+            });
         }
 
-        IsComplete = true;
-        StatusText = "Ready — launching Plant Operations...";
+        ReadinessBannerDetail = $"0/{Checks.Count} verified · 0 Passed · 0 Warnings · 0 Failed";
+    }
 
-        // Brief pause to show completion, then signal done
-        await Task.Delay(600);
-        Completed?.Invoke(this, true);
+    public async Task RunStartupSequenceAsync(CancellationToken ct = default)
+    {
+        if (IsRunning)
+        {
+            return;
+        }
+
+        IsRunning = true;
+        IsComplete = false;
+        Progress = 0.0;
+        ProgressText = "0%";
+        PassedCount = 0;
+        WarningCount = 0;
+        FailedCount = 0;
+        ReadinessState = StartupCheckState.Running;
+        ReadinessBannerTitle = "CHECKING DEPLOYMENT REQUIREMENTS...";
+        StatusText = "Verifying deployment prerequisites...";
+
+        int total = Checks.Count;
+        ReadinessBannerDetail = $"0/{total} verified · 0 Passed · 0 Warnings · 0 Failed";
+
+        foreach (var item in Checks)
+        {
+            item.State = StartupCheckState.Pending;
+            item.Detail = "Pending...";
+            item.DurationText = string.Empty;
+        }
+
+        try
+        {
+            IReadOnlyList<DeploymentCheckSpec> specs = _readinessService.Checks;
+            for (int i = 0; i < specs.Count && i < Checks.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var spec = specs[i];
+                var item = Checks[i];
+                item.State = StartupCheckState.Running;
+                item.Detail = $"Checking {spec.Category}...";
+                StatusText = $"Verifying [{spec.Category}] {spec.Title}...";
+
+                var sw = Stopwatch.StartNew();
+                StartupCheckState state;
+                string detail;
+                try
+                {
+                    (state, detail) = await spec.ExecuteAsync(ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    state = spec.IsCritical ? StartupCheckState.Failed : StartupCheckState.Warning;
+                    detail = ex.Message;
+                }
+                finally
+                {
+                    sw.Stop();
+                }
+
+                item.DurationText = sw.ElapsedMilliseconds < 1 ? "<1 ms" : $"{sw.ElapsedMilliseconds} ms";
+                item.State = state;
+                item.Detail = detail;
+
+                switch (state)
+                {
+                    case StartupCheckState.Passed:
+                        PassedCount++;
+                        break;
+                    case StartupCheckState.Warning:
+                        WarningCount++;
+                        break;
+                    case StartupCheckState.Failed:
+                        FailedCount++;
+                        break;
+                }
+
+                Progress = total > 0 ? ((double)(i + 1) / total) * 100.0 : 100.0;
+                ProgressText = $"{Progress:F0}%";
+                ReadinessBannerDetail = $"{i + 1}/{total} verified · {PassedCount} Passed · {WarningCount} Warnings · {FailedCount} Failed";
+
+                if (_stepVisualDelayMs > 0)
+                {
+                    await Task.Delay(_stepVisualDelayMs, ct);
+                }
+            }
+
+            IsComplete = true;
+            ReadinessState = HasFailures
+                ? StartupCheckState.Failed
+                : (HasWarnings ? StartupCheckState.Warning : StartupCheckState.Passed);
+
+            ReadinessBannerTitle = HasFailures
+                ? "DEPLOYMENT BLOCKED — CRITICAL CHECK FAILED"
+                : (HasWarnings ? "SYSTEM READY (DEMO / FALLBACK MODE)" : "SYSTEM READY FOR DEPLOYMENT");
+
+            ReadinessBannerDetail = $"{total}/{total} verified · {PassedCount} Passed · {WarningCount} Warnings · {FailedCount} Failed";
+            StatusText = HasFailures
+                ? "Critical deployment check failed — inspect results or override"
+                : (HoldOnSplash ? "Inspection hold active — click Launch Plant HMI when ready" : "Ready — launching Plant Operations...");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Verification canceled";
+            return;
+        }
+        finally
+        {
+            IsRunning = false;
+        }
+
+        if (!HasFailures && !HoldOnSplash && !ct.IsCancellationRequested)
+        {
+            if (_completionPauseMs > 0)
+            {
+                try
+                {
+                    await Task.Delay(_completionPauseMs, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
+
+            if (!HasFailures && !HoldOnSplash && !ct.IsCancellationRequested)
+            {
+                RaiseCompletedOnce(true);
+            }
+            else if (HoldOnSplash && !HasFailures)
+            {
+                StatusText = "Inspection hold active — click Launch Plant HMI when ready";
+            }
+        }
+    }
+
+    private void RaiseCompletedOnce(bool offlineDemoMode)
+    {
+        if (Interlocked.Exchange(ref _completedSignaled, 1) == 0)
+        {
+            Completed?.Invoke(this, offlineDemoMode);
+        }
     }
 
     [RelayCommand]
     private void SkipSplash()
     {
-        Completed?.Invoke(this, true);
+        RaiseCompletedOnce(true);
+    }
+
+    [RelayCommand]
+    private void ContinueToApp()
+    {
+        RaiseCompletedOnce(true);
+    }
+
+    [RelayCommand]
+    private void LaunchAnyway()
+    {
+        RaiseCompletedOnce(true);
+    }
+
+    [RelayCommand]
+    private async Task RerunChecksAsync()
+    {
+        if (IsRunning)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref _completedSignaled, 0);
+        await RunStartupSequenceAsync();
     }
 }

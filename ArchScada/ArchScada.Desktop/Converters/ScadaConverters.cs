@@ -83,7 +83,18 @@ public sealed class ProgressToWidthConverter : IValueConverter
     {
         if (value is double progress)
         {
-            return progress * 3.0;
+            double multiplier = 3.0;
+            if (parameter is double d)
+            {
+                multiplier = d;
+            }
+            else if (parameter is string s &&
+                     double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            {
+                multiplier = parsed;
+            }
+
+            return Math.Clamp(progress, 0.0, 100.0) * multiplier;
         }
         return 0.0;
     }

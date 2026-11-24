@@ -102,6 +102,74 @@ public sealed class ControlAuditLogger
         return entries;
     }
 
+    /// <summary>
+    /// Verifies the SHA-256 hash chain integrity of the audit log file.
+    /// Returns true if the log file does not yet exist or all entries form an intact chain from GENESIS.
+    /// </summary>
+    public bool VerifyChainIntegrity() => VerifyChainIntegrity(out _);
+
+    /// <summary>
+    /// Verifies the SHA-256 hash chain integrity of the audit log file and outputs any failure detail.
+    /// </summary>
+    public bool VerifyChainIntegrity(out string? error)
+    {
+        if (!File.Exists(_logFilePath))
+        {
+            error = null;
+            return true;
+        }
+
+        string expectedPreviousHash = "GENESIS";
+        int lineNumber = 0;
+
+        using var stream = new FileStream(_logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (reader.ReadLine() is { } line)
+        {
+            lineNumber++;
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            ControlAuditEntry? entry;
+            try
+            {
+                entry = JsonSerializer.Deserialize<ControlAuditEntry>(line, SerializerOptions);
+            }
+            catch (JsonException ex)
+            {
+                error = $"Corrupt audit JSON at line {lineNumber}: {ex.Message}";
+                return false;
+            }
+
+            if (entry is null)
+            {
+                error = $"Null audit entry at line {lineNumber}.";
+                return false;
+            }
+
+            if (!string.Equals(entry.PreviousHash, expectedPreviousHash, StringComparison.Ordinal))
+            {
+                error = $"Broken audit hash chain at line {lineNumber}: expected '{expectedPreviousHash}', found '{entry.PreviousHash}'.";
+                return false;
+            }
+
+            var expectedHash = ComputeHash(entry);
+            if (!string.Equals(entry.Hash, expectedHash, StringComparison.Ordinal))
+            {
+                error = $"Audit entry hash mismatch at line {lineNumber} (auditId={entry.AuditId}).";
+                return false;
+            }
+
+            expectedPreviousHash = entry.Hash;
+        }
+
+        error = null;
+        return true;
+    }
+
     private string LoadLastHashIfExists()
     {
         if (!File.Exists(_logFilePath))

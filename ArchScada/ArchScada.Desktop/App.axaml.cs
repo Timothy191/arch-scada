@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using ArchScada.Desktop.Controls;
 using ArchScada.Desktop.Controls.ThreeD;
 using ArchScada.Desktop.Models;
+using ArchScada.Desktop.Services;
 using ArchScada.Desktop.ViewModels;
 using ArchScada.Desktop.Views;
 
@@ -23,6 +24,8 @@ public partial class App : Application
 {
     private MainWindow? _mainWindow;
     private SplashWindow? _splashWindow;
+    private bool _splashCompleted;
+    private bool _isSplashCaptureMode;
 
     public override void Initialize()
     {
@@ -33,7 +36,30 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var captureDir = ParseCaptureViewsArg(desktop.Args);
+            var captureSplashPath = ParseArgValue(desktop.Args, "--capture-splash");
+            if (!string.IsNullOrWhiteSpace(captureSplashPath))
+            {
+                _isSplashCaptureMode = true;
+                var unityBridge = new UnityBridgeService();
+                var readiness = new DeploymentReadinessService(unityBridge);
+                var splashVm = new SplashViewModel(readiness, stepVisualDelayMs: 10, completionPauseMs: 0)
+                {
+                    HoldOnSplash = true
+                };
+
+                _splashWindow = new SplashWindow(splashVm, autoStart: false);
+                desktop.MainWindow = _splashWindow;
+                _splashWindow.Show();
+
+                Dispatcher.UIThread.Post(
+                    () => _ = RunAutomatedSplashCaptureAsync(desktop, _splashWindow, splashVm, unityBridge, captureSplashPath),
+                    DispatcherPriority.Background);
+
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
+            var captureDir = ParseArgValue(desktop.Args, "--capture-3d-views");
             if (!string.IsNullOrWhiteSpace(captureDir))
             {
                 var mainVm = new MainViewModel();
@@ -78,9 +104,16 @@ public partial class App : Application
 
     public void OnSplashCompleted()
     {
-        // Transition from splash to main window
-        _splashWindow?.Close();
+        if (_splashCompleted || _isSplashCaptureMode)
+        {
+            return;
+        }
+
+        _splashCompleted = true;
+
+        var splash = _splashWindow;
         _splashWindow = null;
+        splash?.Close();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -89,22 +122,64 @@ public partial class App : Application
         }
     }
 
-    private static string? ParseCaptureViewsArg(string[]? args)
+    private static string? ParseArgValue(string[]? args, string optionName)
     {
         if (args is null || args.Length == 0)
             return null;
 
+        var prefix = optionName + "=";
         for (int i = 0; i < args.Length; i++)
         {
-            if (string.Equals(args[i], "--capture-3d-views", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            if (string.Equals(args[i], optionName, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 return args[i + 1];
 
-            const string prefix = "--capture-3d-views=";
             if (args[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 return args[i][prefix.Length..];
         }
 
         return null;
+    }
+
+    private static async Task RunAutomatedSplashCaptureAsync(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        SplashWindow splashWindow,
+        SplashViewModel splashVm,
+        UnityBridgeService unityBridge,
+        string outputPath)
+    {
+        int exitCode = 0;
+        try
+        {
+            var dir = Path.GetDirectoryName(Path.GetFullPath(outputPath));
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            await splashVm.RunStartupSequenceAsync();
+            await Task.Delay(120);
+            splashWindow.UpdateLayout();
+
+            double scale = TopLevel.GetTopLevel(splashWindow)?.RenderScaling ?? 1.0;
+            var clientSize = splashWindow.ClientSize;
+            int pxW = Math.Max(1, (int)Math.Round(clientSize.Width * scale));
+            int pxH = Math.Max(1, (int)Math.Round(clientSize.Height * scale));
+            var dpi = new Vector(96.0 * scale, 96.0 * scale);
+
+            using var bmp = new RenderTargetBitmap(new PixelSize(pxW, pxH), dpi);
+            bmp.Render(splashWindow);
+            bmp.Save(outputPath, new PngBitmapEncoderOptions());
+        }
+        catch (Exception ex)
+        {
+            exitCode = 1;
+            Console.Error.WriteLine($"Splash capture failed: {ex}");
+        }
+        finally
+        {
+            unityBridge.Dispose();
+            desktop.Shutdown(exitCode);
+        }
     }
 
     private static async Task RunAutomated3DCaptureAsync(

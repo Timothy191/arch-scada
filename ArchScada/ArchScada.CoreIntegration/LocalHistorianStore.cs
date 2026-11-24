@@ -60,6 +60,43 @@ public sealed class LocalHistorianStore
     }
 
     /// <summary>
+    /// Gets a value indicating whether the local historian storage directory is writable and accessible.
+    /// </summary>
+    public bool IsHealthy => CheckHealth(out _);
+
+    /// <summary>
+    /// Verifies that the local historian storage initializes cleanly and is writable without modifying existing data.
+    /// </summary>
+    public bool CheckHealth(out string? error)
+    {
+        try
+        {
+            Directory.CreateDirectory(StorageDirectory);
+            var probePath = Path.Combine(StorageDirectory, $".health-{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(probePath, "ok");
+            File.Delete(probePath);
+
+            if (File.Exists(SamplesFilePath))
+            {
+                using var s = new FileStream(SamplesFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            }
+
+            if (File.Exists(AlarmsFilePath))
+            {
+                using var a = new FileStream(AlarmsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            }
+
+            error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Appends a single telemetry sample to the local JSONL historian and enforces retention limits.
     /// </summary>
     public async Task AppendSampleAsync(TelemetrySample sample, CancellationToken cancellationToken = default)

@@ -737,6 +737,9 @@ public static class Plant3DSceneData
     public static readonly IReadOnlyList<Plant3DNode> ConveyorNodes = BuildConveyorNodes();
     public static readonly IReadOnlyList<Plant3DNode> AllNodes = MachineNodes.Concat(ConveyorNodes).ToArray();
 
+    /// <summary>Returns the complete set of 29 CHPP GA plant nodes (18 machines + 11 conveyors).</summary>
+    public static IReadOnlyList<Plant3DNode> BuildNodes() => AllNodes;
+
     /// <summary>Backward-compatible alias for machine placements.</summary>
     public static IReadOnlyList<Plant3DNode> Placements => MachineNodes;
 
