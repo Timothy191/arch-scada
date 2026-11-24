@@ -32,11 +32,8 @@ jobs:
             8.0.x
             10.0.x
 
-      - name: Ensure build script is executable
-        run: chmod +x ./build-all.sh
+      - name: Ensure quality-gate and build scripts are executable
+        run: chmod +x ./build-all.sh ./verify-quality-gates.sh ./deploy/scripts/create-backup.sh ./deploy/scripts/verify-backup.sh
 
-      - name: Build all solutions
-        run: ./build-all.sh Release
-
-      - name: Run test suite
-        run: dotnet test Plant.sln -c Release
+      - name: Run automated quality gates (headless CI)
+        run: ./verify-quality-gates.sh --skip-gui

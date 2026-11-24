@@ -70,6 +70,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_DEPTH_ATTACHMENT = 0x8D00;
     private const int GL_DEPTH_STENCIL_ATTACHMENT = 0x821A;
     private const int GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
+    private const int GL_FRAMEBUFFER_BINDING = 0x8CA6;
     private const int GL_NONE = 0;
 
     private const int ShadowMapSize = 2048;
@@ -141,6 +142,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlTexParameteriDel(int target, int pname, int param);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawBuffersDel(int n, uint* bufs);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawBufferDel(int mode);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetIntegervDel(int pname, int* data);
 
     private GlViewportDel? _glViewport;
     private GlClearColorDel? _glClearColor;
@@ -208,6 +210,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GlTexParameteriDel? _glTexParameteri;
     private GlDrawBuffersDel? _glDrawBuffers;
     private GlDrawBufferDel? _glDrawBuffer;
+    private GlGetIntegervDel? _glGetIntegerv;
 
     private readonly object _captureLock = new();
     private byte[]? _lastFrameRgba;
@@ -424,6 +427,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glTexParameteri = LoadProc<GlTexParameteriDel>(gl, "glTexParameteri");
             _glDrawBuffers = LoadProc<GlDrawBuffersDel>(gl, "glDrawBuffers");
             _glDrawBuffer = LoadProc<GlDrawBufferDel>(gl, "glDrawBuffer");
+            _glGetIntegerv = LoadProc<GlGetIntegervDel>(gl, "glGetIntegerv");
 
             if (_glCreateProgram is null || _glGenVertexArrays is null || _glDrawElements is null)
                 return;
@@ -542,6 +546,19 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         base.OnOpenGlDeinit(gl);
     }
 
+    protected override void OnOpenGlLost()
+    {
+        // Context is already lost: reset all managed GL handles/state without invoking GL delete procs.
+        IsHardwareActive = false;
+        _glbGpuMeshes.Clear();
+        _unitBox = _unitCylinder = _unitRing = _unitCone = _gridLines = _pipesMesh = _conveyorStructureMesh = null;
+        _instanceVbo = _postVao = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
+        _program = _shadowProgram = _postProgram = 0;
+        _offscreenW = _offscreenH = 0;
+        _shadowReady = _msaaReady = _postReady = false;
+        base.OnOpenGlLost();
+    }
+
     private bool HasFboSupport() =>
         _glGenFramebuffers is not null &&
         _glDeleteFramebuffers is not null &&
@@ -567,6 +584,12 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         if (!HasFboSupport() || _shadowProgram == 0)
             return;
 
+        int prevFbo = 0;
+        if (_glGetIntegerv is not null)
+        {
+            _glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+        }
+
         uint tex = 0, fbo = 0;
         _glGenTextures!(1, &tex);
         _glBindTexture!(GL_TEXTURE_2D, tex);
@@ -577,22 +600,29 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         _glBindTexture!(GL_TEXTURE_2D, 0);
 
-        _glGenFramebuffers!(1, &fbo);
-        _glBindFramebuffer!(GL_FRAMEBUFFER, fbo);
-        _glFramebufferTexture2D!(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
-
-        if (_glDrawBuffers is not null)
+        int status;
+        try
         {
-            uint none = GL_NONE;
-            _glDrawBuffers(1, &none);
-        }
-        else
-        {
-            _glDrawBuffer?.Invoke(GL_NONE);
-        }
+            _glGenFramebuffers!(1, &fbo);
+            _glBindFramebuffer!(GL_FRAMEBUFFER, fbo);
+            _glFramebufferTexture2D!(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
 
-        int status = _glCheckFramebufferStatus!(GL_FRAMEBUFFER);
-        _glBindFramebuffer!(GL_FRAMEBUFFER, 0);
+            if (_glDrawBuffers is not null)
+            {
+                uint none = GL_NONE;
+                _glDrawBuffers(1, &none);
+            }
+            else
+            {
+                _glDrawBuffer?.Invoke(GL_NONE);
+            }
+
+            status = _glCheckFramebufferStatus!(GL_FRAMEBUFFER);
+        }
+        finally
+        {
+            _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)Math.Max(0, prevFbo));
+        }
 
         _shadowDepthTex = tex;
         _shadowFbo = fbo;
@@ -623,6 +653,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
     private void EnsureOffscreenFbos(int pw, int ph, uint returnFb)
     {
+        pw = Math.Clamp(pw, 1, 8192);
+        ph = Math.Clamp(ph, 1, 8192);
         if (_offscreenW == pw && _offscreenH == ph)
             return;
 
@@ -741,8 +773,12 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             return;
 
         double scale = Avalonia.Controls.TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
-        int pw = Math.Max(1, (int)(Bounds.Width * scale));
-        int ph = Math.Max(1, (int)(Bounds.Height * scale));
+        if (!double.IsFinite(scale) || scale <= 0.0)
+            scale = 1.0;
+        double bw = double.IsFinite(Bounds.Width) ? Bounds.Width : 1.0;
+        double bh = double.IsFinite(Bounds.Height) ? Bounds.Height : 1.0;
+        int pw = Math.Clamp((int)(bw * scale), 1, 8192);
+        int ph = Math.Clamp((int)(bh * scale), 1, 8192);
 
         EnsureOffscreenFbos(pw, ph, (uint)fb);
         _frameDrawCalls = 0;
@@ -750,7 +786,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         var fx = Effects ?? new Unity3DEffectSettings();
         var (view, proj, camPos) = Plant3DSceneData.BuildCameraMatrices(
             CameraYaw, CameraPitch, CameraZoom, TargetX, TargetZ,
-            Math.Max(1.0, Bounds.Width), Math.Max(1.0, Bounds.Height),
+            Math.Max(1.0, bw), Math.Max(1.0, bh),
             fx.IsOrthographic);
         var viewProj = view * proj;
 

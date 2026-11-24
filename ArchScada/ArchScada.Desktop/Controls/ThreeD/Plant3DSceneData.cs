@@ -875,7 +875,7 @@ public static class Plant3DSceneData
             if (_meshCache is not null)
                 return _meshCache;
 
-            _meshCache = new Dictionary<string, GlbMeshData>(StringComparer.OrdinalIgnoreCase);
+            var cache = new Dictionary<string, GlbMeshData>(StringComparer.OrdinalIgnoreCase);
             var exportDir = FindAssetsExportDirectory();
             if (exportDir is not null && Directory.Exists(exportDir))
             {
@@ -884,14 +884,14 @@ public static class Plant3DSceneData
                 foreach (var fullPath in Directory.EnumerateFiles(exportDir, "*.glb"))
                 {
                     var fileName = Path.GetFileName(fullPath);
-                    if (_meshCache.ContainsKey(fileName))
+                    if (cache.ContainsKey(fileName))
                         continue;
 
                     try
                     {
                         var mesh = GlbMeshLoader.Load(fullPath);
                         if (mesh is not null)
-                            _meshCache[fileName] = mesh;
+                            cache[fileName] = mesh;
                     }
                     catch
                     {
@@ -900,6 +900,7 @@ public static class Plant3DSceneData
                 }
             }
 
+            _meshCache = cache;
             return _meshCache;
         }
     }
@@ -956,6 +957,9 @@ public static class Plant3DSceneData
                 DumpIntensity: 0f,
                 BinFillPulse: 0f);
         }
+
+        if (!double.IsFinite(simTime))
+            simTime = 0.0;
 
         const double cycleSeconds = 12.0;
         double wrapped = (simTime % cycleSeconds);
@@ -1144,6 +1148,9 @@ public static class Plant3DSceneData
         ChppEngineeringConfig? config = null,
         IReadOnlySet<string>? localNodeFaultOverrides = null)
     {
+        eqMap ??= new Dictionary<string, EquipmentItem>(StringComparer.OrdinalIgnoreCase);
+        if (!double.IsFinite(simTime))
+            simTime = 0.0;
         var cfg = config ?? ChppEngineeringConfig.Current;
         var rates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var localSpeeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -1439,6 +1446,10 @@ public static class Plant3DSceneData
         if (source is null) return 0.65;
         if (source.Status is EquipmentStatus.Stopped or EquipmentStatus.Fault or EquipmentStatus.Offline)
             return 0.0;
+        if (double.IsNaN(source.LoadPercent) || double.IsNegativeInfinity(source.LoadPercent))
+            return 0.35;
+        if (double.IsPositiveInfinity(source.LoadPercent))
+            return 1.30;
         return Math.Clamp(0.35 + (source.LoadPercent / 100.0) * 0.95, 0.35, 1.30);
     }
 
@@ -1447,15 +1458,16 @@ public static class Plant3DSceneData
     /// </summary>
     public static Vector3 SamplePolyline(Vector3[] pts, float t)
     {
-        if (pts.Length == 0) return Vector3.Zero;
+        if (pts is null || pts.Length == 0) return Vector3.Zero;
         if (pts.Length == 1) return pts[0];
 
         float total = 0f;
         for (int i = 0; i < pts.Length - 1; i++)
             total += Vector3.Distance(pts[i], pts[i + 1]);
-        if (total < 1e-5f) return pts[0];
+        if (!float.IsFinite(total) || total < 1e-5f) return pts[0];
 
-        float target = Math.Clamp(t, 0f, 1f) * total;
+        float tc = float.IsNaN(t) ? 0f : Math.Clamp(t, 0f, 1f);
+        float target = tc * total;
         float accum = 0f;
         for (int i = 0; i < pts.Length - 1; i++)
         {
@@ -1476,7 +1488,8 @@ public static class Plant3DSceneData
     /// </summary>
     public static Vector3 SampleConveyorCoalTrajectory(ConveyorSpec conv, float u)
     {
-        float uc = Math.Clamp(u, 0f, 1f);
+        ArgumentNullException.ThrowIfNull(conv);
+        float uc = float.IsNaN(u) ? 0f : Math.Clamp(u, 0f, 1f);
         const float beltEndU = 0.82f;
         if (uc <= beltEndU)
         {
@@ -1495,6 +1508,7 @@ public static class Plant3DSceneData
         float v0y = MathF.Max(0.25f, vBelt.Y * 0.45f);
         float dropH = MathF.Max(0f, conv.HeadPos.Y - chuteBot.Y);
         float fallTime = (v0y + MathF.Sqrt(v0y * v0y + 2f * gravity * dropH)) / gravity;
+        if (!float.IsFinite(fallTime) || fallTime < 0f) fallTime = 0f;
         float t = tauNorm * fallTime;
 
         float y = conv.HeadPos.Y + v0y * t - 0.5f * gravity * t * t;

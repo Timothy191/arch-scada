@@ -246,6 +246,11 @@ public sealed class Isa182AlarmEngine
 
         foreach (var tag in tags)
         {
+            if (tag is null || string.IsNullOrWhiteSpace(tag.TagId) || !double.IsFinite(tag.Value))
+            {
+                continue;
+            }
+
             if (!_rulesByTag.TryGetValue(tag.TagId, out var rule))
             {
                 continue;
@@ -358,6 +363,11 @@ public sealed class Isa182AlarmEngine
         // Sync any externally-seeded alarms in targetAlarms
         foreach (var alarm in targetAlarms)
         {
+            if (alarm is null || string.IsNullOrWhiteSpace(alarm.Id))
+            {
+                continue;
+            }
+
             if (!_runtimeByAlarmId.TryGetValue(alarm.Id, out var state))
             {
                 state = new RuleRuntimeState

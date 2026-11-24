@@ -30,6 +30,8 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
     public ObservableCollection<OptimizationTrimRecord> OptimizationLog { get; } = new();
 
     private int _loopRotationIndex;
+    private int _tickInFlight;
+    private volatile bool _disposed;
 
     public bool IsServerConnected { get; private set; }
     public bool IsOfflineDemoMode { get; set; } = true;
@@ -122,6 +124,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         Stop();
         NativeAdapter.Dispose();
     }
@@ -218,9 +221,9 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
             var samples = AllTags.Select(t => new TelemetrySample
             {
                 TagId = t.TagId,
-                Value = t.Value,
+                Value = double.IsFinite(t.Value) ? t.Value : 0.0,
                 TimestampUtc = nowUtc,
-                Quality = t.IsStale ? "Stale" : "Good"
+                Quality = !double.IsFinite(t.Value) ? "Bad" : (t.IsStale ? "Stale" : "Good")
             });
 
             await HistorianStore.AppendSamplesAsync(samples, cancellationToken).ConfigureAwait(false);
@@ -808,13 +811,32 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
         ExecuteTickAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    private void TickSimulation()
+    private async void TickSimulation()
     {
-        _ = ExecuteTickAsync(CancellationToken.None);
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await ExecuteTickAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Prevent unhandled background timer exceptions from crashing the UI process.
+        }
     }
 
     private async Task ExecuteTickAsync(CancellationToken cancellationToken)
     {
+        if (_disposed || Interlocked.CompareExchange(ref _tickInFlight, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
         var now = DateTime.Now;
         double totalPower = 0;
         Dictionary<string, TagValueSnapshot>? snapshotMap = null;
@@ -852,7 +874,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
                 {
                     var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
                     tag.IsStale = isStale;
-                    if (!isStale)
+                    if (!isStale && double.IsFinite(snapshot.Value))
                     {
                         tag.Value = snapshot.Value;
                         tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
@@ -863,7 +885,8 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
                     tag.IsStale = false;
                     var span = Math.Max(0.5, (tag.MaxLimit - tag.MinLimit) * 0.015);
                     var delta = (_rng.NextDouble() - 0.5) * span;
-                    var next = Math.Clamp(tag.Value + delta, tag.MinLimit, tag.MaxLimit);
+                    var current = double.IsFinite(tag.Value) ? tag.Value : (tag.MinLimit + tag.MaxLimit) * 0.5;
+                    var next = Math.Clamp(current + delta, tag.MinLimit, tag.MaxLimit);
                     tag.Value = Math.Round(next, 2);
                     tag.Timestamp = now;
                 }
@@ -883,8 +906,10 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
                 eq.PrimaryMetric = eq.Tags[0].Value;
             }
 
-            eq.PowerKw = Math.Round(Math.Max(0, eq.PowerKw + (_rng.NextDouble() - 0.5) * 4.5), 1);
-            eq.LoadPercent = Math.Round(Math.Clamp(eq.LoadPercent + (_rng.NextDouble() - 0.5) * 1.8, 10, 98), 1);
+            double curPower = double.IsFinite(eq.PowerKw) ? eq.PowerKw : 0.0;
+            double curLoad = double.IsFinite(eq.LoadPercent) ? eq.LoadPercent : 50.0;
+            eq.PowerKw = Math.Round(Math.Max(0, curPower + (_rng.NextDouble() - 0.5) * 4.5), 1);
+            eq.LoadPercent = Math.Round(Math.Clamp(curLoad + (_rng.NextDouble() - 0.5) * 1.8, 10, 98), 1);
             totalPower += eq.PowerKw;
         }
 
@@ -901,7 +926,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
                         {
                             var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
                             tag.IsStale = isStale;
-                            if (!isStale)
+                            if (!isStale && double.IsFinite(snapshot.Value))
                             {
                                 tag.Value = snapshot.Value;
                                 tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
@@ -925,7 +950,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
                 {
                     var isStale = string.Equals(snapshot.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
                     tag.IsStale = isStale;
-                    if (!isStale)
+                    if (!isStale && double.IsFinite(snapshot.Value))
                     {
                         tag.Value = snapshot.Value;
                         tag.Timestamp = snapshot.TimestampUtc.LocalDateTime;
@@ -964,6 +989,11 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
 
         await PersistCurrentSamplesAsync(cancellationToken).ConfigureAwait(false);
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _tickInFlight, 0);
+        }
     }
 
     public void ApplyOptimizationTick()
@@ -984,7 +1014,7 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
         var tag = AllTags.FirstOrDefault(t => t.TagId == chosen.TagId);
         if (eq is null || tag is null) return;
 
-        double prev = tag.Value;
+        double prev = double.IsFinite(tag.Value) ? tag.Value : chosen.Target;
         double error = chosen.Target - prev;
         double step = Math.Abs(error) < 0.005
             ? (chosen.MaxStep * 0.25)

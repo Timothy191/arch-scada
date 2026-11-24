@@ -14,8 +14,10 @@ namespace ArchScada.Desktop.Services;
 public sealed class UnityBridgeService : IDisposable
 {
     private readonly UdpClient _udp = new();
+    private readonly object _udpLock = new();
     private readonly string _host = "127.0.0.1";
     private readonly int _port = 17850;
+    private bool _disposed;
 
     public bool IsBlenderInstalled { get; }
     public bool IsUnityHubInstalled { get; }
@@ -64,8 +66,16 @@ public sealed class UnityBridgeService : IDisposable
 
     public void PublishFrame(IEnumerable<EquipmentItem> equipment, Unity3DEffectSettings fx)
     {
+        if (equipment is null || fx is null)
+        {
+            IsStreaming = false;
+            return;
+        }
+
         try
         {
+            static double FiniteOrZero(double v) => double.IsFinite(v) ? v : 0.0;
+
             var payload = new
             {
                 timestampUtc = DateTime.UtcNow,
@@ -78,24 +88,34 @@ public sealed class UnityBridgeService : IDisposable
                     fx.ShowAlarmHalos,
                     fx.AnimateConveyors
                 },
-                equipment = equipment.Select(e => new
-                {
-                    e.Id,
-                    e.Area,
-                    e.Type,
-                    status = e.Status.ToString(),
-                    e.PowerKw,
-                    e.LoadPercent,
-                    e.PrimaryMetric,
-                    e.PrimaryMetricUnit
-                })
+                equipment = equipment
+                    .Where(e => e is not null)
+                    .Select(e => new
+                    {
+                        e.Id,
+                        e.Area,
+                        e.Type,
+                        status = e.Status.ToString(),
+                        PowerKw = FiniteOrZero(e.PowerKw),
+                        LoadPercent = FiniteOrZero(e.LoadPercent),
+                        PrimaryMetric = FiniteOrZero(e.PrimaryMetric),
+                        e.PrimaryMetricUnit
+                    })
             };
 
             var json = JsonSerializer.Serialize(payload);
             var bytes = Encoding.UTF8.GetBytes(json);
-            _udp.Send(bytes, bytes.Length, _host, _port);
-            IsStreaming = true;
-            PacketsSent++;
+            lock (_udpLock)
+            {
+                if (_disposed)
+                {
+                    IsStreaming = false;
+                    return;
+                }
+                _udp.Send(bytes, bytes.Length, _host, _port);
+                IsStreaming = true;
+                PacketsSent++;
+            }
         }
         catch
         {
@@ -179,5 +199,14 @@ public sealed class UnityBridgeService : IDisposable
         return null;
     }
 
-    public void Dispose() => _udp.Dispose();
+    public void Dispose()
+    {
+        lock (_udpLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            IsStreaming = false;
+            _udp.Dispose();
+        }
+    }
 }

@@ -100,6 +100,18 @@ public sealed class ControlBoundaryEngine : IControlBoundaryEngine
                 cancellationToken).ConfigureAwait(false);
         }
 
+        // 1b. Validate required equipment and command identifiers.
+        if (string.IsNullOrWhiteSpace(request.EquipmentId) || string.IsNullOrWhiteSpace(request.CommandType))
+        {
+            return await RejectAndAuditAsync(
+                request,
+                rule: null,
+                ControlExecutionStatus.Rejected,
+                "EquipmentId and CommandType are required.",
+                stopwatch.Elapsed,
+                cancellationToken).ConfigureAwait(false);
+        }
+
         // 2. Validate operator authentication and active session.
         if (string.IsNullOrWhiteSpace(request.OperatorId))
         {
@@ -308,6 +320,11 @@ public sealed class ControlBoundaryEngine : IControlBoundaryEngine
             request.TriggerSource.Contains("auto", StringComparison.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CommandType))
+        {
+            return false;
         }
 
         return request.CommandType.Contains("AUTO_SHUTDOWN", StringComparison.OrdinalIgnoreCase) ||

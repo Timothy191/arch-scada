@@ -98,7 +98,9 @@ namespace Scada.Web.Pages
         private static object BuildTelemetryPayload(IReadOnlyDictionary<int, CnlData> ch, bool isLive)
         {
             double Val(int num, double fallback) =>
-                ch.TryGetValue(num, out CnlData d) && d.Stat > CnlStatusID.Undefined ? Math.Round(d.Val, 2) : fallback;
+                ch.TryGetValue(num, out CnlData d) && d.Stat > CnlStatusID.Undefined && double.IsFinite(d.Val)
+                    ? Math.Round(d.Val, 2)
+                    : fallback;
 
             int Stat(int num) =>
                 ch.TryGetValue(num, out CnlData d) ? d.Stat : CnlStatusID.Undefined;
@@ -109,7 +111,7 @@ namespace Scada.Web.Pages
                     return "Fault";
                 if (stat == CnlStatusID.Warning || stat == CnlStatusID.High || stat == CnlStatusID.Low)
                     return "Warning";
-                if (allowStandby && val <= 0.5)
+                if (allowStandby && (!double.IsFinite(val) || val <= 0.5))
                     return "Stopped";
                 return stat > CnlStatusID.Undefined ? "Running" : "Running";
             }
@@ -164,7 +166,8 @@ namespace Scada.Web.Pages
             var channels = new Dictionary<string, object>(ch.Count);
             foreach (KeyValuePair<int, CnlData> kv in ch)
             {
-                channels[kv.Key.ToString()] = new { val = Math.Round(kv.Value.Val, 3), stat = kv.Value.Stat };
+                double safeVal = double.IsFinite(kv.Value.Val) ? Math.Round(kv.Value.Val, 3) : 0.0;
+                channels[kv.Key.ToString()] = new { val = safeVal, stat = kv.Value.Stat };
             }
 
             return new

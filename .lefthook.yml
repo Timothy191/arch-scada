@@ -1,0 +1,4 @@
+pre-push:
+  commands:
+    build-and-test:
+      run: dotnet build Plant.sln -c Release -warnaserror && dotnet test Plant.sln -c Release --no-build

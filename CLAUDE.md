@@ -50,6 +50,18 @@ Test conventions:
 - Naming: `<Component>.Tests`
 - Location: `tests/<Component>.Tests/`
 
+## Quality Gates
+
+Run the full 6-gate build, test, 3D GLB topology, backup audit, `ScadaWeb` read-only HTTP security, and Desktop 3D GPU performance verification suite:
+
+```bash
+./verify-quality-gates.sh
+```
+
+Useful flags:
+- `./verify-quality-gates.sh --skip-gui` — headless CI mode (skips Gate 6 Desktop OpenGL capture).
+- `./verify-quality-gates.sh --clean` — wipes `bin/` and `obj/` across the repository before running Gate 1.
+
 ## Architecture
 
 This is **Arch SCADA** — a fork and specialized adaptation of Rapid SCADA v6 customized for industrial coal handling & preparation plant (CHPP) monitoring and automation.

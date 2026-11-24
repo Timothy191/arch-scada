@@ -65,8 +65,29 @@ public sealed class LocalHistorianStore
     public async Task AppendSampleAsync(TelemetrySample sample, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sample);
-        await AppendJsonLineAsync(SamplesFilePath, _sampleLock, sample, cancellationToken).ConfigureAwait(false);
-        await EnforceMaxRetentionIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        var safeSample = double.IsFinite(sample.Value)
+            ? sample
+            : sample with { Value = 0.0, Quality = "Invalid" };
+
+        await _sampleLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            Directory.CreateDirectory(StorageDirectory);
+            var line = JsonSerializer.Serialize(safeSample, JsonOptions);
+
+            await using (var stream = new FileStream(SamplesFilePath, FileMode.Append, FileAccess.Write, FileShare.Read, 4096, useAsync: true))
+            await using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                await writer.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await PruneSamplesCoreAsync(_maxRetainedSamples, onlyWhenExceedingLimit: true, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sampleLock.Release();
+        }
     }
 
     /// <summary>
@@ -86,7 +107,15 @@ public sealed class LocalHistorianStore
                 foreach (var sample in samples)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var line = JsonSerializer.Serialize(sample, JsonOptions);
+                    if (sample is null)
+                    {
+                        continue;
+                    }
+
+                    var safeSample = double.IsFinite(sample.Value)
+                        ? sample
+                        : sample with { Value = 0.0, Quality = "Invalid" };
+                    var line = JsonSerializer.Serialize(safeSample, JsonOptions);
                     await writer.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
                 }
 
@@ -252,19 +281,6 @@ public sealed class LocalHistorianStore
         }
 
         return query.OrderBy(a => a.TimestampUtc).ToList();
-    }
-
-    private async Task EnforceMaxRetentionIfNeededAsync(CancellationToken cancellationToken)
-    {
-        await _sampleLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await PruneSamplesCoreAsync(_maxRetainedSamples, onlyWhenExceedingLimit: true, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _sampleLock.Release();
-        }
     }
 
     private async Task<int> PruneSamplesCoreAsync(int maxSamplesToKeep, bool onlyWhenExceedingLimit, CancellationToken cancellationToken)
