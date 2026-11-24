@@ -65,7 +65,7 @@ public sealed class BoolToActiveNavBrushConverter : IValueConverter
 {
     public static readonly BoolToActiveNavBrushConverter Instance = new();
 
-    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#E5E7EB"));
+    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#1E293B"));
     private static readonly IBrush InactiveBg = Brushes.Transparent;
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
