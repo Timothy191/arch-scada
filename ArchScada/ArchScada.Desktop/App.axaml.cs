@@ -66,8 +66,8 @@ public partial class App : Application
                 _mainWindow = new MainWindow
                 {
                     DataContext = mainVm,
-                    Width = 1520,
-                    Height = 940
+                    Width = 1720,
+                    Height = 1060
                 };
                 desktop.MainWindow = _mainWindow;
                 _mainWindow.Show();

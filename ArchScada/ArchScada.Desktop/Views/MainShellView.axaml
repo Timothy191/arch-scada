@@ -611,9 +611,9 @@
                             </Border>
                         </Grid>
 
-                        <Grid ColumnDefinitions="2*,1*" ColumnSpacing="16">
+                        <Grid ColumnDefinitions="*,360" ColumnSpacing="14">
                             <!-- 3D Viewport / Schematic Preview -->
-                            <Border Grid.Column="0" Classes="scada-card" MinHeight="380">
+                            <Border Grid.Column="0" Classes="scada-card" MinHeight="740">
                                 <StackPanel Spacing="12">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <TextBlock Text="{Binding UnityEffects.CameraPreset, StringFormat='Unity Camera Preset: {0}'}"
@@ -630,7 +630,8 @@
                                         Selected3DNode="{Binding Selected3DNode, Mode=TwoWay}"
                                         FocusTargetId="{Binding FocusTargetId}"
                                         TelemetrySourceBadge="{Binding TelemetrySourceBadgeText}"
-                                        Height="470" />
+                                        MinHeight="620"
+                                        Height="740" />
 
                                     <WrapPanel Orientation="Horizontal">
                                         <Button Content="◀ Prev" Command="{Binding SelectPrev3DNodeCommand}" Classes="secondary-action" Padding="10,6" FontSize="11" Margin="0,0,6,6" />
