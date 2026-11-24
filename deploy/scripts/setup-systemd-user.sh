@@ -40,7 +40,7 @@ echo "Reloading systemd --user daemon..."
 systemctl --user daemon-reload
 
 echo "Enabling archscada-backup.timer..."
-systemctl --user enable archscada-backup.timer
+systemctl --user enable --now archscada-backup.timer
 
 # The PLC simulator must run at every login so the HMI splash SERVER/DRIVERS
 # readiness checks find live endpoints (HTTP :5000, Native TCP :10000, Modbus :1502).

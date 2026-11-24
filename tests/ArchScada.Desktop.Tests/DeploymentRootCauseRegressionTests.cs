@@ -157,7 +157,7 @@ public sealed class DeploymentRootCauseRegressionTests
     {
         var script = File.ReadAllText(Path.Combine(ResolveRepoRoot(), "deploy", "scripts", "setup-systemd-user.sh"));
 
-        Assert.Contains("systemctl --user enable archscada-backup.timer", script);
+        Assert.Contains("systemctl --user enable --now archscada-backup.timer", script);
         Assert.Contains("systemctl --user enable archscada-plc-sim.service", script);
         Assert.Contains("systemctl --user restart archscada-plc-sim.service", script);
         Assert.Contains("ARCHSCADA_SKIP_PLC_SIM", script);
