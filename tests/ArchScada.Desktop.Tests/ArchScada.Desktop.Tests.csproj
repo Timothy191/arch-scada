@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj" />
+    <ProjectReference Include="../../ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj" />
   </ItemGroup>
 
 </Project>

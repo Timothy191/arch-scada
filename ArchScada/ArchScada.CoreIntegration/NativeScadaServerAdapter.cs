@@ -23,7 +23,7 @@ namespace ArchScada.CoreIntegration
 {
     /// <summary>
     /// Native Rapid SCADA binary TCP protocol adapter (<c>ScadaClient</c> on <c>127.0.0.1:10000</c>)
-    /// mapping the 34 Arch Coal Preparation Plant (CHPP) channel numbers (<c>Cnl.xml</c>) to HMI tag IDs
+    /// mapping the 52 Arch Coal Preparation Plant (CHPP) channel numbers (<c>Cnl.xml</c>) to HMI tag IDs
     /// with graceful offline/stale fallback.
     /// </summary>
     public sealed class NativeScadaServerAdapter : IDisposable
@@ -52,6 +52,24 @@ namespace ArchScada.CoreIntegration
                 [131] = "CV102_SPD",
                 [132] = "CV102_TMP",
 
+                // Line 1 / Device 13: ROM101 ROM Reception & Grizzly Feeder PLC (ObjNum=2)
+                [141] = "AF001_TPH",
+                [142] = "BN101_LVL",
+                [143] = "VF101_VIB",
+
+                // Line 1 / Device 14: DRC101 Double Roller Crusher PLC (ObjNum=2)
+                [151] = "DRC101_TPH",
+                [152] = "DRC101_KW",
+                [153] = "DRC101_GAP",
+
+                // Line 1 / Device 15: CV_DRY Crushing & Sizing Conveyors PLC (ObjNum=2)
+                [161] = "CV103_SPD",
+                [162] = "CV104_SPD",
+                [163] = "CV105_SPD",
+                [164] = "CV106_SPD",
+                [165] = "CV201_SPD",
+                [166] = "BN201_LVL",
+
                 // Line 1 / Device 5: TK-201 High-Rate Thickener (ObjNum=3)
                 [201] = "TK201_LVL",
                 [202] = "TK201_TRQ",
@@ -69,6 +87,14 @@ namespace ArchScada.CoreIntegration
                 [303] = "MS301_REC",
                 [304] = "DM301_FLW",
                 [305] = "DM301_PRS",
+
+                // Line 1 / Device 16: DS_WASH Desliming & Wash Conveyors PLC (ObjNum=4)
+                [311] = "CV202_SPD",
+                [312] = "DS201_VIB",
+                [313] = "DS201_PRS",
+                [314] = "CV203_SPD",
+                [315] = "CV301_SPD",
+                [316] = "CV302_SPD",
 
                 // Line 2 / Device 12: CF-501 Fine Coal Centrifuge via OPC UA (ObjNum=5)
                 [501] = "CF501_RPM",
@@ -105,12 +131,12 @@ namespace ArchScada.CoreIntegration
         private long _cnlListId;
 
         /// <summary>
-        /// Gets the canonical 34-channel mapping from Rapid SCADA <c>CnlNum</c> to <c>TagId</c>.
+        /// Gets the canonical 52-channel mapping from Rapid SCADA <c>CnlNum</c> to <c>TagId</c>.
         /// </summary>
         public static IReadOnlyDictionary<int, string> ChannelToTagMap => DefaultChannelToTagMap;
 
         /// <summary>
-        /// Gets the canonical 34-channel mapping from Rapid SCADA <c>CnlNum</c> to <c>TagId</c>.
+        /// Gets the canonical 52-channel mapping from Rapid SCADA <c>CnlNum</c> to <c>TagId</c>.
         /// </summary>
         public static IReadOnlyDictionary<int, string> ChannelMap => DefaultChannelToTagMap;
 
@@ -120,7 +146,7 @@ namespace ArchScada.CoreIntegration
         public static IReadOnlyDictionary<string, int> TagToChannelMap => DefaultTagToChannelMap;
 
         /// <summary>
-        /// Gets the ordered list of 34 CHPP channel numbers configured in <c>Cnl.xml</c>.
+        /// Gets the ordered list of 52 CHPP channel numbers configured in <c>Cnl.xml</c>.
         /// </summary>
         public static IReadOnlyList<int> ChannelNumbers => OrderedChannelNumbers;
 
@@ -233,7 +259,7 @@ namespace ArchScada.CoreIntegration
         }
 
         /// <summary>
-        /// Safely queries <see cref="ScadaClient"/> for the 34 CHPP channels on <c>127.0.0.1:10000</c>.
+        /// Safely queries <see cref="ScadaClient"/> for the 52 CHPP channels on <c>127.0.0.1:10000</c>.
         /// Never throws unhandled exceptions when <c>ScadaServer</c> is unreachable; instead returns
         /// graceful offline/stale tag snapshots and sets <paramref name="statusMessage"/>.
         /// </summary>

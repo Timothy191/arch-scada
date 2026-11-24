@@ -97,13 +97,26 @@ The desktop application automatically initializes `SimulatedTelemetryService` an
 
 ## Install
 
-Publish and install the Release suite (`ArchScada.Desktop`, `ScadaServer`, `ScadaComm`, `ScadaAgent`, `ScadaWeb`, `Projects/ArchCoalPlant` snapshot, `~/.local/bin/archscada*` wrappers, and FreeDesktop `.desktop` launcher) onto the local workstation:
+Publish and install the Release suite (`ArchScada.Desktop`, `ArchScada.PlcSimulator` if present, `ScadaServer`, `ScadaComm`, `ScadaAgent`, `ScadaWeb`, `Projects/ArchCoalPlant` snapshot, `deploy/scripts/`, `~/.local/bin/archscada*` wrappers including `archscada-plc-sim`, FreeDesktop `.desktop` launcher, and `systemd --user` units) onto the local workstation:
 
 ```bash
 ./deploy/scripts/install-local.sh
 ```
 
 Custom target directories can be specified with `--prefix <dir>` (default `~/.local/share/archscada`) and `--bin-dir <dir>` (default `~/.local/bin`).
+
+### Local PostgreSQL 16 Historian & User-Space Services
+
+- **Provision PostgreSQL 16 Historian**: Starts `archscada-historian-pg` (`deploy/docker-compose.historian.yml`, bound to `127.0.0.1:${ARCHSCADA_PGPORT:-5432}` or `55432` if `5432` is occupied), applies `Database/coal_plant_schema.sql` and Rapid SCADA storage DDL idempotently, seeds baseline `plant_areas`, and runs an end-to-end backup verification:
+  ```bash
+  ./deploy/scripts/provision-postgres.sh
+  ```
+- **User-Space `systemd --user` Suite**: Installs `archscada-plc-sim.service`, `archscada-web.service`, `archscada-desktop.service`, `archscada-backup.service`, and `archscada-backup.timer` into `~/.config/systemd/user/` and enables the daily backup timer:
+  ```bash
+  ./deploy/scripts/setup-systemd-user.sh
+  systemctl --user start archscada-plc-sim archscada-web
+  ```
+- **PLC Simulator CLI**: Installed at `~/.local/bin/archscada-plc-sim` (supports `--self-test` for automated verification).
 
 ## Git Workflow
 - Working branch: `develop`

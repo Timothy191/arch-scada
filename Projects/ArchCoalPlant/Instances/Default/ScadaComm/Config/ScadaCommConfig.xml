@@ -66,6 +66,10 @@
         <Device active="true" isBound="true" number="7" name="PP-202 Underflow Pump B PLC" driver="DrvModbus" numAddress="7" strAddress="10.10.2.23:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
         <Device active="true" isBound="true" number="8" name="PP-203 Flocculant Dosing Pump PLC" driver="DrvModbus" numAddress="8" strAddress="10.10.2.24:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
         <Device active="true" isBound="true" number="9" name="TK-301 Magnetite &amp; DMC Circuit PLC" driver="DrvModbus" numAddress="9" strAddress="10.10.3.31:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
+        <Device active="true" isBound="true" number="13" name="ROM Reception &amp; Grizzly Feeder PLC" driver="DrvModbus" numAddress="13" strAddress="10.10.1.15:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="14" name="DRC-101 Double Roller Crusher PLC" driver="DrvModbus" numAddress="14" strAddress="10.10.1.16:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="15" name="Crushing &amp; Sizing Conveyors PLC" driver="DrvModbus" numAddress="15" strAddress="10.10.1.17:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:01" cmdLine="" />
+        <Device active="true" isBound="true" number="16" name="Desliming &amp; Wash Conveyors PLC" driver="DrvModbus" numAddress="16" strAddress="10.10.3.32:502" pollOnCmd="false" timeout="1000" delay="200" time="00:00:00" period="00:00:02" cmdLine="" />
       </DevicePolling>
     </Line>
     <Line active="true" isBound="true" number="2" name="OPC UA - Analyzers &amp; Centrifuge">

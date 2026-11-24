@@ -142,6 +142,10 @@ echo
 echo "=== [GATE 4/6] Backup & Tamper-Evident Audit Self-Test Gate ==="
 ./deploy/scripts/create-backup.sh --self-test
 ./deploy/scripts/verify-backup.sh --self-test
+if [[ -x "./ArchScada/ArchScada.PlcSimulator/bin/Release/net10.0/ArchScada.PlcSimulator" ]]; then
+  echo "Running ArchScada.PlcSimulator --self-test..."
+  ./ArchScada/ArchScada.PlcSimulator/bin/Release/net10.0/ArchScada.PlcSimulator --self-test
+fi
 echo "[GATE 4/6] Backup & Tamper-Evident Audit Self-Test Gate PASS"
 
 # ==============================================================================

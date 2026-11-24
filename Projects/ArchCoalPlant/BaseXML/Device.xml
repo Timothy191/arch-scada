@@ -91,6 +91,46 @@
     <Descr>Modbus TCP PLC for Magnetite Medium Tank TK-301, MS-301, and DM-301</Descr>
   </Device>
   <Device>
+    <DeviceNum>13</DeviceNum>
+    <Name>ROM Reception &amp; Grizzly Feeder PLC</Name>
+    <Code>ROM101</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>13</NumAddress>
+    <StrAddress>10.10.1.15:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for ROM Apron Feeder AF-001, Feeder Bin BN-101, and Grizzly Feeder VF-101</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>14</DeviceNum>
+    <Name>DRC-101 Double Roller Crusher PLC</Name>
+    <Code>DRC101</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>14</NumAddress>
+    <StrAddress>10.10.1.16:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Double Roller Crusher DRC-101</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>15</DeviceNum>
+    <Name>Crushing &amp; Sizing Conveyors PLC</Name>
+    <Code>CV_DRY</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>15</NumAddress>
+    <StrAddress>10.10.1.17:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Conveyors CV-103..106, CV-201, and Plant Feed Surge Bin BN-201</Descr>
+  </Device>
+  <Device>
+    <DeviceNum>16</DeviceNum>
+    <Name>Desliming &amp; Wash Conveyors PLC</Name>
+    <Code>DS_WASH</Code>
+    <DevTypeID>214</DevTypeID>
+    <NumAddress>16</NumAddress>
+    <StrAddress>10.10.3.32:502</StrAddress>
+    <CommLineNum>1</CommLineNum>
+    <Descr>Modbus TCP PLC for Desliming Screen DS-201 and Wash Conveyors CV-202, CV-203, CV-301, and CV-302</Descr>
+  </Device>
+  <Device>
     <DeviceNum>11</DeviceNum>
     <Name>AN-601 PGNAA Online Analyzer</Name>
     <Code>AN601</Code>

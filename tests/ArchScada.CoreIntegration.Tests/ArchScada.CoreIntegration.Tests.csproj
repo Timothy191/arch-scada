@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ArchScada\ArchScada.CoreIntegration\ArchScada.CoreIntegration.csproj" />
+    <ProjectReference Include="..\..\ArchScada\ArchScada.PlcSimulator\ArchScada.PlcSimulator.csproj" />
   </ItemGroup>
 
 </Project>

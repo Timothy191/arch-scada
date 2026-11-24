@@ -16,6 +16,7 @@ set -euo pipefail
 
 BACKUP_DIR="${ARCHSCADA_BACKUP_DIR:-/var/backups/archscada}"
 MAX_AGE_HOURS="${ARCHSCADA_BACKUP_MAX_AGE_HOURS:-26}"
+PG_CONTAINER="${ARCHSCADA_PG_CONTAINER:-archscada-historian-pg}"
 SELF_TEST=0
 
 usage() {
@@ -114,6 +115,9 @@ verify_postgres_backup() {
             if command -v pg_restore >/dev/null 2>&1; then
                 log_info "Validating PostgreSQL custom dump TOC via pg_restore --list"
                 pg_restore --list "${pg_backup}" >/dev/null
+            elif command -v docker >/dev/null 2>&1 && [[ -n "$(docker ps -q --filter "name=^${PG_CONTAINER}$" --filter "status=running" 2>/dev/null || true)" ]]; then
+                log_info "Validating PostgreSQL custom dump TOC via docker exec ${PG_CONTAINER} pg_restore --list"
+                docker exec -i "${PG_CONTAINER}" pg_restore --list < "${pg_backup}" >/dev/null
             else
                 log_info "pg_restore not installed; verifying PostgreSQL dump header signature"
                 head -c 5 "${pg_backup}" | grep -q "PGDMP" || {

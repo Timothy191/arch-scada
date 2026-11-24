@@ -67,6 +67,9 @@ publish_project() {
 }
 
 publish_project "ArchScada.Desktop" "ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj" "$PREFIX/ArchScada.Desktop"
+if [[ -f "$REPO_ROOT/ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj" ]]; then
+  publish_project "ArchScada.PlcSimulator" "ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj" "$PREFIX/ArchScada.PlcSimulator"
+fi
 publish_project "ScadaServer"       "ScadaServer/ScadaServer/ScadaServerApp/ScadaServerApp.csproj" "$PREFIX/ScadaServer"
 publish_project "ScadaComm"         "ScadaComm/ScadaComm/ScadaCommApp/ScadaCommApp.csproj" "$PREFIX/ScadaComm"
 publish_project "ScadaAgent"        "ScadaAgent/ScadaAgent/ScadaAgentApp/ScadaAgentApp.csproj" "$PREFIX/ScadaAgent"
@@ -106,6 +109,28 @@ exec dotnet "$PREFIX/ScadaWeb/ScadaWeb.dll" "\$@"
 EOF
 chmod +x "$BIN_DIR/archscada-web"
 
+if [[ -f "$REPO_ROOT/ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj" ]]; then
+  cat > "$BIN_DIR/archscada-plc-sim" <<EOF
+#!/usr/bin/env bash
+if [[ -x "$PREFIX/ArchScada.PlcSimulator/ArchScada.PlcSimulator" ]]; then
+  exec "$PREFIX/ArchScada.PlcSimulator/ArchScada.PlcSimulator" "\$@"
+fi
+exec dotnet "$PREFIX/ArchScada.PlcSimulator/ArchScada.PlcSimulator.dll" "\$@"
+EOF
+  chmod +x "$BIN_DIR/archscada-plc-sim"
+fi
+
+echo
+echo "===== Installing deployment scripts & user-space systemd units ====="
+mkdir -p "$PREFIX/deploy/scripts" "$PREFIX/deploy/systemd-user"
+cp -a "$REPO_ROOT/deploy/scripts/." "$PREFIX/deploy/scripts/"
+chmod +x "$PREFIX/deploy/scripts/"*.sh
+cp -a "$REPO_ROOT/deploy/systemd-user/." "$PREFIX/deploy/systemd-user/"
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --user status >/dev/null 2>&1; then
+  "$PREFIX/deploy/scripts/setup-systemd-user.sh"
+fi
+
 echo
 echo "===== Installing application icon and desktop entry ====="
 ICON_DST="$PREFIX/archscada.ico"
@@ -132,7 +157,11 @@ fi
 echo
 echo "Installation complete!"
 echo "  Desktop HMI : $BIN_DIR/archscada"
+if [[ -x "$BIN_DIR/archscada-plc-sim" ]]; then
+  echo "  PLC Sim     : $BIN_DIR/archscada-plc-sim"
+fi
 echo "  SCADA Server: $BIN_DIR/archscada-server"
 echo "  SCADA Comm  : $BIN_DIR/archscada-comm"
 echo "  SCADA Web   : $BIN_DIR/archscada-web (3D Web Twin: /DigitalTwin3D)"
+echo "  Deploy Tools: $PREFIX/deploy/scripts"
 echo "  Desktop File: $APPS_DIR/archscada.desktop"

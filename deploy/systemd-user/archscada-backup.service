@@ -1,0 +1,21 @@
+[Unit]
+Description=Arch SCADA User-Space Automated Database & Configuration Backup Service
+Documentation=https://github.com/Timothy191/arch-scada
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/archscada/deploy/scripts/create-backup.sh --backup-dir %h/.local/share/archscada/backups --data-dir %h/.local/share/ArchScada --log-dir %h/.local/share/ArchScada/logs
+ExecStart=%h/.local/share/archscada/deploy/scripts/verify-backup.sh --backup-dir %h/.local/share/archscada/backups
+TimeoutStartSec=1800
+SyslogIdentifier=archscada-backup
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=ARCHSCADA_CONTROL_MODE=READ_ONLY
+Environment=PGHOST=127.0.0.1
+Environment=PGDATABASE=archscada_historian
+Environment=PGUSER=archscada
+
+[Install]
+WantedBy=default.target

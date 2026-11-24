@@ -40,7 +40,7 @@ public partial class MainShellViewModel : ViewModelBase
     public partial string OperatorBadge { get; set; } = "J. Mokoena (CCR Operator) [Operator]";
 
     [ObservableProperty]
-    public partial string NativeProtocolStatus { get; set; } = "Native TCP 127.0.0.1:10000 (34 Cnl mapped)";
+    public partial string NativeProtocolStatus { get; set; } = "Native TCP 127.0.0.1:10000 (52 Cnl mapped)";
 
     public ObservableCollection<EquipmentItem> CrushingEquipment { get; } = new();
     public ObservableCollection<EquipmentItem> ThickenerEquipment { get; } = new();
@@ -509,6 +509,10 @@ public partial class MainShellViewModel : ViewModelBase
     private void RefreshFromTelemetry()
     {
         ConnectionStatusLabel = _telemetry.ConnectionModeLabel;
+        if (_telemetry is SimulatedTelemetryService sim)
+        {
+            NativeProtocolStatus = sim.NativeProtocolStatus;
+        }
         OnPropertyChanged(nameof(TelemetrySourceBadgeText));
         OnPropertyChanged(nameof(IsTelemetryLive));
         TotalFeedTonnageTph = _telemetry.TotalFeedTonnageTph;

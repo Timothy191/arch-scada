@@ -1,0 +1,21 @@
+[Unit]
+Description=Arch SCADA Web (User-Space Read-Only 3D Digital Twin & Telemetry UI)
+Documentation=https://github.com/Timothy191/arch-scada
+After=network-online.target archscada-plc-sim.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/archscada-web --urls http://127.0.0.1:5080
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+SyslogIdentifier=archscada-web
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=ARCHSCADA_CONTROL_MODE=READ_ONLY
+
+[Install]
+WantedBy=default.target

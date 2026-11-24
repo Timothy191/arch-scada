@@ -1,0 +1,22 @@
+services:
+  historian-pg:
+    image: postgres:16-alpine
+    container_name: archscada-historian-pg
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ARCHSCADA_PGPORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: archscada
+      POSTGRES_PASSWORD: ${ARCHSCADA_PGPASSWORD:-archscada_local_dev}
+      POSTGRES_DB: archscada_historian
+    volumes:
+      - archscada_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archscada -d archscada_historian"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  archscada_pgdata:

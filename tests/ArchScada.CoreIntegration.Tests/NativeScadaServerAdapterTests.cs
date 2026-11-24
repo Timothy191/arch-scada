@@ -9,18 +9,27 @@ namespace ArchScada.CoreIntegration.Tests;
 public sealed class NativeScadaServerAdapterTests
 {
     [Fact]
-    public void ChannelToTagMap_MapsAll34ChppChannelsFromCnlXml()
+    public void ChannelToTagMap_MapsAll52ChppChannelsFromCnlXml()
     {
-        Assert.Equal(34, NativeScadaServerAdapter.ChannelToTagMap.Count);
-        Assert.Equal(34, NativeScadaServerAdapter.ChannelNumbers.Count);
+        Assert.Equal(52, NativeScadaServerAdapter.ChannelToTagMap.Count);
+        Assert.Equal(52, NativeScadaServerAdapter.ChannelNumbers.Count);
 
         Assert.Equal("CR101_TPH", NativeScadaServerAdapter.ChannelToTagMap[101]);
         Assert.Equal("CR101_KW", NativeScadaServerAdapter.ChannelToTagMap[102]);
         Assert.Equal("CR101_BRG", NativeScadaServerAdapter.ChannelToTagMap[103]);
+        Assert.Equal("AF001_TPH", NativeScadaServerAdapter.ChannelToTagMap[141]);
+        Assert.Equal("BN101_LVL", NativeScadaServerAdapter.ChannelToTagMap[142]);
+        Assert.Equal("VF101_VIB", NativeScadaServerAdapter.ChannelToTagMap[143]);
+        Assert.Equal("DRC101_TPH", NativeScadaServerAdapter.ChannelToTagMap[151]);
+        Assert.Equal("CV103_SPD", NativeScadaServerAdapter.ChannelToTagMap[161]);
+        Assert.Equal("BN201_LVL", NativeScadaServerAdapter.ChannelToTagMap[166]);
         Assert.Equal("TK201_LVL", NativeScadaServerAdapter.ChannelToTagMap[201]);
         Assert.Equal("TK201_TRQ", NativeScadaServerAdapter.ChannelToTagMap[202]);
         Assert.Equal("TK201_TRB", NativeScadaServerAdapter.ChannelToTagMap[203]);
         Assert.Equal("TK301_SG", NativeScadaServerAdapter.ChannelToTagMap[301]);
+        Assert.Equal("CV202_SPD", NativeScadaServerAdapter.ChannelToTagMap[311]);
+        Assert.Equal("DS201_PRS", NativeScadaServerAdapter.ChannelToTagMap[313]);
+        Assert.Equal("CV302_SPD", NativeScadaServerAdapter.ChannelToTagMap[316]);
         Assert.Equal("CF501_MST", NativeScadaServerAdapter.ChannelToTagMap[504]);
         Assert.Equal("AN601_ASH", NativeScadaServerAdapter.ChannelToTagMap[601]);
         Assert.Equal("AN601_MST", NativeScadaServerAdapter.ChannelToTagMap[602]);
@@ -55,7 +64,7 @@ public sealed class NativeScadaServerAdapterTests
         Assert.True(adapter.IsOffline);
         Assert.False(string.IsNullOrWhiteSpace(statusMessage));
         Assert.Contains("Offline", statusMessage, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(34, snapshots.Count);
+        Assert.Equal(52, snapshots.Count);
         Assert.All(snapshots, s => Assert.Equal("Stale", s.Quality));
     }
 
@@ -86,7 +95,7 @@ public sealed class NativeScadaServerAdapterTests
 
         Assert.True(adapter.IsOnline);
         Assert.Contains("Online", statusMessage, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(34, snapshots.Count);
+        Assert.Equal(52, snapshots.Count);
 
         var cr101 = snapshots.Single(s => s.TagId == "CR101_TPH");
         Assert.Equal(645.2, cr101.Value);

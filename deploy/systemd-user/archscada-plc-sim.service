@@ -1,0 +1,19 @@
+[Unit]
+Description=Arch SCADA CHPP PLC Simulator (User-Space Modbus TCP / Telemetry Field Simulator)
+Documentation=https://github.com/Timothy191/arch-scada
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/archscada-plc-sim
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+KillSignal=SIGTERM
+SyslogIdentifier=archscada-plc-sim
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+[Install]
+WantedBy=default.target

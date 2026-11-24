@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using ArchScada.CoreIntegration;
 using ArchScada.Desktop.Services;
+using ArchScada.PlcSimulator;
 using Scada.Data.Const;
 using Scada.Data.Models;
 using Xunit;
@@ -254,6 +255,52 @@ public sealed class LiveAdapterAndHistorianTests
             var samples = await telemetry.HistorianStore.QuerySamplesAsync(tagId: "CR101_TPH");
             Assert.Single(samples);
             Assert.Equal("Stale", samples[0].Quality);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Start_WhenStartedInDefaultDemoMode_AutoPromotesToLiveWhenPlcSimulatorIsListening()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"live-autoprobe-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            await using var sim = new PlcSimulatorHost(httpPort: 0, tcpPort: 0, modbusPort: 0);
+            await sim.StartAsync();
+
+            using var serverClient = new ScadaServerClient(new ScadaServerOptions
+            {
+                BaseUrl = $"http://127.0.0.1:{sim.HttpPort}",
+                Timeout = TimeSpan.FromSeconds(2)
+            });
+            using var adapter = new NativeScadaServerAdapter("127.0.0.1", sim.TcpPort, timeoutMs: 2000);
+            using var telemetry = new SimulatedTelemetryService(tempDir, serverClient, adapter);
+
+            var promoted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            telemetry.TelemetryUpdated += (_, _) =>
+            {
+                if (telemetry.IsServerConnected)
+                {
+                    promoted.TrySetResult(true);
+                }
+            };
+
+            telemetry.Start(offlineDemoMode: true);
+
+            var completedTask = await Task.WhenAny(promoted.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+            Assert.Same(promoted.Task, completedTask);
+            Assert.True(telemetry.IsServerConnected);
+            Assert.False(telemetry.IsOfflineDemoMode);
+            Assert.Contains("Online", telemetry.NativeProtocolStatus, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("52 channels", telemetry.LastServerHealthStatus, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

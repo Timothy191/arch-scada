@@ -179,6 +179,240 @@
     <EventMask xsi:nil="true" />
   </Cnl>
 
+  <!-- Line 1 / Device 13: ROM101 ROM Reception & Grizzly Feeder PLC (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>141</CnlNum>
+    <Active>true</Active>
+    <Name>AF-001 ROM Feed Rate</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>13</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>AF001_TPH</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>142</CnlNum>
+    <Active>true</Active>
+    <Name>BN-101 Feeder Bin Level</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>13</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>BN101_LVL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>101</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>143</CnlNum>
+    <Active>true</Active>
+    <Name>VF-101 Grizzly Feeder Vibration</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>13</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>VF101_VIB</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 14: DRC101 Double Roller Crusher PLC (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>151</CnlNum>
+    <Active>true</Active>
+    <Name>DRC-101 Double Roll Throughput</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>14</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>DRC101_TPH</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>152</CnlNum>
+    <Active>true</Active>
+    <Name>DRC-101 Double Roll Power</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>14</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>DRC101_KW</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>52</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>153</CnlNum>
+    <Active>true</Active>
+    <Name>DRC-101 Roll Nip Gap</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>14</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>DRC101_GAP</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>2</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 15: CV_DRY Crushing & Sizing Conveyors PLC (ObjNum=2) -->
+  <Cnl>
+    <CnlNum>161</CnlNum>
+    <Active>true</Active>
+    <Name>CV-103 Jaw Discharge Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CV103_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>162</CnlNum>
+    <Active>true</Active>
+    <Name>CV-104 Sizing Feed Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>CV104_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>163</CnlNum>
+    <Active>true</Active>
+    <Name>CV-105 Under-Screen Fines Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>CV105_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>164</CnlNum>
+    <Active>true</Active>
+    <Name>CV-106 Oversize Return Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>4</TagNum>
+    <TagCode>CV106_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>165</CnlNum>
+    <Active>true</Active>
+    <Name>CV-201 Plant Feed Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>5</TagNum>
+    <TagCode>CV201_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>166</CnlNum>
+    <Active>true</Active>
+    <Name>BN-201 Plant Feed Surge Bin Level</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>2</ObjNum>
+    <DeviceNum>15</DeviceNum>
+    <TagNum>6</TagNum>
+    <TagCode>BN201_LVL</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>101</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
   <!-- Line 1 / Device 5: TK-201 High-Rate Thickener (ObjNum=3) -->
   <Cnl>
     <CnlNum>201</CnlNum>
@@ -408,6 +642,122 @@
     <FormatID>3</FormatID>
     <QuantityID xsi:nil="true" />
     <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+
+  <!-- Line 1 / Device 16: DS_WASH Desliming & Wash Conveyors PLC (ObjNum=4) -->
+  <Cnl>
+    <CnlNum>311</CnlNum>
+    <Active>true</Active>
+    <Name>CV-202 Desliming Feed Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>1</TagNum>
+    <TagCode>CV202_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>312</CnlNum>
+    <Active>true</Active>
+    <Name>DS-201 Desliming Screen Vibration</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>2</TagNum>
+    <TagCode>DS201_VIB</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID xsi:nil="true" />
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>313</CnlNum>
+    <Active>true</Active>
+    <Name>DS-201 Desliming Spray Header Pressure</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>3</TagNum>
+    <TagCode>DS201_PRS</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>3</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>72</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>314</CnlNum>
+    <Active>true</Active>
+    <Name>CV-203 Cyclone Feed Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>4</TagNum>
+    <TagCode>CV203_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>315</CnlNum>
+    <Active>true</Active>
+    <Name>CV-301 Clean Product Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>5</TagNum>
+    <TagCode>CV301_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
+    <LimID xsi:nil="true" />
+    <ArchiveMask xsi:nil="true" />
+    <EventMask xsi:nil="true" />
+  </Cnl>
+  <Cnl>
+    <CnlNum>316</CnlNum>
+    <Active>true</Active>
+    <Name>CV-302 Discard Conv Speed</Name>
+    <DataTypeID xsi:nil="true" />
+    <DataLen xsi:nil="true" />
+    <CnlTypeID>1</CnlTypeID>
+    <ObjNum>4</ObjNum>
+    <DeviceNum>16</DeviceNum>
+    <TagNum>6</TagNum>
+    <TagCode>CV302_SPD</TagCode>
+    <FormulaEnabled>false</FormulaEnabled>
+    <FormatID>4</FormatID>
+    <QuantityID xsi:nil="true" />
+    <UnitID>31</UnitID>
     <LimID xsi:nil="true" />
     <ArchiveMask xsi:nil="true" />
     <EventMask xsi:nil="true" />

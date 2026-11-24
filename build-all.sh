@@ -68,5 +68,10 @@ if [ -f ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj ]; then
   dotnet build ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj -c "$CONFIG"
 fi
 
+if [ -f ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj ]; then
+  step "ArchScada.PlcSimulator"
+  dotnet build ArchScada/ArchScada.PlcSimulator/ArchScada.PlcSimulator.csproj -c "$CONFIG"
+fi
+
 echo
 echo "All builds completed successfully."

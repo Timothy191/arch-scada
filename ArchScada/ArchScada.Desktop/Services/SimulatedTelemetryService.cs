@@ -31,13 +31,14 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
 
     private int _loopRotationIndex;
     private int _tickInFlight;
+    private CancellationTokenSource? _probeCts;
     private volatile bool _disposed;
 
     public bool IsServerConnected { get; private set; }
     public bool IsOfflineDemoMode { get; set; } = true;
     public bool IsAutoOptimizationEnabled { get; set; } = true;
     public string LastServerHealthStatus { get; private set; } = "Not probed (Local Cache Active)";
-    public string NativeProtocolStatus { get; private set; } = "Native TCP 127.0.0.1:10000 (34 Cnl mapped)";
+    public string NativeProtocolStatus { get; private set; } = "Native TCP 127.0.0.1:10000 (52 Cnl mapped)";
     public string ConnectionModeLabel => IsServerConnected
         ? "ScadaServer Connected (Read-Only)"
         : "Offline Demo / Local Cache (Read-Only)";
@@ -87,13 +88,19 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
         IsServerConnected = false;
 
         _ = PersistConfigurationSnapshotAsync();
+        _probeCts?.Cancel();
+        _probeCts?.Dispose();
+        _probeCts = new CancellationTokenSource();
+        var probeToken = _probeCts.Token;
+
         if (!offlineDemoMode)
         {
-            _ = ProbeServerHealthAsync();
+            _ = ProbeServerHealthAsync(probeToken);
         }
         else
         {
             LastServerHealthStatus = "Offline Demo Mode (Local Cache Active)";
+            _ = AutoProbeAndPromoteLiveAsync(probeToken);
         }
 
         if (_timer is not null)
@@ -125,6 +132,9 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _probeCts?.Cancel();
+        _probeCts?.Dispose();
+        _probeCts = null;
         Stop();
         NativeAdapter.Dispose();
     }
@@ -278,6 +288,83 @@ public sealed class SimulatedTelemetryService : ITelemetryService, IDisposable
 
         TelemetryUpdated?.Invoke(this, EventArgs.Empty);
         return IsServerConnected;
+    }
+
+    private async Task AutoProbeAndPromoteLiveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ServerClient.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+            if (_disposed || cancellationToken.IsCancellationRequested ||
+                !result.IsSuccess || result.Data is null || !result.Data.IsOnline)
+            {
+                return;
+            }
+
+            var snapshots = await Task.Run(
+                () => NativeAdapter.PollChannelTags(out var statusMsg),
+                cancellationToken).ConfigureAwait(false);
+
+            if (_disposed || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (NativeAdapter.IsOnline && snapshots.Count > 0)
+            {
+                IsOfflineDemoMode = false;
+                IsServerConnected = true;
+                LastServerHealthStatus = $"Online (v{result.Data.ServerVersion}, {result.Data.ActiveChannelCount} channels)";
+                NativeProtocolStatus = NativeAdapter.LastStatusMessage;
+
+                var snapshotMap = new Dictionary<string, TagValueSnapshot>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in snapshots)
+                {
+                    snapshotMap[s.TagId] = s;
+                }
+
+                void ApplyAndNotify()
+                {
+                    if (_disposed) return;
+                    foreach (var tag in AllTags)
+                    {
+                        if (snapshotMap.TryGetValue(tag.TagId, out var snap))
+                        {
+                            var isStale = string.Equals(snap.Quality, "Stale", StringComparison.OrdinalIgnoreCase);
+                            tag.IsStale = isStale;
+                            if (!isStale && double.IsFinite(snap.Value))
+                            {
+                                tag.Value = snap.Value;
+                                tag.Timestamp = snap.TimestampUtc.LocalDateTime;
+                            }
+                        }
+                    }
+
+                    foreach (var eq in Equipment)
+                    {
+                        if (eq.Tags.Count > 0)
+                        {
+                            eq.PrimaryMetric = eq.Tags[0].Value;
+                        }
+                    }
+
+                    TelemetryUpdated?.Invoke(this, EventArgs.Empty);
+                }
+
+                if (Avalonia.Application.Current is not null)
+                {
+                    Dispatcher.UIThread.Post(ApplyAndNotify);
+                }
+                else
+                {
+                    ApplyAndNotify();
+                }
+            }
+        }
+        catch
+        {
+            // Keep Offline Demo Mode seamlessly when ScadaServer / PlcSimulator is not running.
+        }
     }
 
     private void SeedPlantModel()

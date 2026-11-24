@@ -1,0 +1,13 @@
+[Unit]
+Description=Arch SCADA User-Space Daily Automated Backup Timer
+Documentation=https://github.com/Timothy191/arch-scada
+Requires=archscada-backup.service
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1800
+Persistent=true
+Unit=archscada-backup.service
+
+[Install]
+WantedBy=timers.target

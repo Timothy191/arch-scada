@@ -18,10 +18,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${ARCHSCADA_BACKUP_DIR:-/var/backups/archscada}"
 DATA_DIR="${ARCHSCADA_DATA_DIR:-/var/lib/archscada}"
 LOG_DIR="${ARCHSCADA_LOG_DIR:-/var/log/archscada}"
+PGHOST_WAS_SET="${PGHOST+1}"
+PGPORT_WAS_SET="${PGPORT+1}"
 PGHOST="${PGHOST:-localhost}"
-PGPORT="${PGPORT:-5432}"
+PGPORT="${PGPORT:-${ARCHSCADA_PGPORT:-5432}}"
 PGDATABASE="${PGDATABASE:-archscada_historian}"
 PGUSER="${PGUSER:-archscada}"
+PG_CONTAINER="${ARCHSCADA_PG_CONTAINER:-archscada-historian-pg}"
 SELF_TEST=0
 
 usage() {
@@ -168,14 +171,51 @@ create_production_backup() {
 
     # 1. PostgreSQL Database Dump
     local pg_backup="${BACKUP_DIR}/archscada_historian_${timestamp}.sql.gz"
+    local pg_tmp="${pg_backup}.tmp"
+    local pg_container_running=0
+    if command -v docker >/dev/null 2>&1 && [[ -n "$(docker ps -q --filter "name=^${PG_CONTAINER}$" --filter "status=running" 2>/dev/null || true)" ]]; then
+        pg_container_running=1
+    fi
+
+    local pg_dumped=0
     if command -v pg_dump >/dev/null 2>&1 && pg_isready -h "${PGHOST}" -p "${PGPORT}" >/dev/null 2>&1; then
-        log_info "Creating PostgreSQL dump for database '${PGDATABASE}' via pg_dump"
-        pg_dump -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" --clean --if-exists | gzip -9 > "${pg_backup}"
-        generate_checksum "${pg_backup}"
-        log_info "PostgreSQL backup created: ${pg_backup}"
-        backed_up_any=1
-    else
-        log_info "Live PostgreSQL server not reachable at ${PGHOST}:${PGPORT} or pg_dump unavailable"
+        # Avoid hitting an unrelated server on default port 5432 when archscada-historian-pg is running
+        if [[ -n "${PGHOST_WAS_SET}" || -n "${PGPORT_WAS_SET}" || -n "${ARCHSCADA_PGPORT:-}" || "${pg_container_running}" -eq 0 ]]; then
+            log_info "Creating PostgreSQL dump for database '${PGDATABASE}' via host pg_dump (${PGHOST}:${PGPORT})"
+            if pg_dump -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" -d "${PGDATABASE}" --clean --if-exists > "${pg_tmp}" 2>/dev/null; then
+                gzip -9f "${pg_tmp}"
+                mv -f "${pg_tmp}.gz" "${pg_backup}"
+                generate_checksum "${pg_backup}"
+                log_info "PostgreSQL backup created: ${pg_backup}"
+                backed_up_any=1
+                pg_dumped=1
+            else
+                rm -f "${pg_tmp}" "${pg_tmp}.gz"
+                log_info "Host pg_dump failed against ${PGHOST}:${PGPORT}; checking container fallback"
+            fi
+        fi
+    fi
+
+    if (( pg_dumped == 0 )) && (( pg_container_running == 1 )); then
+        if docker exec "${PG_CONTAINER}" pg_isready -U "${PGUSER}" -d "${PGDATABASE}" >/dev/null 2>&1; then
+            log_info "Creating PostgreSQL dump for database '${PGDATABASE}' via docker exec ${PG_CONTAINER}"
+            if docker exec "${PG_CONTAINER}" pg_dump -U "${PGUSER}" -d "${PGDATABASE}" --clean --if-exists > "${pg_tmp}"; then
+                gzip -9f "${pg_tmp}"
+                mv -f "${pg_tmp}.gz" "${pg_backup}"
+                generate_checksum "${pg_backup}"
+                log_info "PostgreSQL backup created: ${pg_backup}"
+                backed_up_any=1
+                pg_dumped=1
+            else
+                rm -f "${pg_tmp}" "${pg_tmp}.gz"
+                log_error "docker exec pg_dump failed in container ${PG_CONTAINER}"
+                return 1
+            fi
+        fi
+    fi
+
+    if (( pg_dumped == 0 )); then
+        log_info "Live PostgreSQL server not reachable at ${PGHOST}:${PGPORT} and container ${PG_CONTAINER} not running"
     fi
 
     # 2. SQLite Fallback Database Backup (if present)

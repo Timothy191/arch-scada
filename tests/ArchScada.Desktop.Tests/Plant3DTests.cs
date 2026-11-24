@@ -264,6 +264,13 @@ public class Plant3DTests
         var fel = Plant3DSceneData.FindNode("FEL-101")!;
         Assert.Contains("Direct PLC: CR101", jc.PlcChannelMapping);
         Assert.Contains("10.10.1.11:502", jc.PlcChannelMapping);
+        Assert.Contains("Direct PLC: ROM101", Plant3DSceneData.FindNode("BN-101")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: ROM101", Plant3DSceneData.FindNode("VF-101")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: DRC101", Plant3DSceneData.FindNode("DRC-101")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: CV_DRY", Plant3DSceneData.FindNode("CV-103")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: CV_DRY", Plant3DSceneData.FindNode("BN-201")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: DS_WASH", Plant3DSceneData.FindNode("DS-201")!.PlcChannelMapping);
+        Assert.Contains("Direct PLC: DS_WASH", Plant3DSceneData.FindNode("CV-302")!.PlcChannelMapping);
         Assert.Contains("Derived Process Model (coupled to AF-001)", fel.PlcChannelMapping);
         Assert.StartsWith("[SITE CONFIRMED]", jc.ProvisionalConfigNote);
 

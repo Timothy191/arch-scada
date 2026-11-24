@@ -40,6 +40,10 @@ Projects/ArchCoalPlant/
 | `7` | `PP202` | PP-202 Underflow Pump B (Standby) PLC | `10.10.2.23:502` | `7` | `2s` |
 | `8` | `PP203` | PP-203 Flocculant Dosing Pump PLC | `10.10.2.24:502` | `8` | `2s` |
 | `9` | `TK301` | TK-301 Magnetite & DMC Circuit PLC | `10.10.3.31:502` | `9` | `2s` |
+| `13` | `ROM101` | ROM Reception & Grizzly Feeder PLC | `10.10.1.15:502` | `13` | `1s` |
+| `14` | `DRC101` | DRC-101 Double Roller Crusher PLC | `10.10.1.16:502` | `14` | `1s` |
+| `15` | `CV_DRY` | Crushing & Sizing Conveyors PLC | `10.10.1.17:502` | `15` | `1s` |
+| `16` | `DS_WASH` | Desliming & Wash Conveyors PLC | `10.10.3.32:502` | `16` | `2s` |
 
 ### Line 2 — OPC UA Process Analyzers & Centrifuge (`DrvOpcUa`)
 | Device # | Code | Equipment | Endpoint | Poll Period |
@@ -71,6 +75,18 @@ Broker: `10.10.7.10:1883` (`ClientID: arch-coal-scada-comm`, read-only user `sca
 | `122` | `CV101_AMP` | CV-101 Drive Current | `3` (`CV101`) | `2` Crushing & Conveyors | Input |
 | `131` | `CV102_SPD` | CV-102 Belt Speed | `4` (`CV102`) | `2` Crushing & Conveyors | Input |
 | `132` | `CV102_TMP` | CV-102 Gearbox Temperature | `4` (`CV102`) | `2` Crushing & Conveyors | Input |
+| `141` | `AF001_TPH` | AF-001 ROM Feed Rate | `13` (`ROM101`) | `2` Crushing & Conveyors | Input |
+| `142` | `BN101_LVL` | BN-101 Feeder Bin Level | `13` (`ROM101`) | `2` Crushing & Conveyors | Input |
+| `143` | `VF101_VIB` | VF-101 Grizzly Feeder Vibration | `13` (`ROM101`) | `2` Crushing & Conveyors | Input |
+| `151` | `DRC101_TPH` | DRC-101 Double Roll Throughput | `14` (`DRC101`) | `2` Crushing & Conveyors | Input |
+| `152` | `DRC101_KW` | DRC-101 Double Roll Power | `14` (`DRC101`) | `2` Crushing & Conveyors | Input |
+| `153` | `DRC101_GAP` | DRC-101 Roll Nip Gap | `14` (`DRC101`) | `2` Crushing & Conveyors | Input |
+| `161` | `CV103_SPD` | CV-103 Jaw Discharge Conv Speed | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
+| `162` | `CV104_SPD` | CV-104 Sizing Feed Conv Speed | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
+| `163` | `CV105_SPD` | CV-105 Under-Screen Fines Conv Speed | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
+| `164` | `CV106_SPD` | CV-106 Oversize Return Conv Speed | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
+| `165` | `CV201_SPD` | CV-201 Plant Feed Conv Speed | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
+| `166` | `BN201_LVL` | BN-201 Plant Feed Surge Bin Level | `15` (`CV_DRY`) | `2` Crushing & Conveyors | Input |
 | `201` | `TK201_LVL` | TK-201 Thickener Bed Level | `5` (`TK201`) | `3` Thickener Circuit | Input |
 | `202` | `TK201_TRQ` | TK-201 Rake Torque | `5` (`TK201`) | `3` Thickener Circuit | Input |
 | `203` | `TK201_TRB` | TK-201 Overflow Turbidity | `5` (`TK201`) | `3` Thickener Circuit | Input |
@@ -83,6 +99,12 @@ Broker: `10.10.7.10:1883` (`ClientID: arch-coal-scada-comm`, read-only user `sca
 | `303` | `MS301_REC` | MS-301 Magnetite Recovery | `9` (`TK301`) | `4` Magnetite Preparation | Input |
 | `304` | `DM301_FLW` | DM-301 DMC Feed Flow | `9` (`TK301`) | `4` Magnetite Preparation | Input |
 | `305` | `DM301_PRS` | DM-301 Cyclone Inlet Pressure | `9` (`TK301`) | `4` Magnetite Preparation | Input |
+| `311` | `CV202_SPD` | CV-202 Desliming Feed Conv Speed | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
+| `312` | `DS201_VIB` | DS-201 Desliming Screen Vibration | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
+| `313` | `DS201_PRS` | DS-201 Desliming Spray Header Pressure | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
+| `314` | `CV203_SPD` | CV-203 Cyclone Feed Conv Speed | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
+| `315` | `CV301_SPD` | CV-301 Clean Product Conv Speed | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
+| `316` | `CV302_SPD` | CV-302 Discard Conv Speed | `16` (`DS_WASH`) | `4` Magnetite Preparation | Input |
 | `501` | `CF501_RPM` | CF-501 Basket Speed | `12` (`CF501`) | `5` Quality & Dewatering | Input |
 | `502` | `CF501_VIB` | CF-501 Bearing Vibration | `12` (`CF501`) | `5` Quality & Dewatering | Input |
 | `503` | `CF501_TORQ` | CF-501 Scroll Differential Torque | `12` (`CF501`) | `5` Quality & Dewatering | Input |
