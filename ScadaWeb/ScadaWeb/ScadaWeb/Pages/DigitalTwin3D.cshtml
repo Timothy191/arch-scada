@@ -322,7 +322,7 @@
         }
 
         .insp-header {
-            padding: 12px 14px;
+            padding: 8px 12px;
             border-bottom: 1px solid var(--border);
             background: var(--bg-card);
         }
@@ -335,46 +335,47 @@
         }
 
         .insp-id {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 800;
             color: var(--accent);
             letter-spacing: 0.03em;
         }
 
         .insp-stage {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             color: var(--accent);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-top: 2px;
+            margin-top: 1px;
         }
 
         .insp-ga {
-            font-size: 13.5px;
+            font-size: 12.5px;
             font-weight: 700;
-            margin-top: 3px;
+            margin-top: 2px;
         }
 
         .insp-body {
-            padding: 12px 14px;
-            overflow-y: auto;
+            padding: 8px 10px;
+            overflow: hidden;
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 11px;
+            justify-content: space-between;
+            gap: 6px;
         }
 
         .insp-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
+            border-radius: 7px;
+            padding: 7px 9px;
         }
 
         .insp-card h4 {
-            margin: 0 0 7px 0;
-            font-size: 10.5px;
+            margin: 0 0 4px 0;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.06em;
             color: var(--text-muted);
@@ -383,25 +384,25 @@
         .kv-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 7px 10px;
+            gap: 4px 8px;
         }
 
-        .kv-item .k { font-size: 10px; color: var(--text-muted); }
-        .kv-item .v { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .kv-item .k { font-size: 9.5px; color: var(--text-muted); }
+        .kv-item .v { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
         .flow-links {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
 
         .node-pill {
             background: var(--bg-chip);
             border: 1px solid var(--border);
             border-radius: 5px;
-            padding: 3px 7px;
-            font-size: 11px;
+            padding: 2px 6px;
+            font-size: 10.5px;
             font-weight: 700;
             color: var(--text-primary);
             cursor: pointer;
@@ -411,21 +412,21 @@
         .node-pill.current { background: var(--accent-strong); border-color: var(--accent); color: #fff; }
 
         .node-directory {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            max-height: 155px;
-            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 3px;
+            overflow: hidden;
         }
 
         .dir-btn {
             background: var(--bg-chip);
             border: 1px solid var(--border);
             border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 10.5px;
+            padding: 2px 3px;
+            font-size: 10px;
             font-weight: 600;
             color: var(--text-secondary);
+            text-align: center;
             cursor: pointer;
         }
 
@@ -545,9 +546,9 @@
 
             <div class="insp-card">
                 <h4>Mechanical &amp; GA Specification</h4>
-                <div style="font-size:11.5px; font-weight:700; margin-bottom:5px;" id="insp-spec">3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW</div>
-                <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.45; margin-bottom:6px;" id="insp-principle"></div>
-                <div style="font-size:11px; color:var(--text-muted); line-height:1.4;" id="insp-desc"></div>
+                <div style="font-size:11px; font-weight:700; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="insp-spec">3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW</div>
+                <div style="font-size:10.5px; color:var(--text-secondary); line-height:1.35; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" id="insp-principle"></div>
+                <div style="font-size:10.5px; color:var(--text-muted); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" id="insp-desc"></div>
             </div>
 
             <div class="insp-card">
