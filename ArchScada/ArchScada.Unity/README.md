@@ -27,13 +27,22 @@ Pre-exported Blender `.glb` models live in:
 
 ```text
 ArchScada/Assets/3D/Exported/
+├── central_sizing_screen_ss101.glb
 ├── centrifugal_pump.glb
-├── centrifuge_cf501.glb
-├── coal_silo_sl601.glb
 ├── conveyor_segment.glb
-├── crusher_cr101.glb
-├── flotation_column_fc401.glb
-└── thickener_tk201.glb
+├── desliming_screen_ds201.glb
+├── double_roll_crusher_drc101.glb
+├── feeder_bin_bn101.glb
+├── jaw_crusher_jc101.glb
+├── magnetic_separator_ms301.glb
+├── magnetite_tank_tk301.glb
+├── stockpile_cone.glb
+├── surge_bin_bn201.glb
+├── thickener_tk201.glb
+├── vibro_feeder_vf101.glb
+├── wash_plant_module_wp301.glb
+├── wheel_loader_bucket.glb
+└── wheel_loader_chassis.glb
 ```
 
 To regenerate the `.glb` models from Blender at any time:
@@ -50,8 +59,8 @@ ArchScada → Build Coal Plant 3D Scene
 
 [`ArchScadaSceneBuilder.cs`](Assets/Editor/ArchScadaSceneBuilder.cs) automatically:
 
-1. Copies all 7 `.glb` models from `ArchScada/Assets/3D/Exported/` into `Assets/Models/` and imports them via `AssetDatabase`.
-2. Lays out all CHPP equipment in 3D space (`CR-101`, `CV-101`, `SC-102`, `CV-102`, `SL-601`, `TK-201`, `PP-201`, `PP-202`, `PP-203`, `TK-301`, `MS-301`, `DM-301`, `FC-401`, `CF-501`).
+1. Copies all 16 `.glb` models from `ArchScada/Assets/3D/Exported/` into `Assets/Models/` and imports them via `AssetDatabase`.
+2. Lays out all 18 CHPP process machines and 11 conveyors in 3D GA space (`SP-001`, `FEL-101`, `BN-101`, `VF-101`, `JC-101`, `DRC-101`, `SS-101`, `BN-201`, `DS-201`, `WP-301`, `MS-301`, `TK-301`, `TK-201`, `PP-201`, `PP-202`, `PP-203`, `SP-301`, `SP-302`, plus `CV-101`–`CV-302`).
 3. Creates `AlarmHalo` indicators, `FlowParticles` systems, and rotating `animatedParts` for each equipment unit.
 4. Creates `CameraRig` and the 5 `CameraPresets` anchors (`Plant Overview`, `Crushing & Conveyors`, `Thickener Circuit`, `Magnetite Prep`, `Top-Down Schematic`).
 5. Creates `ScadaBridge` with [`ScadaUdpReceiver`](Assets/Scripts/ScadaUdpReceiver.cs) (UDP `17850`) and [`PlantDigitalTwinController`](Assets/Scripts/PlantDigitalTwinController.cs) wired to all equipment bindings and camera presets.

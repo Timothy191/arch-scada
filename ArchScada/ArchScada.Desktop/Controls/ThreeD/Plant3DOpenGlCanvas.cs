@@ -42,6 +42,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_RGBA = 0x1908;
     private const int GL_UNSIGNED_BYTE = 0x1401;
     private const int GL_PACK_ALIGNMENT = 0x0D05;
+    private const int GL_MULTISAMPLE = 0x809D;
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlViewportDel(int x, int y, int w, int h);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlClearColorDel(float r, float g, float b, float a);
@@ -321,6 +322,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _glClearColor!(0.031f, 0.055f, 0.106f, 1.0f);
         _glClear!(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         _glEnable!(GL_DEPTH_TEST);
+        _glEnable!(GL_MULTISAMPLE);
         _glDisable!(GL_CULL_FACE);
         _glEnable!(GL_BLEND);
         _glBlendFunc!(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -345,7 +347,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
         var flowMap = Plant3DSceneData.EvaluateProcessFlows(eqMap, SimTime);
         eqMap.TryGetValue("AF-001", out var afEq);
-        bool loaderActive = fx.AnimateConveyors && afEq is null || (fx.AnimateConveyors && afEq!.Status is not (EquipmentStatus.Stopped or EquipmentStatus.Fault or EquipmentStatus.Offline));
+        bool loaderActive = fx.AnimateConveyors && (afEq is null || afEq.Status is not (EquipmentStatus.Stopped or EquipmentStatus.Fault or EquipmentStatus.Offline));
         var loaderPose = Plant3DSceneData.ComputeLoaderPose(SimTime, loaderActive);
 
         // 1. Ground Grid

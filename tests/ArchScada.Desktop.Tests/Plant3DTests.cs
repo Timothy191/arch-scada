@@ -12,12 +12,12 @@ namespace ArchScada.Desktop.Tests;
 public class Plant3DTests
 {
     [Fact]
-    public void GlbMeshLoader_LoadsAllTwentyTwoIndustrialGlbModelsWithValidGeometry()
+    public void GlbMeshLoader_LoadsAllSixteenIndustrialGlbModelsWithValidGeometry()
     {
         Plant3DSceneData.InvalidateMeshCache();
         var meshes = Plant3DSceneData.LoadAllGlbMeshes();
 
-        Assert.Equal(22, meshes.Count);
+        Assert.Equal(16, meshes.Count);
 
         string[] requiredModels =
         {
@@ -361,8 +361,8 @@ public class Plant3DTests
     {
         var metrics = Plant3DSceneData.BenchmarkScenePerformance();
 
-        Assert.Equal(22, metrics.TotalGlbCount);
-        Assert.Equal(22, metrics.Meshes.Count);
+        Assert.Equal(16, metrics.TotalGlbCount);
+        Assert.Equal(16, metrics.Meshes.Count);
         Assert.True(metrics.TotalVertices > 0);
         Assert.True(metrics.TotalTriangles > 0);
         Assert.True(metrics.TotalGpuVboMiB > 0.0);

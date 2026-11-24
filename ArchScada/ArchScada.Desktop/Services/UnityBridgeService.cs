@@ -31,9 +31,16 @@ public sealed class UnityBridgeService : IDisposable
         IsUnityHubInstalled = File.Exists("/usr/bin/unityhub") || CommandExists("unityhub");
 
         var baseDir = AppContext.BaseDirectory;
-        var repoRoot = FindRepoRoot(baseDir) ?? Directory.GetCurrentDirectory();
-        AssetsExportDirectory = Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Exported");
-        BlenderScriptPath = Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Blender", "generate_plant_assets.py");
+        var bundledExportDir = Path.Combine(baseDir, "Assets", "3D", "Exported");
+        var bundledBlenderScript = Path.Combine(baseDir, "Assets", "3D", "Blender", "generate_plant_assets.py");
+        var repoRoot = FindRepoRoot(baseDir) ?? FindRepoRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
+
+        AssetsExportDirectory = Directory.Exists(bundledExportDir)
+            ? bundledExportDir
+            : Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Exported");
+        BlenderScriptPath = File.Exists(bundledBlenderScript)
+            ? bundledBlenderScript
+            : Path.Combine(repoRoot, "ArchScada", "Assets", "3D", "Blender", "generate_plant_assets.py");
     }
 
     public IReadOnlyList<string> GetExportedModels()

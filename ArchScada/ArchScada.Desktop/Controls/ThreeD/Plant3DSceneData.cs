@@ -906,8 +906,13 @@ public static class Plant3DSceneData
 
     public static string? FindAssetsExportDirectory()
     {
+        var bundled = Path.Combine(AppContext.BaseDirectory, "Assets", "3D", "Exported");
+        if (Directory.Exists(bundled))
+            return bundled;
+
         foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
         {
+            if (string.IsNullOrWhiteSpace(start)) continue;
             var dir = new DirectoryInfo(start);
             while (dir is not null)
             {

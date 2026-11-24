@@ -83,6 +83,16 @@ dotnet run --project ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj
 To run in simulated telemetry mode:
 The desktop application automatically initializes `SimulatedTelemetryService` and `CoupledPlantProcessModel` if live SCADA server connectivity is offline.
 
+## Install
+
+Publish and install the Release suite (`ArchScada.Desktop`, `ScadaServer`, `ScadaComm`, `ScadaAgent`, `ScadaWeb`, `Projects/ArchCoalPlant` snapshot, `~/.local/bin/archscada*` wrappers, and FreeDesktop `.desktop` launcher) onto the local workstation:
+
+```bash
+./deploy/scripts/install-local.sh
+```
+
+Custom target directories can be specified with `--prefix <dir>` (default `~/.local/share/archscada`) and `--bin-dir <dir>` (default `~/.local/bin`).
+
 ## Git Workflow
 - Working branch: `develop`
 - Follow conventional commits: `feat(...)`, `fix(...)`, `docs(...)`, `chore(...)`
