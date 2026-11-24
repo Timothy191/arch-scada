@@ -184,7 +184,7 @@ public static class Plant3DSceneData
             Scale: new(1.1f, 0.9f, 1.1f),
             HalfExtents: new(2.1f, 1.35f, 2.1f),
             LabelHeight: 2.9f,
-            DefaultColor: Color.Parse("#475569"),
+            DefaultColor: Color.Parse("#1C1E22"),
             DimensionsSpec: "Ø 16 m × 5.2 m cone on +4.35 m ROM hill",
             MechanicalPrinciple: "Bulk run-of-mine coal stockpile on elevated ROM hill bench reclaimed via front-end wheel loader bucket cycles.",
             ComponentDescription: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 elevated primary hopper loading.",
@@ -362,7 +362,7 @@ public static class Plant3DSceneData
 
         new(
             Id: "WP-301",
-            GaLabel: "Dense-Medium Wash Plant, Cyclone, Dewatering Screen, Control Room & MCC",
+            GaLabel: "Dense-Medium Wash Plant (Mixing Box, Top Cyclone, Dual Wash Screens & Drip Bucket)",
             StageLabel: "Wash Plant & Medium Recovery",
             EquipmentType: "Dense-Medium Cyclone Module",
             GlbFileName: "wash_plant_module_wp301.glb",
@@ -372,9 +372,9 @@ public static class Plant3DSceneData
             HalfExtents: new(3.3f, 2.35f, 2.2f),
             LabelHeight: 4.95f,
             DefaultColor: Color.Parse("#1D4ED8"),
-            DimensionsSpec: "6.8 m × 4.4 m × 4.7 m multi-level module",
-            MechanicalPrinciple: "Centrifugal dense-medium cyclone separates low-density clean coal (overflow) from high-density shale discard (underflow) at SG 1.52, followed by drain-and-rinse dewatering.",
-            ComponentDescription: "Integrated wash plant structure housing mixing box, DMC cyclone, clean coal & discard dewatering screens, and elevated MCC / Control Room.",
+            DimensionsSpec: "8.8 m × 4.4 m × 4.75 m open-top frame (no roof) · SG 1.52",
+            MechanicalPrinciple: "CV-203 dumps deslimed coal into the massive East Mixing Box (water + TK-301 magnetite); riser pipe pumps mix above screens into the open-top Dense-Medium Cyclone feeding parallel Product & Discard wash screens with magnetite-reclaim sprayers over ground-floor tanks & drip bucket.",
+            ComponentDescription: "Open-top dense-medium wash plant: ground-floor under-screen tanks & magnetite drip bucket/reclaim pump, East mixing box & riser pipe, middle dual product/discard wash screens with water sprayers, and top-mounted cyclone.",
             UpstreamIds: new[] { "CV-203", "TK-301" },
             DownstreamIds: new[] { "CV-301", "CV-302", "MS-301" },
             LinkedScadaId: "DM-301"),
@@ -519,7 +519,7 @@ public static class Plant3DSceneData
             Scale: new(1.05f, 0.88f, 1.05f),
             HalfExtents: new(1.9f, 1.3f, 1.9f),
             LabelHeight: 2.8f,
-            DefaultColor: Color.Parse("#22C55E"),
+            DefaultColor: Color.Parse("#0C0F14"),
             DimensionsSpec: "Ø 14 m × 4.6 m · Low-ash product",
             MechanicalPrinciple: "Conical radial discharge pile built by Product Conv CV-301 below dewatering screen.",
             ComponentDescription: "Washed clean coal product stockpile (9.4% ash, 27.8 MJ/kg) ready for dispatch.",
@@ -538,7 +538,7 @@ public static class Plant3DSceneData
             Scale: new(0.95f, 0.78f, 0.95f),
             HalfExtents: new(1.7f, 1.15f, 1.7f),
             LabelHeight: 2.55f,
-            DefaultColor: Color.Parse("#EF4444"),
+            DefaultColor: Color.Parse("#22262D"),
             DimensionsSpec: "Ø 12 m × 4.0 m · High-ash shale discard",
             MechanicalPrinciple: "Conical refuse pile fed by Discard Conv CV-302 from cyclone sinks dewatering.",
             ComponentDescription: "High-density rock/shale reject stockpile separated by dense-medium cyclone.",
@@ -693,20 +693,20 @@ public static class Plant3DSceneData
 
         new(
             Id: "CV-203",
-            GaLabel: "Cyclone feed conv",
+            GaLabel: "Mixing box feed conv",
             StageLabel: "Wash Plant & Medium Recovery",
-            TailPos: new(7.2f, 1.85f, -9.6f),
-            HeadPos: new(2.6f, 3.65f, -8.1f),
+            TailPos: new(7.0f, 2.15f, -9.5f),
+            HeadPos: new(2.9f, 1.95f, -8.3f),
             Width: 0.90f,
-            HeadDropTargetY: 2.35f,
+            HeadDropTargetY: 1.50f,
             MaterialClass: CoalMaterialClass.DeslimedCoal,
             LinkedScadaId: "DM-301",
             UpstreamIds: new[] { "DS-201" },
             DownstreamIds: new[] { "WP-301" },
-            DimensionsSpec: "5.2 m WSW · 1050 mm belt · 20° incline",
-            MechanicalPrinciple: "Delivers deslimed +0.5 mm coal from DS-201 into WP-301 Dense-Medium Mixing Box.",
-            ComponentDescription: "Wash plant cyclone feed conveyor linking desliming screen and dense-medium module.",
-            HeadDischargeOffset: new(-0.85f, 0f, 0.25f)),
+            DimensionsSpec: "4.3 m WSW · 1200 mm belt · 3° decline into Mixing Box",
+            MechanicalPrinciple: "Dumps deslimed +0.5 mm coal from DS-201 directly into the open top of the WP-301 Massive Mixing Box.",
+            ComponentDescription: "Mixing box feed conveyor linking desliming screen DS-201 to the East massive mixing box.",
+            HeadDischargeOffset: new(-0.45f, 0f, 0f)),
 
         new(
             Id: "CV-301",
@@ -829,11 +829,11 @@ public static class Plant3DSceneData
     /// </summary>
     public static readonly IReadOnlyList<PipeRoute> PipeRoutes = new PipeRoute[]
     {
-        // WP-301 -> MS-301 (Dilute medium to Magnetic Separator)
-        new("MS-301", FlowMedium.Magnetite, 0.07f, new Vector3[]
+        // WP-301 Ground-Floor Drip Bucket -> MS-301 (Magnetite Reclaim Pipe)
+        new("MS-301", FlowMedium.Magnetite, 0.075f, new Vector3[]
         {
-            new(-1.0f, 1.35f, -9.2f),
-            new(-1.0f, 1.35f, -11.4f),
+            new(-1.9f, 0.55f, -8.6f),
+            new(-1.9f, 1.35f, -9.2f),
             new(-1.6f, 1.35f, -11.4f)
         }),
         // MS-301 -> TK-301 (Recovered Magnetite Concentrate)
@@ -843,12 +843,21 @@ public static class Plant3DSceneData
             new(-5.4f, 1.10f, -11.4f),
             new(-5.4f, 1.10f, -12.0f)
         }),
-        // TK-301 -> WP-301 (Corrected Dense Medium to Mixing Box)
+        // TK-301 -> WP-301 Massive Mixing Box (Magnetite Dense-Medium Feed)
         new("DM-301", FlowMedium.Magnetite, 0.08f, new Vector3[]
         {
             new(-5.4f, 1.45f, -12.0f),
-            new(-5.4f, 1.45f, -7.8f),
-            new(-2.4f, 1.45f, -7.8f)
+            new(-5.4f, 1.45f, -10.2f),
+            new(2.30f, 1.45f, -10.2f),
+            new(2.30f, 1.45f, -8.30f)
+        }),
+        // WP-301 Massive Mixing Box -> Top-Mounted Cyclone Riser (Coal + Magnetite Mix)
+        new("DM-301", FlowMedium.Coal, 0.095f, new Vector3[]
+        {
+            new(2.30f, 1.85f, -8.30f),
+            new(2.30f, 4.35f, -8.30f),
+            new(0.25f, 4.35f, -7.60f),
+            new(-0.15f, 4.15f, -7.60f)
         }),
         // WP-301 -> TK-201 (Slimes Effluent to Thickener Feedwell)
         new("WP-301", FlowMedium.Slurry, 0.08f, new Vector3[]
@@ -866,14 +875,15 @@ public static class Plant3DSceneData
             new(-5.4f, 0.95f, -15.0f),
             new(-5.4f, 0.95f, -12.0f)
         }),
-        // TK-201 -> PP-203 -> WP-301 (Clarified Process Water & Flocculant Return)
-        new("PP-203", FlowMedium.Froth, 0.07f, new Vector3[]
+        // TK-201 -> PP-203 -> Massive Mixing Box & Screen Wash Sprayers (Process Water Return)
+        new("PP-203", FlowMedium.Froth, 0.075f, new Vector3[]
         {
             new(1.4f, 1.45f, -15.8f),
             new(2.2f, 1.45f, -15.8f),
             new(2.2f, 0.65f, -15.0f),
-            new(2.2f, 1.10f, -8.8f),
-            new(0.8f, 1.10f, -8.8f)
+            new(2.30f, 1.15f, -8.30f),
+            new(2.30f, 3.10f, -8.30f),
+            new(-2.2f, 3.10f, -7.60f)
         })
     };
 
@@ -1430,7 +1440,7 @@ public static class Plant3DSceneData
 
     public static Color GetMediumColor(FlowMedium medium) => medium switch
     {
-        FlowMedium.Coal => Color.Parse("#F59E0B"),
+        FlowMedium.Coal => Color.Parse("#181C22"),
         FlowMedium.Froth => Color.Parse("#22C55E"),
         FlowMedium.Magnetite => Color.Parse("#14B8A6"),
         _ => Color.Parse("#38BDF8")
@@ -1438,32 +1448,41 @@ public static class Plant3DSceneData
 
     public static Color GetMaterialColor(CoalMaterialClass mat) => mat switch
     {
-        CoalMaterialClass.RawRom => Color.Parse("#A16207"),
-        CoalMaterialClass.ScalpedUndersize => Color.Parse("#64748B"),
-        CoalMaterialClass.CrushedPrimary => Color.Parse("#94A3B8"),
-        CoalMaterialClass.ScreenOversize => Color.Parse("#F59E0B"),
-        CoalMaterialClass.CrushedRoll => Color.Parse("#CBD5E1"),
-        CoalMaterialClass.SizedFines => Color.Parse("#38BDF8"),
-        CoalMaterialClass.PlantFeed => Color.Parse("#60A5FA"),
-        CoalMaterialClass.DeslimedCoal => Color.Parse("#2DD4BF"),
-        CoalMaterialClass.CleanProduct => Color.Parse("#22C55E"),
-        CoalMaterialClass.RefuseDiscard => Color.Parse("#EF4444"),
-        _ => Color.Parse("#F59E0B")
+        CoalMaterialClass.RawRom => Color.Parse("#1C1E22"),
+        CoalMaterialClass.ScalpedUndersize => Color.Parse("#181B20"),
+        CoalMaterialClass.CrushedPrimary => Color.Parse("#16191E"),
+        CoalMaterialClass.ScreenOversize => Color.Parse("#1A1D22"),
+        CoalMaterialClass.CrushedRoll => Color.Parse("#14171C"),
+        CoalMaterialClass.SizedFines => Color.Parse("#0E1116"),
+        CoalMaterialClass.PlantFeed => Color.Parse("#12151A"),
+        CoalMaterialClass.DeslimedCoal => Color.Parse("#0D1015"),
+        CoalMaterialClass.CleanProduct => Color.Parse("#0A0D12"),
+        CoalMaterialClass.RefuseDiscard => Color.Parse("#23272F"),
+        _ => Color.Parse("#14171C")
     };
 
     public static float GetMaterialLumpSize(CoalMaterialClass mat) => mat switch
     {
-        CoalMaterialClass.RawRom => 0.23f,
-        CoalMaterialClass.ScreenOversize => 0.21f,
-        CoalMaterialClass.CrushedPrimary => 0.17f,
-        CoalMaterialClass.RefuseDiscard => 0.16f,
-        CoalMaterialClass.ScalpedUndersize => 0.15f,
-        CoalMaterialClass.CrushedRoll => 0.13f,
-        CoalMaterialClass.PlantFeed => 0.13f,
-        CoalMaterialClass.DeslimedCoal => 0.12f,
-        CoalMaterialClass.CleanProduct => 0.12f,
-        CoalMaterialClass.SizedFines => 0.09f,
-        _ => 0.14f
+        CoalMaterialClass.RawRom => 0.34f,
+        CoalMaterialClass.CrushedPrimary => 0.22f,
+        CoalMaterialClass.ScreenOversize => 0.20f,
+        CoalMaterialClass.ScalpedUndersize => 0.175f,
+        CoalMaterialClass.CrushedRoll => 0.135f,
+        CoalMaterialClass.PlantFeed => 0.105f,
+        CoalMaterialClass.DeslimedCoal => 0.095f,
+        CoalMaterialClass.RefuseDiscard => 0.090f,
+        CoalMaterialClass.CleanProduct => 0.080f,
+        CoalMaterialClass.SizedFines => 0.055f,
+        _ => 0.12f
+    };
+
+    public static int GetMaterialSubClusterCount(CoalMaterialClass mat) => mat switch
+    {
+        CoalMaterialClass.RawRom => 1,
+        CoalMaterialClass.CrushedPrimary or CoalMaterialClass.ScreenOversize or CoalMaterialClass.ScalpedUndersize => 2,
+        CoalMaterialClass.CrushedRoll or CoalMaterialClass.PlantFeed or CoalMaterialClass.DeslimedCoal or CoalMaterialClass.RefuseDiscard or CoalMaterialClass.CleanProduct => 3,
+        CoalMaterialClass.SizedFines => 4,
+        _ => 2
     };
 
     /// <summary>
@@ -1541,8 +1560,15 @@ public static class Plant3DSceneData
         if (!double.IsFinite(normalizedFlowRate) || normalizedFlowRate <= 0.02)
             return 0f;
 
-        float lumpScale = mat is CoalMaterialClass.RawRom or CoalMaterialClass.ScreenOversize ? 1.08f : 0.96f;
-        return Math.Clamp((float)normalizedFlowRate * 0.14f * lumpScale, 0.03f, 0.16f);
+        float lumpScale = mat switch
+        {
+            CoalMaterialClass.RawRom => 1.28f,
+            CoalMaterialClass.CrushedPrimary or CoalMaterialClass.ScreenOversize => 1.12f,
+            CoalMaterialClass.ScalpedUndersize or CoalMaterialClass.CrushedRoll => 1.00f,
+            CoalMaterialClass.SizedFines => 0.76f,
+            _ => 0.90f
+        };
+        return Math.Clamp((float)normalizedFlowRate * 0.14f * lumpScale, 0.025f, 0.17f);
     }
 
     /// <summary>
@@ -1622,7 +1648,7 @@ public static class Plant3DSceneData
                 }
                 else
                 {
-                    list.Add(new SoftParticleInstance(pos, new Vector3(s, s * 0.72f, s), 0.34f, 0.29f, 0.24f, alpha, false));
+                    list.Add(new SoftParticleInstance(pos, new Vector3(s, s * 0.72f, s), 0.14f, 0.16f, 0.19f, alpha, false));
                 }
             }
         }
@@ -1636,9 +1662,10 @@ public static class Plant3DSceneData
         EmitPlume("DRC-101", new Vector3(-7.2f, 2.85f, -0.6f), 0.68f, 1.75f, 0.42f, isWater: false, count: 9);
         EmitPlume("SS-101", new Vector3(0.2f, 3.30f, 0.5f), 0.95f, 1.45f, 0.40f, isWater: false, count: 8);
 
-        // Pressurized desliming & dense-medium rinse water spray curtains
+        // Pressurized desliming & dense-medium magnetite-reclaim water spray curtains over Product & Discard wash screens
         EmitPlume("DS-201", new Vector3(8.8f, 2.75f, -9.8f), 0.78f, 1.05f, 0.22f, isWater: true, count: 14);
-        EmitPlume("WP-301", new Vector3(-0.8f, 3.25f, -7.8f), 0.75f, 0.95f, 0.20f, isWater: true, count: 10);
+        EmitPlume("WP-301", new Vector3(-2.3f, 3.05f, -6.8f), 0.95f, 0.75f, 0.20f, isWater: true, count: 10);
+        EmitPlume("WP-301", new Vector3(-2.3f, 3.05f, -8.4f), 0.95f, 0.75f, 0.20f, isWater: true, count: 10);
 
         return list;
     }

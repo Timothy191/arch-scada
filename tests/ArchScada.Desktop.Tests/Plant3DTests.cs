@@ -479,13 +479,61 @@ public class Plant3DTests
 
         var cv101 = Plant3DSceneData.FindConveyor("CV-101")!;
         var cv102 = Plant3DSceneData.FindConveyor("CV-102")!;
+        var cv203 = Plant3DSceneData.FindConveyor("CV-203")!;
         Assert.True(cv101.TailPos.Y > cv101.HeadPos.Y, "CV-101 Jaw feed conv must run downwards from elevated VF-101 to JC-101");
         Assert.True(cv102.TailPos.Y > cv102.HeadPos.Y, "CV-102 Under size conv must run downwards from elevated VF-101 to SS-101");
+        Assert.True(cv203.TailPos.Y > cv203.HeadPos.Y, "CV-203 must decline from DS-201 into the WP-301 East Mixing Box");
+        Assert.True(cv203.GetChuteBottomPos().X > 1.5f, "CV-203 must discharge into East Massive Mixing Box");
+        Assert.Contains(Plant3DSceneData.PipeRoutes, r => r.Medium == FlowMedium.Coal && r.Waypoints.Max(w => w.Y) > 4.0f);
 
         for (double t = 0.0; t <= 12.0; t += 1.2)
         {
             var pose = Plant3DSceneData.ComputeLoaderPose(t, active: true);
             Assert.True(pose.ChassisPosition.Y >= 4.35f, $"Loader FEL-101 must remain on elevated ROM hill (t={t}, Y={pose.ChassisPosition.Y})");
         }
+    }
+
+    [Fact]
+    public void Plant3DSceneData_CoalMaterialColorAndGranulometry_IsBlackAndDecreasesAcrossComminutionStages()
+    {
+        foreach (var mat in Enum.GetValues<CoalMaterialClass>())
+        {
+            var col = Plant3DSceneData.GetMaterialColor(mat);
+            Assert.True(col.R < 45 && col.G < 45 && col.B < 52, $"Coal material {mat} should be charcoal/black (got {col})");
+        }
+
+        foreach (var pileId in new[] { "SP-001", "SP-301", "SP-302" })
+        {
+            var pileCol = Plant3DSceneData.FindNode(pileId)!.DefaultColor;
+            Assert.True(pileCol.R < 45 && pileCol.G < 45 && pileCol.B < 52, $"Stockpile {pileId} should be dark coal/shale (got {pileCol})");
+        }
+
+        var flowMediumCoal = Plant3DSceneData.GetMediumColor(FlowMedium.Coal);
+        Assert.True(flowMediumCoal.R < 45 && flowMediumCoal.G < 45 && flowMediumCoal.B < 52);
+
+        float rom = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.RawRom);
+        float jaw = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.CrushedPrimary);
+        float over = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.ScreenOversize);
+        float scalp = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.ScalpedUndersize);
+        float roll = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.CrushedRoll);
+        float feed = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.PlantFeed);
+        float deslimed = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.DeslimedCoal);
+        float product = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.CleanProduct);
+        float fines = Plant3DSceneData.GetMaterialLumpSize(CoalMaterialClass.SizedFines);
+
+        Assert.True(rom > jaw);
+        Assert.True(jaw > over);
+        Assert.True(over > scalp);
+        Assert.True(scalp > roll);
+        Assert.True(roll > feed);
+        Assert.True(feed > deslimed);
+        Assert.True(deslimed > product);
+        Assert.True(product > fines);
+
+        Assert.Equal(1, Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.RawRom));
+        Assert.True(Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.CrushedRoll) >
+                    Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.RawRom));
+        Assert.True(Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.SizedFines) >
+                    Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.CrushedRoll));
     }
 }

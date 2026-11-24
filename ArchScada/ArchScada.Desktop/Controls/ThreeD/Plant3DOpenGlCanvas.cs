@@ -239,14 +239,16 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GpuMesh? _gridLines;
     private GpuMesh? _pipesMesh;
     private GpuMesh? _conveyorStructureMesh;
+    private GpuMesh? _coalLumpMesh;
 
     private uint _instanceVbo;
-    private int _instanceCapacity = 1024;
-    private float[] _instanceScratch = new float[1024 * InstanceFloats];
+    private int _instanceCapacity = 2048;
+    private float[] _instanceScratch = new float[2048 * InstanceFloats];
 
     private readonly List<InstanceItem> _groundPadBoxes = new(16);
     private readonly List<InstanceItem> _casterBoxes = new(512);
     private readonly List<InstanceItem> _casterCylinders = new(48);
+    private readonly List<InstanceItem> _coalLumps = new(1024);
     private readonly List<InstanceItem> _unlitBoxes = new(64);
     private readonly List<InstanceItem> _unlitCones = new(64);
     private readonly List<InstanceItem> _fillCylinders = new(8);
@@ -508,6 +510,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _gridLines = BuildGroundGridLines();
             _pipesMesh = BuildOrthogonalPipesMesh();
             _conveyorStructureMesh = BuildConveyorStructuresMesh();
+            _coalLumpMesh = BuildCoalLumpMesh();
 
             InitShadowFbo();
 
@@ -533,6 +536,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         DeleteMesh(_gridLines); _gridLines = null;
         DeleteMesh(_pipesMesh); _pipesMesh = null;
         DeleteMesh(_conveyorStructureMesh); _conveyorStructureMesh = null;
+        DeleteMesh(_coalLumpMesh); _coalLumpMesh = null;
 
         if (_instanceVbo != 0)
         {
@@ -563,7 +567,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         // Context is already lost: reset all managed GL handles/state without invoking GL delete procs.
         IsHardwareActive = false;
         _glbGpuMeshes.Clear();
-        _unitBox = _unitCylinder = _unitRing = _unitCone = _gridLines = _pipesMesh = _conveyorStructureMesh = null;
+        _unitBox = _unitCylinder = _unitRing = _unitCone = _gridLines = _pipesMesh = _conveyorStructureMesh = _coalLumpMesh = null;
         _instanceVbo = _postVao = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
         _program = _shadowProgram = _postProgram = 0;
         _offscreenW = _offscreenH = 0;
@@ -884,6 +888,10 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             {
                 DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: true);
             }
+            if (_coalLumpMesh is not null && _coalLumps.Count > 0)
+            {
+                DrawInstancedBatch(_coalLumpMesh, _coalLumps, isShadowPass: true);
+            }
 
             _glDisable!(GL_POLYGON_OFFSET_FILL);
         }
@@ -979,7 +987,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         // 5. All 18 Machine Nodes (Blender .glb meshes)
         DrawMachineNodesMainPass(eqMap, flowMap, loaderPose, fx, activeSelected, HoveredNodeId);
 
-        // 6. Instanced Opaque Mechanical Sub-Parts, Pulleys, Cleats, Coal Stream & Dump Boulders
+        // 6. Instanced Opaque Mechanical Sub-Parts, Pulleys, Cleats, Faceted Coal Stream & Dump Boulders
         _glUniform1f!(_uUnlit, 0.0f);
         _glUniform1f!(_uTintMix, 1.0f);
         if (_unitBox is not null && _casterBoxes.Count > 0)
@@ -989,6 +997,10 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         if (_unitCylinder is not null && _casterCylinders.Count > 0)
         {
             DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: false);
+        }
+        if (_coalLumpMesh is not null && _coalLumps.Count > 0)
+        {
+            DrawInstancedBatch(_coalLumpMesh, _coalLumps, isShadowPass: false);
         }
 
         // 7. Instanced Unlit Pipe Flow Particles, Conveyor Highlights & Directional Flow Chevrons
@@ -1152,6 +1164,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _groundPadBoxes.Clear();
         _casterBoxes.Clear();
         _casterCylinders.Clear();
+        _coalLumps.Clear();
         _unlitBoxes.Clear();
         _unlitCones.Clear();
         _fillCylinders.Clear();
@@ -1229,19 +1242,76 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 if (p.Id == "BN-101") fillFrac = Math.Clamp(fillFrac + loaderPose.BinFillPulse, 0.15f, 0.98f);
 
                 float fillH = p.FillMaxHeight * fillFrac;
-                var fillColor = p.Id == "BN-101" ? Color.Parse("#F59E0B")
-                              : p.Id == "BN-201" ? Color.Parse("#60A5FA")
+                bool isCoalBin = p.Id is "BN-101" or "BN-201";
+                var fillColor = p.Id == "BN-101" ? Color.Parse("#1C1E22")
+                              : p.Id == "BN-201" ? Color.Parse("#12151A")
                               : p.Id == "TK-301" ? Color.Parse("#14B8A6")
                               : Color.Parse("#38BDF8");
 
                 var fm = Matrix4x4.CreateScale(p.FillRadius, fillH, p.FillRadius)
                        * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.FillBaseY + fillH * 0.5f, p.Position.Z);
-                _fillCylinders.Add(new InstanceItem(fm, fillColor.R / 255f, fillColor.G / 255f, fillColor.B / 255f, 0.44f, 0.15f, 0.35f));
+                _fillCylinders.Add(new InstanceItem(fm, fillColor.R / 255f, fillColor.G / 255f, fillColor.B / 255f, isCoalBin ? 0.78f : 0.44f, isCoalBin ? 0.06f : 0.15f, isCoalBin ? 0.84f : 0.35f));
             }
         }
 
-        // 3. Loader Dump Coal Boulders
-        if (loaderPose.IsDumpingCoal)
+        void AddCoalChunk(Vector3 pos, float size, Color col, float metallic, float roughness, int seed, float rotAnim = 0f)
+        {
+            float shade = 0.82f + (seed % 5) * 0.10f;
+            float sx = size * (1.28f - 0.12f * (seed % 2));
+            float sy = size * (0.76f + 0.14f * (seed % 3));
+            float sz = size * (1.06f + 0.10f * ((seed + 1) % 2));
+            var mat = Matrix4x4.CreateScale(sx, sy, sz)
+                    * Matrix4x4.CreateRotationX(seed * 0.57f + rotAnim * 0.6f)
+                    * Matrix4x4.CreateRotationY(seed * 0.93f + rotAnim)
+                    * Matrix4x4.CreateRotationZ(seed * 0.41f)
+                    * Matrix4x4.CreateTranslation(pos);
+            _coalLumps.Add(new InstanceItem(
+                mat,
+                MathF.Min(1f, col.R / 255f * shade),
+                MathF.Min(1f, col.G / 255f * shade),
+                MathF.Min(1f, col.B / 255f * shade),
+                1.0f, metallic, roughness));
+        }
+
+        // 2b. Surface Coal Granulometry on Stockpiles (Big ROM Boulders at SP-001 vs Small Product/Discard at SP-301/SP-302)
+        var romCol = Plant3DSceneData.GetMaterialColor(CoalMaterialClass.RawRom);
+        for (int i = 0; i < 14; i++)
+        {
+            float size = 0.34f + (i % 4) * 0.045f;
+            float angle = -MathF.PI * 0.5f + (i - 6.5f) * 0.32f;
+            float rFrac = i >= 10 ? (1.02f + (i - 10) * 0.05f) : (0.58f + (i % 4) * 0.12f);
+            float rad = 2.64f * rFrac;
+            float slopeY = i >= 10 ? size * 0.42f : MathF.Max(0.18f, (1f - rFrac) * 2.10f);
+            var bp = new Vector3(-13.8f + MathF.Cos(angle) * rad, 4.35f + slopeY, 16.4f + MathF.Sin(angle) * rad);
+            AddCoalChunk(bp, size, romCol, 0.06f, 0.84f, 10 + i);
+        }
+
+        var prodCol = Plant3DSceneData.GetMaterialColor(CoalMaterialClass.CleanProduct);
+        for (int i = 0; i < 16; i++)
+        {
+            float size = 0.075f + (i % 3) * 0.01f;
+            float angle = i * (MathF.PI * 2f / 16f) + 0.25f;
+            float rFrac = 0.35f + (i % 4) * 0.20f;
+            float rad = 2.48f * rFrac;
+            float slopeY = MathF.Max(0.08f, (1f - rFrac) * 1.92f);
+            var bp = new Vector3(-9.8f + MathF.Cos(angle) * rad, slopeY, -5.2f + MathF.Sin(angle) * rad);
+            AddCoalChunk(bp, size, prodCol, 0.08f, 0.32f, 40 + i);
+        }
+
+        var discCol = Plant3DSceneData.GetMaterialColor(CoalMaterialClass.RefuseDiscard);
+        for (int i = 0; i < 12; i++)
+        {
+            float size = 0.085f + (i % 3) * 0.012f;
+            float angle = i * (MathF.PI * 2f / 12f) + 0.40f;
+            float rFrac = 0.40f + (i % 3) * 0.24f;
+            float rad = 2.24f * rFrac;
+            float slopeY = MathF.Max(0.08f, (1f - rFrac) * 1.70f);
+            var bp = new Vector3(-10.6f + MathF.Cos(angle) * rad, slopeY, -8.2f + MathF.Sin(angle) * rad);
+            AddCoalChunk(bp, size, discCol, 0.07f, 0.38f, 70 + i);
+        }
+
+        // 3. Loader Bucket Load & Dump ROM Coal Boulders
+        if (loaderPose.BoomAngleDegrees > 1.5f || loaderPose.IsDumpingCoal)
         {
             const float deg = MathF.PI / 180f;
             var chassisWorld = Matrix4x4.CreateRotationZ(loaderPose.PitchDegrees * deg)
@@ -1250,19 +1320,31 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             var glbBucketWorld = Matrix4x4.CreateRotationZ((loaderPose.BoomAngleDegrees + loaderPose.BucketDumpAngleDegrees * 0.45f) * deg)
                                * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f)
                                * chassisWorld;
-            var dumpOrigin = Vector3.Transform(new Vector3(2.45f, -0.95f, 0f), glbBucketWorld);
-            var binTarget = new Vector3(-13.8f, 6.50f, 8.8f);
-            for (int i = 0; i < 7; i++)
+
+            if (!loaderPose.IsDumpingCoal)
             {
-                float frac = (float)((SimTime * 2.8 + i / 7.0) % 1.0);
-                var p = Vector3.Lerp(dumpOrigin, binTarget, frac);
-                p.X += MathF.Sin(i * 2.1f) * 0.22f;
-                p.Z += MathF.Cos(i * 1.7f) * 0.22f;
-                p.Y -= frac * frac * 0.35f;
-                var bm = Matrix4x4.CreateScale(0.22f - 0.04f * (i % 2))
-                       * Matrix4x4.CreateRotationY(i * 0.8f + (float)SimTime * 3f)
-                       * Matrix4x4.CreateTranslation(p);
-                _casterBoxes.Add(new InstanceItem(bm, 0.26f, 0.21f, 0.14f, 1.0f, 0.04f, 0.90f));
+                for (int i = 0; i < 6; i++)
+                {
+                    float zOff = -0.58f + (i % 3) * 0.56f;
+                    float xOff = 1.98f + (i / 3) * 0.28f;
+                    float yOff = -0.78f + (i % 2) * 0.16f;
+                    var worldPos = Vector3.Transform(new Vector3(xOff, yOff, zOff), glbBucketWorld);
+                    AddCoalChunk(worldPos, 0.32f + (i % 3) * 0.045f, romCol, 0.06f, 0.82f, 100 + i);
+                }
+            }
+            else
+            {
+                var dumpOrigin = Vector3.Transform(new Vector3(2.45f, -0.95f, 0f), glbBucketWorld);
+                var binTarget = new Vector3(-13.8f, 6.50f, 8.8f);
+                for (int i = 0; i < 9; i++)
+                {
+                    float frac = (float)((SimTime * 2.8 + i / 9.0) % 1.0);
+                    var p = Vector3.Lerp(dumpOrigin, binTarget, frac);
+                    p.X += MathF.Sin(i * 2.1f) * 0.24f;
+                    p.Z += MathF.Cos(i * 1.7f) * 0.24f;
+                    p.Y -= frac * frac * 0.35f;
+                    AddCoalChunk(p, 0.34f + (i % 3) * 0.05f, romCol, 0.06f, 0.80f, 120 + i, (float)SimTime * 3.0f);
+                }
             }
         }
 
@@ -1320,23 +1402,24 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 var cm = Matrix4x4.CreateScale(0.08f, 0.05f, c.Width * 0.88f)
                        * beltRot
                        * Matrix4x4.CreateTranslation(p.X, p.Y + 0.08f, p.Z);
-                _casterBoxes.Add(new InstanceItem(cm, 0.20f, 0.24f, 0.30f, 1.0f, 0.15f, 0.82f));
+                _casterBoxes.Add(new InstanceItem(cm, 0.28f, 0.33f, 0.40f, 1.0f, 0.15f, 0.82f));
             }
 
-            // Continuous Troughed Coal Burden Ribbon + Ballistic Coal Stream + Flow Chevrons
+            // Continuous Troughed Coal Burden Ribbon + Multi-Cluster Faceted Coal Lumps + Flow Chevrons
             if (flow is not null && flow.NormalizedRate > 0.02)
             {
                 var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
                 var pbr = Plant3DSceneData.GetMaterialPbrParams(c.MaterialClass);
                 float lumpSize = Plant3DSceneData.GetMaterialLumpSize(c.MaterialClass);
+                int subCount = Plant3DSceneData.GetMaterialSubClusterCount(c.MaterialClass);
                 float burdenH = Plant3DSceneData.ComputeBeltBurdenThickness(c.MaterialClass, flow.NormalizedRate);
                 if (burdenH > 0.005f)
                 {
                     var mid = (c.TailPos + c.HeadPos) * 0.5f;
-                    var burdenMat = Matrix4x4.CreateScale(length * 0.96f, burdenH, c.Width * 0.56f)
+                    var burdenMat = Matrix4x4.CreateScale(length * 0.96f, burdenH, c.Width * 0.54f)
                                   * beltRot
                                   * Matrix4x4.CreateTranslation(mid.X, mid.Y + 0.045f + burdenH * 0.5f, mid.Z);
-                    _casterBoxes.Add(new InstanceItem(burdenMat, matCol.R / 255f * 0.85f, matCol.G / 255f * 0.85f, matCol.B / 255f * 0.85f, 1.0f, pbr.Metallic, pbr.Roughness));
+                    _casterBoxes.Add(new InstanceItem(burdenMat, matCol.R / 255f * 0.90f, matCol.G / 255f * 0.90f, matCol.B / 255f * 0.90f, 1.0f, pbr.Metallic, pbr.Roughness));
                 }
 
                 float dropLen = Vector3.Distance(c.HeadPos, c.GetChuteBottomPos());
@@ -1347,17 +1430,23 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 for (int i = 0; i < parcelCount; i++)
                 {
                     float u = (float)((SimTime * 0.24 * Math.Max(0.2, speed) + (double)i / parcelCount) % 1.0);
-                    var pos = Plant3DSceneData.SampleConveyorCoalTrajectory(c, u);
+                    var basePos = Plant3DSceneData.SampleConveyorCoalTrajectory(c, u);
                     float jitterScale = u <= 0.82f ? 1.0f : Math.Max(0.15f, 1.0f - (u - 0.82f) / 0.18f);
-                    float jitter = MathF.Sin(i * 3.1f) * (c.Width * 0.16f) * jitterScale;
-                    pos += right * jitter;
-                    if (u <= 0.82f)
-                        pos.Y += 0.14f;
 
-                    var pm = Matrix4x4.CreateScale(lumpSize * 1.25f, lumpSize * 0.85f, lumpSize * 1.1f)
-                           * Matrix4x4.CreateRotationY(i * 0.9f)
-                           * Matrix4x4.CreateTranslation(pos);
-                    _casterBoxes.Add(new InstanceItem(pm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, pbr.Metallic, pbr.Roughness));
+                    for (int s = 0; s < subCount; s++)
+                    {
+                        float lateralFrac = subCount == 1
+                            ? MathF.Sin(i * 3.1f) * 0.35f
+                            : (-0.5f + s / (float)(subCount - 1)) * 0.72f + MathF.Sin(i * 2.7f + s * 1.9f) * 0.14f;
+                        var pos = basePos + right * (lateralFrac * c.Width * 0.36f * jitterScale);
+                        if (subCount > 1)
+                            pos += dir * (MathF.Cos(i * 1.9f + s * 2.3f) * 0.10f * (u <= 0.82f ? 1f : 0f));
+                        if (u <= 0.82f)
+                            pos.Y += 0.085f + burdenH * 0.65f + lumpSize * 0.34f;
+
+                        float variantSize = lumpSize * (0.88f + ((i + s) % 3) * 0.12f);
+                        AddCoalChunk(pos, variantSize, matCol, pbr.Metallic, pbr.Roughness, i * 7 + s * 3);
+                    }
                 }
 
                 // Curved feed chute coal parcels (e.g. CV-106)
@@ -1367,10 +1456,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                     {
                         float ft = (float)((SimTime * 0.35 * Math.Max(0.2, speed) + fc / 4.0) % 1.0);
                         var fp = Plant3DSceneData.SamplePolyline(c.FeedChuteWaypoints, ft);
-                        var fpm = Matrix4x4.CreateScale(lumpSize * 1.15f, lumpSize * 0.80f, lumpSize * 1.05f)
-                                * Matrix4x4.CreateRotationY(fc * 1.1f)
-                                * Matrix4x4.CreateTranslation(fp);
-                        _casterBoxes.Add(new InstanceItem(fpm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, pbr.Metallic, pbr.Roughness));
+                        AddCoalChunk(fp, lumpSize * 0.95f, matCol, pbr.Metallic, pbr.Roughness, 500 + fc);
                     }
                 }
 
@@ -1559,8 +1645,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             bool isSelected = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
             bool isHovered = string.Equals(hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
 
+            bool isStockpile = p.EquipmentType.Contains("Stockpile", StringComparison.OrdinalIgnoreCase);
             float tintMix = fx.ShowThermalHeatmap ? 0.78f
-                : (eq?.Status is EquipmentStatus.Fault or EquipmentStatus.Warning or EquipmentStatus.Stopped ? 0.58f : 0.08f);
+                : (eq?.Status is EquipmentStatus.Fault or EquipmentStatus.Warning or EquipmentStatus.Stopped ? (isStockpile ? 0.28f : 0.58f) : (isStockpile ? 0.20f : 0.08f));
             if (isSelected) { tint = Color.Parse("#38BDF8"); tintMix = MathF.Max(tintMix, 0.30f); }
             else if (isHovered) { tint = Color.Parse("#7DD3FC"); tintMix = MathF.Max(tintMix, 0.20f); }
 
@@ -1941,13 +2028,16 @@ void main() {
         }
 
         // Micro-surface dFdx/dFdy procedural bump: granular on coal/concrete, brushed on metallic steel
+        bool isCoal = (dot(albedo, vec3(0.333)) < 0.045 && metallic < 0.25);
         bool isGranular = (roughness > 0.65 && metallic < 0.25);
         bool isBrushed = (metallic > 0.5);
-        float freq = isGranular ? 7.5 : (isBrushed ? 18.0 : 10.0);
-        float bumpAmp = isGranular ? 0.14 : (isBrushed ? 0.035 : 0.02);
+        float freq = isCoal ? 12.5 : (isGranular ? 7.5 : (isBrushed ? 18.0 : 10.0));
+        float bumpAmp = isCoal ? 0.18 : (isGranular ? 0.14 : (isBrushed ? 0.035 : 0.02));
         vec3 samplePos = isBrushed ? vec3(vWorldPos.x * 2.2, vWorldPos.y * 0.8, vWorldPos.z * 2.2) : vWorldPos;
         float h = fbm3(samplePos * freq);
-        if (isGranular) {
+        if (isCoal) {
+            albedo *= mix(0.65, 1.48, h);
+        } else if (isGranular) {
             albedo *= mix(0.84, 1.16, h);
         }
 
@@ -1967,7 +2057,7 @@ void main() {
 
         vec3 V = normalize(uCamPos - vWorldPos);
         float NdotV = max(dot(N, V), 0.001);
-        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+        vec3 F0 = mix(vec3(isCoal ? 0.058 : 0.04), albedo, metallic);
         float clearcoatWeight = (uEnableClearcoat > 0.5 && roughness < 0.44 && metallic < 0.25)
             ? clamp((0.46 - roughness) * 3.0, 0.25, 0.90)
             : 0.0;
@@ -2450,6 +2540,49 @@ void main() {
         return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
 
+    private GpuMesh BuildCoalLumpMesh()
+    {
+        // Perturbed irregular 20-face icosahedron with flat per-face normals for realistic coal cleavage facets
+        const float phi = 1.61803399f;
+        var raw = new Vector3[]
+        {
+            new(-1f,  phi, 0f), new( 1f,  phi, 0f), new(-1f, -phi, 0f), new( 1f, -phi, 0f),
+            new( 0f, -1f,  phi), new( 0f,  1f,  phi), new( 0f, -1f, -phi), new( 0f,  1f, -phi),
+            new( phi, 0f, -1f), new( phi, 0f,  1f), new(-phi, 0f, -1f), new(-phi, 0f,  1f)
+        };
+        float[] jitter = { 0.88f, 1.12f, 0.94f, 1.08f, 0.82f, 1.16f, 0.91f, 1.06f, 0.85f, 1.14f, 0.96f, 1.03f };
+        var verts = new Vector3[raw.Length];
+        for (int i = 0; i < raw.Length; i++)
+            verts[i] = Vector3.Normalize(raw[i]) * (0.50f * jitter[i]);
+
+        int[,] tris =
+        {
+            {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11},
+            {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
+            {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9},
+            {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
+        };
+
+        var v = new List<float>(60 * GlbMeshData.FloatsPerVertex);
+        var idx = new List<uint>(60);
+        for (int t = 0; t < 20; t++)
+        {
+            var p0 = verts[tris[t, 0]];
+            var p1 = verts[tris[t, 1]];
+            var p2 = verts[tris[t, 2]];
+            var n = Vector3.Normalize(Vector3.Cross(p1 - p0, p2 - p0));
+            if (Vector3.Dot(n, p0 + p1 + p2) < 0f)
+                n = -n;
+            uint b = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            AddVert(v, p0, n, 1f, 1f, 1f, 0.06f, 0.82f);
+            AddVert(v, p1, n, 1f, 1f, 1f, 0.06f, 0.82f);
+            AddVert(v, p2, n, 1f, 1f, 1f, 0.06f, 0.82f);
+            idx.AddRange(new uint[] { b, b + 1, b + 2 });
+        }
+
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
+    }
+
     private GpuMesh BuildUnitCylinderMesh(int segs)
     {
         var v = new List<float>();
@@ -2608,9 +2741,9 @@ void main() {
             var mid = (c.TailPos + c.HeadPos) * 0.5f;
             float halfW = c.Width * 0.5f;
 
-            // 1. Rubber belt bed
+            // 1. Rubber belt bed (dusty slate-gray rubber for clear black coal contrast)
             var beltMat = Matrix4x4.CreateScale(len, 0.08f, c.Width * 0.90f) * beltRot * Matrix4x4.CreateTranslation(mid);
-            AppendBox(v, idx, beltMat, 0.11f, 0.13f, 0.16f, 0.12f, 0.85f, convertSrgbToLinear: true);
+            AppendBox(v, idx, beltMat, 0.25f, 0.29f, 0.35f, 0.12f, 0.86f, convertSrgbToLinear: true);
 
             // 2. Left & right steel side stringer channels
             foreach (float side in new[] { -halfW, halfW })

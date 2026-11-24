@@ -753,13 +753,15 @@ public sealed class Plant3DViewportControl : Panel
                 {
                     var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
                     var coalBrush = GetBrush(matCol.R, matCol.G, matCol.B);
+                    var coalRimPen = new Pen(GetBrush(100, 116, 139, 175), 0.9);
+                    double rPx = Math.Clamp(Plant3DSceneData.GetMaterialLumpSize(c.MaterialClass) * 18.0, 1.6, 6.2);
                     int count = Math.Max(6, (int)(len / 0.9f));
                     for (int i = 0; i < count; i++)
                     {
                         float t = (float)((_owner._time * 0.24 * Math.Max(0.2, speed) + (double)i / count) % 1.0);
                         var pos = Plant3DSceneData.SampleConveyorCoalTrajectory(c, t);
                         if (Plant3DSceneData.TryProjectToScreen(pos, viewProj, w, h, out var pt, out _))
-                            context.DrawEllipse(coalBrush, null, pt, 3.2, 3.2);
+                            context.DrawEllipse(coalBrush, coalRimPen, pt, rPx, rPx);
                     }
 
                     if (fx.ShowFlowDirection)
@@ -781,13 +783,14 @@ public sealed class Plant3DViewportControl : Panel
             // Loader Coal Dump Stream in Software Fallback
             if (loaderPose.IsDumpingCoal)
             {
-                var dumpBrush = GetBrush(245, 158, 11);
+                var dumpBrush = GetBrush(28, 30, 34);
+                var dumpPen = new Pen(GetBrush(100, 116, 139, 175), 0.9);
                 for (int i = 0; i < 6; i++)
                 {
                     float frac = (float)((_owner._time * 2.8 + i / 6.0) % 1.0);
-                    var p = Vector3.Lerp(new(-13.8f, 2.6f, 9.5f), new(-13.8f, 1.85f, 8.8f), frac);
+                    var p = Vector3.Lerp(new(-13.8f, 6.2f, 9.5f), new(-13.8f, 5.5f, 8.8f), frac);
                     if (Plant3DSceneData.TryProjectToScreen(p, viewProj, w, h, out var pt, out _))
-                        context.DrawEllipse(dumpBrush, null, pt, 3.5, 3.5);
+                        context.DrawEllipse(dumpBrush, dumpPen, pt, 5.2, 5.2);
                 }
             }
 

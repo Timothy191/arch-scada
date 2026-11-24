@@ -872,88 +872,114 @@ def build_surge_bin_bn201(output_dir):
 
 
 def build_wash_plant_module_wp301(output_dir):
-    """WP-301: Multi-Bay Dense-Medium Wash Plant + Control Room & MCC Annex (~7.6m x 6.2m x 5.6m).
-    Main structural bays at +Y (North); enclosed Control Room, MCC Wash Plant, MCC Over & stairs on -Y (glTF +Z front).
+    """WP-301: Open-Top Dense-Medium Cyclone Wash Plant (No Roof / Single Screen Deck over Tanks).
+    Layout:
+      - East (+X=3.10, Y=0.50 -> world X=+2.30, Z=-8.30): Massive Mixing Box receiving DS-201 coal (CV-203),
+        process water (PP-203), and magnetite (TK-301), with Cyclone Feed Pump + Top-Riser Pipe to Cyclone.
+      - Ground Floor (Z=0..1.90m): Under-screen tanks tapering into conical Magnetite Drip Bucket & Reclaim Pump.
+      - Middle Deck (Z=1.95..3.15m): Massive parallel Product Wash Screen (Y=-1.00) & Discard Wash Screen (Y=+0.60)
+        with 5 overhead magnetite-reclaim water spray bars (30 nozzles) ahead of CV-301 / CV-302 discharges.
+      - Top Level (Z=3.95..4.75m, open top / no roof): Dense-Medium Cyclone feeding clean coal overflow & discard
+        underflow down to the dual wash screens below.
     """
     clear_scene()
     p = make_palette()
 
-    # Main structural steel frame (X = -3.5..+3.5, Y = -0.3..+2.8, decks at Z = 2.20m and 4.00m)
-    col_x = [-3.40, -1.15, 1.15, 3.40]
-    col_y = [-0.30, 2.75]
+    # 1. Open Structural Steel Frame (Ground -> Screen Deck Z=1.95m -> Open Top Posts Z=3.20m; NO ROOF)
+    col_x = [-3.30, -1.10, 1.20]
+    col_y = [-1.85, 1.55]
     for cx in col_x:
         for cy in col_y:
-            add_h_column(f"WP301_MainCol_{cx:.1f}_{cy:.1f}", cx, cy, 0.0, 5.45, 0.22, p["dark_steel"])
+            add_h_column(f"WP301_Col_{cx:.1f}_{cy:.1f}", cx, cy, 0.0, 3.15, 0.20, p["dark_steel"])
 
-    # Rear & side X-bracing
-    add_x_brace("WP301_RearBraceA", (-3.40, 2.75, 0.20), (-1.15, 2.75, 0.20), (-1.15, 2.75, 2.15), (-3.40, 2.75, 2.15), 0.07, p["dark_steel"])
-    add_x_brace("WP301_RearBraceB", (1.15, 2.75, 2.25), (3.40, 2.75, 2.25), (3.40, 2.75, 4.00), (1.15, 2.75, 4.00), 0.07, p["dark_steel"])
+    # Perimeter cross-bracing between ground and screen deck (Z = 0.2..1.90m)
+    add_x_brace("WP301_BraceW_S", (-3.30, -1.85, 0.20), (-1.10, -1.85, 0.20), (-1.10, -1.85, 1.88), (-3.30, -1.85, 1.88), 0.06, p["dark_steel"])
+    add_x_brace("WP301_BraceE_N", (-1.10, 1.55, 0.20), (1.20, 1.55, 0.20), (1.20, 1.55, 1.88), (-1.10, 1.55, 1.88), 0.06, p["dark_steel"])
 
-    # Floor decks at Z=2.20m and Z=4.00m with walkways & safety yellow handrails
-    add_walkway_deck("WP301_Deck22", 0.0, 1.22, 7.10, 3.25, 2.20, p["walkway_steel"], p["safety_yellow"], rails="NEW")
-    add_walkway_deck("WP301_Deck40", 0.0, 1.22, 7.10, 3.25, 4.00, p["walkway_steel"], p["safety_yellow"], rails="NEW")
-    add_walkway_deck("WP301_RoofBeam", 0.0, 1.22, 7.10, 3.25, 5.45, p["dark_steel"], p["safety_yellow"], rails="")
+    # Concrete ground floor pad beneath tanks & mixing box
+    add_box("WP301_FloorSlab", (0.20, -0.05, 0.06), (8.80, 3.80, 0.12), p["concrete"], bevel=0.015)
 
-    # East Mixing Box tank (+X side)
-    add_box("WP301_EastMixingBox", (2.55, 1.55, 3.15), (1.35, 1.35, 1.78), p["motor_blue"], bevel=0.02)
-    add_box("WP301_MixBoxRim", (2.55, 1.55, 4.06), (1.46, 1.46, 0.10), p["dark_steel"], bevel=0.01)
-    add_electric_motor("WP301_MixAgitator", (2.55, 1.55, 4.42), 0.20, 0.44, "X", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+    # 2. Ground-Floor Under-Screen Collection Tanks + Conical Magnetite Drip Bucket & Reclaim Pump
+    add_box("WP301_UnderTankProduct", (-1.20, -0.95, 1.48), (3.60, 1.38, 0.72), p["dark_steel"], bevel=0.02)
+    add_box("WP301_UnderTankDiscard", (-1.20, 0.65, 1.48), (3.60, 1.38, 0.72), p["dark_steel"], bevel=0.02)
+    # Conical/pyramidal Drip Bucket sump capturing washed magnetite spray rinse below both screens
+    add_frustum_box("WP301_MagnetiteDripBucket", -1.65, -0.55, -0.55, 0.25, 0.30, 1.15, 1.25, 1.10, p["manganese"], bevel=0.02)
+    add_box("WP301_DripBucketSlurry", (-1.10, -0.15, 1.02), (1.65, 1.15, 0.10), p["slurry"])
+    add_pipe_between("WP301_DripBucketDrain", (-1.10, -0.15, 0.34), (-1.10, 1.45, 0.34), 0.11, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
+    # Centrifugal Magnetite Reclaim Pump beside drip bucket pumping toward MS-301 / TK-301
+    add_cyl("WP301_MagReclaimPump", (-1.10, 1.65, 0.42), 0.28, 0.34, p["motor_blue"], verts=18, rot=(0, math.pi / 2, 0), bevel=0.012)
+    add_electric_motor("WP301_MagReclaimMotor", (-1.65, 1.65, 0.42), 0.20, 0.46, "X", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+    add_pipe_between("WP301_MagReclaimOut", (-1.10, 1.72, 0.68), (-1.10, 2.35, 1.28), 0.095, p["motor_blue"], flange=True, mat_flange=p["safety_yellow"])
 
-    # Inclined Dense-Medium Cyclone (DMC) with vortex finder & apex piping (Z = 3.5..5.1m)
-    dmc_rot = (0, 1.22, 0)  # inclined ~20 deg off horizontal
-    add_cyl("WP301_DMC_Body", (-1.85, 1.55, 4.45), 0.44, 1.05, p["manganese"], verts=24, rot=dmc_rot, bevel=0.015)
-    add_cone("WP301_DMC_Cone", (-1.02, 1.55, 4.18), 0.44, 0.14, 0.95, p["manganese"], verts=24, rot=dmc_rot, bevel=0.01)
-    add_pipe_between("WP301_DMC_Feed", (-2.15, 0.72, 3.35), (-2.05, 1.35, 4.55), 0.13, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
-    add_pipe_between("WP301_DMC_VortexOverflow", (-2.38, 1.55, 4.62), (-2.85, 1.55, 4.82), 0.14, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
-    add_pipe_between("WP301_DMC_ApexUnderflow", (-0.55, 1.55, 4.02), (-0.15, 1.55, 3.45), 0.11, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    # 3. East Massive Mixing Box (Blender X=+3.10, Y=+0.50 -> world X=+2.30, Z=-8.30)
+    mx, my = 3.10, 0.50
+    add_box("WP301_MixingBoxBody", (mx, my, 1.08), (2.10, 2.10, 1.92), p["motor_blue"], bevel=0.025)
+    add_box("WP301_MixingBoxRim", (mx, my, 2.08), (2.24, 2.24, 0.12), p["dark_steel"], bevel=0.015)
+    add_frustum_box("WP301_MixingBoxFlaredTop", mx - 0.96, mx + 0.96, my - 0.96, my + 0.96, 1.85, 2.26, 0.18, 0.18, p["dark_steel"], bevel=0.015)
+    add_box("WP301_MixingBoxCoalMix", (mx, my, 1.78), (1.92, 1.92, 0.10), p["coal"])
+    add_box("WP301_MixingBridge", (mx, my, 2.30), (2.28, 0.28, 0.14), p["walkway_steel"], bevel=0.01)
+    add_electric_motor("WP301_MixingAgitator", (mx, my, 2.60), 0.24, 0.48, "Z", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+    # Side Water & Magnetite Feed Inlets into Mixing Box
+    add_pipe_between("WP301_MixWaterInlet", (mx + 0.15, my + 1.55, 1.15), (mx + 0.15, my + 0.98, 1.15), 0.09, p["motor_blue"], flange=True, mat_flange=p["safety_yellow"])
+    add_pipe_between("WP301_MixMagInlet", (mx - 0.25, my + 1.55, 1.45), (mx - 0.25, my + 0.98, 1.45), 0.095, p["manganese"], flange=True, mat_flange=p["safety_yellow"])
+    # Cyclone Feed Pump at Mixing Box bottom + Top-Riser Pipe up above screens into Top Cyclone
+    add_cyl("WP301_CycloneFeedPump", (mx, my - 1.25, 0.52), 0.34, 0.40, p["motor_blue"], verts=20, rot=(0, math.pi / 2, 0), bevel=0.015)
+    add_pipe_between("WP301_PumpSuction", (mx, my - 0.95, 0.52), (mx, my - 1.22, 0.52), 0.15, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    add_pipe_between("WP301_CycloneRiserV", (mx, my - 1.25, 0.72), (mx, my - 1.25, 4.35), 0.16, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
+    add_pipe_between("WP301_CycloneRiserH", (mx, my - 1.25, 4.35), (1.05, -0.15, 4.30), 0.16, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
 
-    # Central Dewatering Screen bay (Z = 2.25 .. 3.35m)
-    for sx in (-0.75, 0.75):
-        add_coil_spring(f"WP301_ScrSpringL_{sx:.2f}", sx, 0.72, 2.20, 0.30, 0.08, p["safety_yellow"], p["dark_steel"])
-        add_coil_spring(f"WP301_ScrSpringR_{sx:.2f}", sx, 1.92, 2.20, 0.30, 0.08, p["safety_yellow"], p["dark_steel"])
-    add_box("WP301_DewaterScreen", (0.0, 1.32, 2.82), (1.95, 1.18, 0.56), p["motor_blue"], rot=(0, 0.08, 0), bevel=0.02)
-    add_box("WP301_DewaterDeck", (0.0, 1.32, 2.88), (1.88, 1.06, 0.06), p["walkway_steel"], rot=(0, 0.08, 0))
+    # 4. Middle Level Screen Walkway Deck (Z=1.95m, single story over tanks) & Stairs
+    add_walkway_deck("WP301_ScreenDeckS", -1.10, -2.18, 4.80, 0.85, 1.95, p["walkway_steel"], p["safety_yellow"], rails="SW")
+    add_walkway_deck("WP301_ScreenDeckN", -1.10, 1.88, 4.80, 0.85, 1.95, p["walkway_steel"], p["safety_yellow"], rails="NW")
+    add_walkway_deck("WP301_ScreenDeckW", -3.65, -0.15, 0.90, 4.85, 1.95, p["walkway_steel"], p["safety_yellow"], rails="W")
+    add_stairs("WP301_AccessStairs", (1.20, -2.25, 0.12), (-0.45, -2.25, 1.95), 0.78, 8, p["dark_steel"], p["walkway_steel"], p["safety_yellow"])
 
-    # --- FRONT ANNEX (-Y in Blender = +Z front face in glTF) ---
-    # Concrete plinth under annex
-    add_box("WP301_AnnexPlinth", (-0.45, -1.55, 0.08), (6.10, 2.30, 0.16), p["concrete"], bevel=0.015)
+    # 5. Dual Massive Wash Screens on top of the tanks (Product Y=-1.00 / Discard Y=+0.60, Z=2.05..3.05m)
+    for scr_tag, sy, disch_x in [("Product", -1.00, -3.35), ("Discard", 0.60, -3.45)]:
+        for sx in (0.65, -1.10, -2.65):
+            add_coil_spring(f"WP301_{scr_tag}SpringL_{sx:.1f}", sx, sy - 0.62, 1.88, 0.28, 0.08, p["safety_yellow"], p["dark_steel"])
+            add_coil_spring(f"WP301_{scr_tag}SpringR_{sx:.1f}", sx, sy + 0.62, 1.88, 0.28, 0.08, p["safety_yellow"], p["dark_steel"])
+        # Side plates, stainless wedge-wire screen deck & wet coal/discard bed
+        add_box(f"WP301_{scr_tag}SideL", (-1.15, sy - 0.62, 2.48), (4.30, 0.09, 0.72), p["motor_blue"], rot=(0, 0.06, 0), bevel=0.015)
+        add_box(f"WP301_{scr_tag}SideR", (-1.15, sy + 0.62, 2.48), (4.30, 0.09, 0.72), p["motor_blue"], rot=(0, 0.06, 0), bevel=0.015)
+        add_box(f"WP301_{scr_tag}Deck", (-1.15, sy, 2.28), (4.22, 1.14, 0.06), p["walkway_steel"], rot=(0, 0.06, 0))
+        add_box(f"WP301_{scr_tag}Bed", (-1.15, sy, 2.34), (4.05, 1.04, 0.07), p["coal"], rot=(0, 0.06, 0))
+        add_box(f"WP301_{scr_tag}FeedBox", (0.95, sy, 2.66), (0.65, 1.24, 0.85), p["dark_steel"], bevel=0.015)
+        add_box(f"WP301_{scr_tag}Lip", (disch_x, sy, 2.12), (0.45, 1.10, 0.22), p["manganese"], rot=(0, 0.22, 0), bevel=0.01)
+        # Dual-motor vibrator exciter bridge on each wash screen
+        add_cyl(f"WP301_{scr_tag}Exciter", (-0.95, sy, 2.86), 0.16, 1.56, p["dark_steel"], verts=16, rot=(math.pi / 2, 0, 0))
+        add_cyl(f"WP301_{scr_tag}ExcPodL", (-0.95, sy - 0.82, 2.86), 0.22, 0.30, p["safety_yellow"], verts=16, rot=(math.pi / 2, 0, 0))
+        add_cyl(f"WP301_{scr_tag}ExcPodR", (-0.95, sy + 0.82, 2.86), 0.22, 0.30, p["safety_yellow"], verts=16, rot=(math.pi / 2, 0, 0))
 
-    # 1. MCC Wash Plant (ground level, -X..-0.4, Y=-2.5..-0.4, Z=0.16..2.18)
-    add_box("WP301_MCC_Wash", (-1.90, -1.48, 1.17), (3.00, 2.02, 2.02), p["cladding"], bevel=0.02)
-    add_box("WP301_MCC_Trim", (-1.90, -1.48, 2.16), (3.08, 2.08, 0.08), p["dark_steel"], bevel=0.01)
-    # Louvered double doors on front face
-    add_box("WP301_MCC_DoorFrame", (-2.25, -2.50, 1.12), (1.15, 0.06, 1.82), p["dark_steel"], bevel=0.01)
-    for li in range(5):
-        add_box(f"WP301_MCC_Louver_{li}", (-1.15, -2.50, 0.65 + li * 0.28), (0.65, 0.05, 0.08), p["manganese"])
-    add_box("WP301_MCC_SafetyStripe", (-1.90, -2.51, 2.02), (2.90, 0.04, 0.10), p["safety_yellow"])
+    # 6. Overhead Magnetite-Reclaim Water Sprayers spanning BOTH screens ahead of discharges
+    add_pipe_between("WP301_SprayMainHeader", (0.20, 1.48, 3.16), (-2.80, 1.48, 3.00), 0.065, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
+    for mi, mx_bar in enumerate([-0.15, -0.75, -1.35, -1.95, -2.55], 1):
+        bar_z = 3.12 - mi * 0.03
+        add_pipe_between(f"WP301_SprayBar_{mi}", (mx_bar, -1.68, bar_z), (mx_bar, 1.48, bar_z), 0.042, p["chrome"])
+        for sy_noz in (-1.35, -1.00, -0.65, 0.25, 0.60, 0.95):
+            add_cone(f"WP301_Nozzle_{mi}_{sy_noz:.2f}", (mx_bar, sy_noz, bar_z - 0.09), 0.028, 0.012, 0.10, p["safety_yellow"], verts=10, rot=(math.pi, 0, 0))
 
-    # 2. Control Room (upper west bay, Z=2.20..4.30m) with dark-tinted strip windows & AC unit
-    add_box("WP301_ControlRoom", (-1.90, -1.48, 3.25), (3.00, 2.02, 2.06), p["cladding"], bevel=0.02)
-    add_box("WP301_CtrlRoof", (-1.90, -1.48, 4.30), (3.12, 2.12, 0.12), p["dark_steel"], bevel=0.015)
-    # Strip windows on front (-Y) and West (-X) faces
-    add_box("WP301_CtrlWindowFront", (-1.90, -2.49, 3.38), (2.56, 0.08, 0.86), p["tinted_glass"], bevel=0.01)
-    add_box("WP301_CtrlWindowWest", (-3.40, -1.48, 3.38), (0.08, 1.56, 0.86), p["tinted_glass"], bevel=0.01)
-    for mi in (-2.75, -1.90, -1.05):
-        add_box(f"WP301_CtrlMullion_{mi:.2f}", (mi, -2.51, 3.38), (0.07, 0.06, 0.88), p["dark_steel"])
-    # Wall-mounted AC condenser unit
-    add_box("WP301_CtrlAC", (-3.56, -1.85, 2.75), (0.34, 0.72, 0.54), p["walkway_steel"], bevel=0.015)
-    add_cyl("WP301_CtrlACFan", (-3.74, -1.85, 2.75), 0.19, 0.04, p["dark_steel"], verts=16, rot=(0, math.pi / 2, 0))
+    # 7. Open-Top Dense-Medium Cyclone Cradle & Large Cyclone Laying on Top (Z=3.95..4.75m, NO ROOF)
+    for lx, ly in [(1.20, -1.15), (1.20, 0.75), (-0.70, -1.15), (-0.70, 0.75)]:
+        add_h_column(f"WP301_CycCol_{lx:.1f}_{ly:.1f}", lx, ly, 1.95, 3.92, 0.14, p["dark_steel"], baseplate=False)
+    add_box("WP301_CycCradleS", (0.25, -1.15, 3.88), (2.10, 0.16, 0.16), p["dark_steel"], bevel=0.01)
+    add_box("WP301_CycCradleN", (0.25, 0.75, 3.88), (2.10, 0.16, 0.16), p["dark_steel"], bevel=0.01)
+    add_box("WP301_CycCrossA", (0.85, -0.20, 3.88), (0.16, 2.05, 0.16), p["dark_steel"], bevel=0.01)
+    add_box("WP301_CycCrossB", (-0.45, -0.20, 3.88), (0.16, 2.05, 0.16), p["dark_steel"], bevel=0.01)
 
-    # 3. MCC Over upper room (east-center front bay, X=+0.1..+2.2, Z=2.20..4.05m)
-    add_box("WP301_MCC_Over", (1.15, -1.42, 3.12), (2.15, 1.88, 1.84), p["cladding"], bevel=0.02)
-    add_box("WP301_MCC_OverRoof", (1.15, -1.42, 4.06), (2.25, 1.98, 0.10), p["dark_steel"], bevel=0.01)
-    add_box("WP301_MCC_OverDoor", (0.75, -2.37, 3.08), (0.82, 0.06, 1.68), p["dark_steel"], bevel=0.01)
-
-    # External cable trays running along front annex & up into wash bay
-    add_box("WP301_CableTrayH", (-0.35, -2.54, 2.22), (4.65, 0.18, 0.08), p["walkway_steel"], bevel=0.006)
-    add_box("WP301_CableTrayV", (-0.28, -2.54, 1.25), (0.22, 0.14, 2.15), p["walkway_steel"], bevel=0.006)
-
-    # 4. External multi-flight steel access stairs (+X front corner climbing Z=0 -> 2.20 -> 4.00m)
-    add_walkway_deck("WP301_StairLanding1", 2.95, -1.95, 1.35, 1.20, 2.20, p["walkway_steel"], p["safety_yellow"], rails="SE")
-    add_h_column("WP301_StairColA", 3.55, -2.48, 0.0, 2.16, 0.14, p["dark_steel"])
-    add_h_column("WP301_StairColB", 2.35, -2.48, 0.0, 2.16, 0.14, p["dark_steel"])
-    add_stairs("WP301_StairFlight1", (0.85, -2.25, 0.05), (2.30, -2.25, 2.20), 0.78, 9, p["dark_steel"], p["walkway_steel"], p["safety_yellow"])
-    add_stairs("WP301_StairFlight2", (2.95, -1.35, 2.22), (2.95, -0.35, 4.00), 0.78, 8, p["dark_steel"], p["walkway_steel"], p["safety_yellow"])
+    # Large inclined Dense-Medium Cyclone barrel & cone laying on top, aligned with wash screens below
+    dmc_rot = (0, 1.32, 0)  # ~14 deg shallow cyclone lay angle on top cradle
+    add_cyl("WP301_DMC_Body", (0.05, -0.20, 4.28), 0.54, 1.35, p["manganese"], verts=24, rot=dmc_rot, bevel=0.018)
+    add_cone("WP301_DMC_Cone", (1.28, -0.20, 3.96), 0.54, 0.16, 1.25, p["manganese"], verts=24, rot=dmc_rot, bevel=0.012)
+    add_cyl("WP301_DMC_FeedScroll", (0.45, -0.20, 4.22), 0.60, 0.24, p["motor_blue"], verts=24, rot=dmc_rot)
+    # Tangential feed elbow from riser into DMC
+    add_pipe_between("WP301_DMC_TangentialIn", (1.05, -0.15, 4.30), (0.55, 0.18, 4.28), 0.16, p["motor_blue"], flange=True, mat_flange=p["safety_yellow"])
+    # Clean Coal Overflow Pipe -> Product Wash Screen feed box (Y=-1.00)
+    add_pipe_between("WP301_DMC_OverflowA", (-0.65, -0.20, 4.46), (-0.85, -1.00, 4.10), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
+    add_pipe_between("WP301_DMC_OverflowB", (-0.85, -1.00, 4.10), (0.75, -1.00, 2.95), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
+    # Discard Sinks Underflow Pipe -> Discard Wash Screen feed box (Y=+0.60)
+    add_pipe_between("WP301_DMC_UnderflowA", (1.88, -0.20, 3.80), (1.35, 0.60, 3.45), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    add_pipe_between("WP301_DMC_UnderflowB", (1.35, 0.60, 3.45), (0.85, 0.60, 2.95), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
 
     export_glb(output_dir, "wash_plant_module_wp301.glb")
 
