@@ -31,6 +31,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.StaticFiles;
 using Scada.Data.Const;
 using Scada.Lang;
 using Scada.Web.Authorization;
@@ -119,11 +120,11 @@ namespace Scada.Web
                 {
                     options.XmlRepository = new XmlRepository(webContext.Storage, webContext.Log);
                     options.XmlEncryptor = new XmlEncryptor(webContext.Log);
+                });
 
             services
                 .AddHealthChecks()
                     .AddCheck<ScadaServerHealthCheck>("scada_server", tags: new[] { "scada", "upstream" });
-                });
 
             services
                 .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -246,7 +247,13 @@ namespace Scada.Web
 
             app.UseReadOnlyHardening();
 
-            app.UseStaticFiles();
+            var contentTypeProvider = new FileExtensionContentTypeProvider();
+            contentTypeProvider.Mappings[".glb"] = "model/gltf-binary";
+            contentTypeProvider.Mappings[".gltf"] = "model/gltf+json";
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                ContentTypeProvider = contentTypeProvider
+            });
             app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/api"), webApp =>
             {
                 webApp.UseStatusCodePagesWithReExecute("/Errors/{0}");
@@ -257,8 +264,59 @@ namespace Scada.Web
             app.UseSession();
             app.MapRazorPages();
             app.MapControllers();
+            app.MapGet("/models3d/{fileName}", (string fileName, IWebHostEnvironment env) =>
+            {
+                string resolvedPath = ResolveGlbModelPath(fileName, env);
+                return resolvedPath is not null
+                    ? Results.File(resolvedPath, "model/gltf-binary", enableRangeProcessing: true)
+                    : Results.NotFound();
+            }).AllowAnonymous();
             // Swagger/OpenAPI metadata
             app.MapHealthChecks("/health");
+        }
+
+        /// <summary>
+        /// Safely resolves a bundled or repository-exported .glb model file for read-only 3D Web Twin delivery.
+        /// </summary>
+        private static string ResolveGlbModelPath(string fileName, IWebHostEnvironment env)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return null;
+
+            string safeName = Path.GetFileName(fileName);
+            if (!string.Equals(safeName, fileName, StringComparison.Ordinal) ||
+                !safeName.EndsWith(".glb", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(env.WebRootPath))
+            {
+                string webRootCandidate = Path.Combine(env.WebRootPath, "models3d", safeName);
+                if (File.Exists(webRootCandidate))
+                    return webRootCandidate;
+            }
+
+            string baseWwwrootCandidate = Path.Combine(AppContext.BaseDirectory, "wwwroot", "models3d", safeName);
+            if (File.Exists(baseWwwrootCandidate))
+                return baseWwwrootCandidate;
+
+            foreach (string startDir in new[] { env.ContentRootPath, AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+            {
+                if (string.IsNullOrWhiteSpace(startDir))
+                    continue;
+
+                DirectoryInfo dir = new(startDir);
+                for (int i = 0; i < 6 && dir is not null; i++)
+                {
+                    string repoCandidate = Path.Combine(dir.FullName, "ArchScada", "Assets", "3D", "Exported", safeName);
+                    if (File.Exists(repoCandidate))
+                        return repoCandidate;
+                    dir = dir.Parent;
+                }
+            }
+
+            return null;
         }
 
 

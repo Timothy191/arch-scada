@@ -93,6 +93,7 @@ public sealed class Plant3DViewportControl : Panel
     }
 
     public bool IsHardwareAccelerated => _glCanvas.IsHardwareActive;
+    public int LastFrameDrawCalls => _glCanvas.LastFrameDrawCalls;
     public bool FreezeSimulationTime { get; set; }
     public bool CaptureOpenGlFrame
     {
@@ -752,12 +753,11 @@ public sealed class Plant3DViewportControl : Panel
                 {
                     var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
                     var coalBrush = GetBrush(matCol.R, matCol.G, matCol.B);
-                    var fullPts = c.GetFullFlowWaypoints();
                     int count = Math.Max(6, (int)(len / 0.9f));
                     for (int i = 0; i < count; i++)
                     {
                         float t = (float)((_owner._time * 0.24 * Math.Max(0.2, speed) + (double)i / count) % 1.0);
-                        var pos = Plant3DSceneData.SamplePolyline(fullPts, t);
+                        var pos = Plant3DSceneData.SampleConveyorCoalTrajectory(c, t);
                         if (Plant3DSceneData.TryProjectToScreen(pos, viewProj, w, h, out var pt, out _))
                             context.DrawEllipse(coalBrush, null, pt, 3.2, 3.2);
                     }
@@ -861,9 +861,12 @@ public sealed class Plant3DViewportControl : Panel
                 float ndotl = MathF.Max(0f, Vector3.Dot(n, lightDir));
                 float shade = 0.42f + 0.58f * ndotl;
 
-                float br = verts[i0 + 6] * (1f - tintMix) + (tint.R / 255f) * tintMix;
-                float bg = verts[i0 + 7] * (1f - tintMix) + (tint.G / 255f) * tintMix;
-                float bb = verts[i0 + 8] * (1f - tintMix) + (tint.B / 255f) * tintMix;
+                float lr = MathF.Pow(Math.Clamp(verts[i0 + 6], 0f, 1f), 1f / 2.2f);
+                float lg = MathF.Pow(Math.Clamp(verts[i0 + 7], 0f, 1f), 1f / 2.2f);
+                float lb = MathF.Pow(Math.Clamp(verts[i0 + 8], 0f, 1f), 1f / 2.2f);
+                float br = lr * (1f - tintMix) + (tint.R / 255f) * tintMix;
+                float bg = lg * (1f - tintMix) + (tint.G / 255f) * tintMix;
+                float bb = lb * (1f - tintMix) + (tint.B / 255f) * tintMix;
 
                 byte r = (byte)Math.Clamp(br * shade * 255f, 0, 255);
                 byte g = (byte)Math.Clamp(bg * shade * 255f, 0, 255);
@@ -1079,7 +1082,7 @@ public sealed class Plant3DViewportControl : Panel
         private void DrawHudFooter(DrawingContext context, double w, double h, Unity3DEffectSettings fx)
         {
             string mode = _owner._glCanvas.IsHardwareActive
-                ? $"GPU OpenGL · {_owner._glCanvas.LoadedGlbCount} GLB · {Plant3DSceneData.AllNodes.Count} GA Nodes"
+                ? $"GPU GGX-PBR · 4x MSAA · PCF · {_owner._glCanvas.LastFrameDrawCalls} draws"
                 : $"Software 3D · {Plant3DSceneData.LoadAllGlbMeshes().Count} GLB · {Plant3DSceneData.AllNodes.Count} GA Nodes";
 
             var badgeTxt = new FormattedText(mode, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10, GetBrush(56, 189, 248));

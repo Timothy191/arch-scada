@@ -39,6 +39,7 @@
     <Content Include="..\ScadaWebCommon\Lang\ScadaWeb.ru-RU.xml" Link="lang\ScadaWeb.ru-RU.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\..\ArchScada\Assets\3D\Exported\*.glb" Link="wwwroot\models3d\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,6 +50,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\ScadaCommon\ScadaCommon\ScadaCommon.csproj" />
     <ProjectReference Include="..\..\..\ScadaCommon\ScadaCommon.Log\ScadaCommon.Log.csproj" />
+    <ProjectReference Include="..\..\..\ScadaCommon\FileStorage\FileStorage.csproj" />
     <ProjectReference Include="..\ScadaWebCommon\ScadaWebCommon.csproj" />
   </ItemGroup>
 

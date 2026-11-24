@@ -732,6 +732,7 @@
                                         <CheckBox Content="Animate Conveyors / Loader / Crushers" IsChecked="{Binding UnityEffects.AnimateConveyors}" Foreground="#6B7280" />
                                         <CheckBox Content="Vibration Physics (VF / SS / DS)" IsChecked="{Binding UnityEffects.EnableVibrationPhysics}" Foreground="#6B7280" />
                                         <CheckBox Content="Ground Cast Shadows" IsChecked="{Binding UnityEffects.ShowGroundShadows}" Foreground="#6B7280" />
+                                        <CheckBox Content="Screen-Space Ambient Occlusion (SSAO)" IsChecked="{Binding UnityEffects.EnableAmbientOcclusion}" Foreground="#6B7280" />
                                         <CheckBox Content="Auto-Orbit Camera" IsChecked="{Binding UnityEffects.AutoOrbit}" Foreground="#6B7280" />
                                         <CheckBox Content="Orthographic Projection" IsChecked="{Binding UnityEffects.IsOrthographic}" Foreground="#6B7280" />
                                     </StackPanel>

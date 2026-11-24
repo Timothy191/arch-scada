@@ -164,3 +164,23 @@ Because `Projects/ArchCoalPlant/BaseXML/` (`Obj.xml`, `Device.xml`, `Cnl.xml`) a
 - **Managed Heap Footprint**: `32.73 MiB` (`34,315,816 B`) one-time mesh cache allocation; zero per-frame VBO re-uploads; lifecycle-aware `DispatcherTimer` stops automatically when the 3D tab is hidden; triangle-stride LOD (`stride 6` above 12k indices) protects headless software fallback.
 - **Automated Test Suite (`dotnet test Plant.sln -c Release -warnaserror`)**: **0 warnings, 0 errors, 157/157 tests passing** (`ArchScada.Desktop.Tests`: 50/50, `ArchScada.ControlBoundary.Tests`: 43/43, `ArchScada.CoreIntegration.Tests`: 39/39, `ScadaReport.Tests`: 14/14, `ScadaCommon.Tests`: 11/11).
 - **Multi-Angle Visual Inspection**: 8 live GPU HMI screenshots captured via `--capture-3d-views` confirming GA alignment, grounded trestles (`Y = 0`), continuous enclosed transfer chutes, loader ramp clearance, dual-stream convergence at `SS-101`, and prominent `SIMULATED DEMO TELEMETRY · READ-ONLY (No PLC Write)` provenance badges.
+
+---
+
+## 8. Tier 1–3 Graphics Engine Upgrade & Read-Only Web 3D Digital Twin
+
+To unify visual fidelity and spatial parity across the Desktop OpenGL HMI, Unity Editor builder, and browser-based `ScadaWeb` portal, the 3D CHPP rendering pipeline is structured into three tiers:
+
+- **Tier 1 — Offscreen Anti-Aliasing & Physically Based Shading (Desktop OpenGL):**
+  - **4× MSAA FBO:** Offscreen multisampled color + depth framebuffer (`GL_TEXTURE_2D_MULTISAMPLE`) resolved prior to display presentation to eliminate jagged structural edges on conveyor trestles, handrails, and screen decks.
+  - **Cook-Torrance GGX PBR + Sky IBL + ACES Tone Mapping:** Microfacet GGX normal distribution, Smith geometry shadowing, Schlick Fresnel (`F0`), procedural sky/ground hemisphere Image-Based Lighting (IBL), and ACES Filmic HDR-to-LDR tone mapping using per-vertex `[metallic, roughness]` attributes from the exported `.glb` assets.
+- **Tier 2 — Directional Shadow Mapping & Ambient Occlusion (Desktop OpenGL):**
+  - **2048² PCF Shadow Mapping:** Dedicated orthographic directional depth pass (`2048×2048`) with Percentage-Closer Filtering (PCF) for crisp grounded shadows across machines, elevated conveyors, and stockpiles.
+  - **Screen-Space Ambient Occlusion (SSAO):** Depth/normal kernel occlusion pass darkening crevices under crusher housings, transfer chutes, and concrete foundation pads.
+- **Tier 3 — GPU Instancing, Ballistic Chute Physics, Unity Sync & `ScadaWeb` `/DigitalTwin3D` Web Twin:**
+  - **GPU Hardware Instancing & Ballistic Chute Physics:** Instanced draw submission (`glDrawElementsInstanced` / `THREE.InstancedMesh`) for conveyor coal lumps, pipe parcels, and loader dump boulders with parabolic gravity trajectories at head-pulley transfer chutes.
+  - **Cross-Platform Coordinate Parity (`ArchScadaSceneBuilder.cs`):** Unity scene builder synchronized to `SP-001` `(-13.8, 0.0, 16.4)` and `FEL-101` `(-13.8, 0.0, 13.4)` matching Desktop and Web 100%.
+  - **Browser-Based `ScadaWeb` 3D Web Twin (`/DigitalTwin3D`):**
+    - **Strictly Read-Only Posture:** Exposes only `GET /DigitalTwin3D`, `GET /DigitalTwin3D?handler=Telemetry` (live Rapid SCADA `GetCurrentData` channels when connected & authenticated, or coupled `SIMULATED DEMO TELEMETRY · READ-ONLY` fallback when offline), and `GET /models3d/{fileName}` (`.glb` MIME `model/gltf-binary` with filename path-traversal guard). Enforced by `ReadOnlyHardeningMiddleware` (`X-Scada-Mode: read-only`, `403` on write methods, internal CIDR allowlist, sliding-window rate limiting).
+    - **Zero-Duplicate Asset Bundling:** `ScadaWeb.csproj` links `ArchScada/Assets/3D/Exported/*.glb` directly into `wwwroot/models3d/` on build/publish without duplicating binaries in git, alongside `FileStorage` runtime packaging and `deploy/scripts/install-local.sh` wrapper alignment.
+    - **Three.js PBR Renderer & Offline Fallback:** Loads all 16 `.glb` models at the exact 29-node GA coordinates with `RoomEnvironment` PMREM PBR IBL, `PCFSoftShadowMap` (`2048×2048`), ACES Filmic tone mapping, `THREE.InstancedMesh` coal lumps, 4-stage `FEL-101` loader/bucket shuttle, `JC-101` flywheels + swing jaw, `DRC-101` counter-rotating rolls, all 9 GA camera presets, raycast selection, dark/light HUD toggle, and an automatic offline Canvas2D GA fallback if the Three.js CDN is unreachable.

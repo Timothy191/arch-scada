@@ -101,6 +101,7 @@ chmod +x "$BIN_DIR/archscada-comm"
 
 cat > "$BIN_DIR/archscada-web" <<EOF
 #!/usr/bin/env bash
+cd "$PREFIX/ScadaWeb"
 exec dotnet "$PREFIX/ScadaWeb/ScadaWeb.dll" "\$@"
 EOF
 chmod +x "$BIN_DIR/archscada-web"
@@ -133,5 +134,5 @@ echo "Installation complete!"
 echo "  Desktop HMI : $BIN_DIR/archscada"
 echo "  SCADA Server: $BIN_DIR/archscada-server"
 echo "  SCADA Comm  : $BIN_DIR/archscada-comm"
-echo "  SCADA Web   : $BIN_DIR/archscada-web"
+echo "  SCADA Web   : $BIN_DIR/archscada-web (3D Web Twin: /DigitalTwin3D)"
 echo "  Desktop File: $APPS_DIR/archscada.desktop"

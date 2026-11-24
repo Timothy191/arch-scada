@@ -879,16 +879,24 @@ public static class Plant3DSceneData
             var exportDir = FindAssetsExportDirectory();
             if (exportDir is not null && Directory.Exists(exportDir))
             {
-                // Load all exported .glb files (including sub-parts like wheel_loader_bucket.glb)
+                // Load all exported .glb files (including sub-parts like wheel_loader_bucket.glb).
+                // Per-file catch: one bad mesh won't abort the entire GPU init.
                 foreach (var fullPath in Directory.EnumerateFiles(exportDir, "*.glb"))
                 {
                     var fileName = Path.GetFileName(fullPath);
                     if (_meshCache.ContainsKey(fileName))
                         continue;
 
-                    var mesh = GlbMeshLoader.Load(fullPath);
-                    if (mesh is not null)
-                        _meshCache[fileName] = mesh;
+                    try
+                    {
+                        var mesh = GlbMeshLoader.Load(fullPath);
+                        if (mesh is not null)
+                            _meshCache[fileName] = mesh;
+                    }
+                    catch
+                    {
+                        // Skip malformed GLB; the scene still renders with fallback primitives.
+                    }
                 }
             }
 
@@ -1460,6 +1468,54 @@ public static class Plant3DSceneData
             accum += seg;
         }
         return pts[^1];
+    }
+
+    /// <summary>
+    /// Samples a coal parcel along a conveyor: linear belt travel from TailPos to HeadPos for u in [0, 0.82],
+    /// followed by a Newtonian parabolic projectile discharge arc into the enclosed transfer chute for u in (0.82, 1.0].
+    /// </summary>
+    public static Vector3 SampleConveyorCoalTrajectory(ConveyorSpec conv, float u)
+    {
+        float uc = Math.Clamp(u, 0f, 1f);
+        const float beltEndU = 0.82f;
+        if (uc <= beltEndU)
+        {
+            return Vector3.Lerp(conv.TailPos, conv.HeadPos, uc / beltEndU);
+        }
+
+        float tauNorm = (uc - beltEndU) / (1f - beltEndU);
+        var chuteBot = conv.GetChuteBottomPos();
+        var delta = conv.HeadPos - conv.TailPos;
+        float beltLen = delta.Length();
+        var beltDir = beltLen > 1e-4f ? delta / beltLen : Vector3.UnitX;
+
+        const float beltSpeed = 2.6f;
+        const float gravity = 9.81f;
+        var vBelt = beltDir * beltSpeed;
+        float v0y = MathF.Max(0.25f, vBelt.Y * 0.45f);
+        float dropH = MathF.Max(0f, conv.HeadPos.Y - chuteBot.Y);
+        float fallTime = (v0y + MathF.Sqrt(v0y * v0y + 2f * gravity * dropH)) / gravity;
+        float t = tauNorm * fallTime;
+
+        float y = conv.HeadPos.Y + v0y * t - 0.5f * gravity * t * t;
+
+        float freeX = conv.HeadPos.X + vBelt.X * t;
+        float freeZ = conv.HeadPos.Z + vBelt.Z * t;
+        float cx = conv.HeadPos.X + (chuteBot.X - conv.HeadPos.X) * tauNorm;
+        float cz = conv.HeadPos.Z + (chuteBot.Z - conv.HeadPos.Z) * tauNorm;
+
+        float dx = freeX - cx;
+        float dz = freeZ - cz;
+        float dev = MathF.Sqrt(dx * dx + dz * dz);
+        float maxDev = MathF.Min(0.24f, conv.Width * 0.30f) * (1f - tauNorm);
+        if (dev > maxDev && dev > 1e-5f)
+        {
+            float scale = maxDev / dev;
+            dx *= scale;
+            dz *= scale;
+        }
+
+        return new Vector3(cx + dx, y, cz + dz);
     }
 
     /// <summary>

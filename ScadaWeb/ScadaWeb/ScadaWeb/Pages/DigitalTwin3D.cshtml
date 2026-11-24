@@ -1,0 +1,1789 @@
+@page
+@model DigitalTwin3DModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CHPP 3D Digital Twin (Read-Only) - Arch SCADA</title>
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
+    <style>
+        :root {
+            --bg-canvas: #070d1a;
+            --bg-panel: rgba(12, 20, 36, 0.90);
+            --bg-card: rgba(19, 30, 52, 0.86);
+            --bg-chip: rgba(30, 41, 59, 0.85);
+            --border: rgba(56, 189, 248, 0.22);
+            --border-strong: rgba(56, 189, 248, 0.45);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #38bdf8;
+            --accent-strong: #0284c7;
+            --emerald: #22c55e;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --teal: #14b8a6;
+            --shadow: 0 12px 32px rgba(2, 6, 23, 0.55);
+        }
+
+        html[data-theme="light"] {
+            --bg-canvas: #e2e8f0;
+            --bg-panel: rgba(248, 250, 252, 0.94);
+            --bg-card: rgba(255, 255, 255, 0.94);
+            --bg-chip: rgba(226, 232, 240, 0.92);
+            --border: rgba(15, 23, 42, 0.14);
+            --border-strong: rgba(2, 132, 199, 0.45);
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --accent: #0284c7;
+            --accent-strong: #0369a1;
+            --shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+        }
+
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-canvas);
+            color: var(--text-primary);
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-size: 12.5px;
+        }
+
+        #app-shell {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            grid-template-columns: 1fr 370px;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Top HUD Bar */
+        #top-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 14px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+            z-index: 30;
+        }
+
+        .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .brand-title {
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            font-size: 13.5px;
+            color: var(--text-primary);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .badge-ro {
+            background: rgba(2, 132, 199, 0.18);
+            border-color: rgba(56, 189, 248, 0.45);
+            color: var(--accent);
+        }
+
+        .badge-demo {
+            background: rgba(245, 158, 11, 0.16);
+            border-color: rgba(245, 158, 11, 0.45);
+            color: var(--amber);
+        }
+
+        .badge-live {
+            background: rgba(34, 197, 94, 0.16);
+            border-color: rgba(34, 197, 94, 0.45);
+            color: var(--emerald);
+        }
+
+        .kpi-strip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .kpi-chip {
+            background: var(--bg-chip);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px 8px;
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+
+        .kpi-chip .k { color: var(--text-muted); font-size: 10.5px; }
+        .kpi-chip .v { color: var(--text-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-hud {
+            background: var(--bg-chip);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 9px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-hud:hover {
+            border-color: var(--border-strong);
+            color: var(--accent);
+        }
+
+        .btn-hud.active {
+            background: rgba(56, 189, 248, 0.20);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* 3D Viewport */
+        #viewport-wrap {
+            position: relative;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 35%, #0f1b33 0%, var(--bg-canvas) 75%);
+        }
+
+        html[data-theme="light"] #viewport-wrap {
+            background: radial-gradient(circle at 50% 35%, #f1f5f9 0%, #cbd5e1 85%);
+        }
+
+        #gl-container, #fallback-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #labels-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .node-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            color: var(--text-primary);
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+
+        .node-label.selected {
+            border-color: var(--accent);
+            background: rgba(2, 132, 199, 0.88);
+            color: #fff;
+        }
+
+        .node-label .dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        /* Camera Preset Dock */
+        #camera-bar {
+            position: absolute;
+            left: 12px;
+            bottom: 12px;
+            right: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 10px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
+            z-index: 20;
+        }
+
+        .preset-btn {
+            background: var(--bg-chip);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 9px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .preset-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+        }
+
+        .preset-btn.active {
+            background: var(--accent-strong);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        #offline-banner {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            max-width: 520px;
+            padding: 8px 12px;
+            background: rgba(245, 158, 11, 0.16);
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 11.5px;
+            z-index: 25;
+            display: none;
+            backdrop-filter: blur(8px);
+        }
+
+        #status-pill {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 5px 10px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        /* Inspector Sidebar */
+        #inspector {
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 25;
+        }
+
+        .insp-header {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+
+        .insp-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .insp-id {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: 0.03em;
+        }
+
+        .insp-stage {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 2px;
+        }
+
+        .insp-ga {
+            font-size: 13.5px;
+            font-weight: 700;
+            margin-top: 3px;
+        }
+
+        .insp-body {
+            padding: 12px 14px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 11px;
+        }
+
+        .insp-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .insp-card h4 {
+            margin: 0 0 7px 0;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+
+        .kv-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px 10px;
+        }
+
+        .kv-item .k { font-size: 10px; color: var(--text-muted); }
+        .kv-item .v { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        .flow-links {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .node-pill {
+            background: var(--bg-chip);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 3px 7px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .node-pill:hover { border-color: var(--accent); color: var(--accent); }
+        .node-pill.current { background: var(--accent-strong); border-color: var(--accent); color: #fff; }
+
+        .node-directory {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            max-height: 155px;
+            overflow-y: auto;
+        }
+
+        .dir-btn {
+            background: var(--bg-chip);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .dir-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+        .dir-btn.active { background: var(--accent-strong); border-color: var(--accent); color: #fff; }
+
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 10.5px;
+            font-weight: 700;
+        }
+        .st-Running { background: rgba(34, 197, 94, 0.18); color: var(--emerald); border: 1px solid rgba(34, 197, 94, 0.45); }
+        .st-Warning { background: rgba(245, 158, 11, 0.18); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.45); }
+        .st-Fault { background: rgba(239, 68, 68, 0.22); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.55); }
+        .st-Stopped { background: rgba(100, 116, 139, 0.22); color: var(--text-secondary); border: 1px solid rgba(100, 116, 139, 0.45); }
+
+        @@media (max-width: 1024px) {
+            #app-shell {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 58vh 1fr;
+            }
+            #inspector {
+                border-left: none;
+                border-top: 1px solid var(--border);
+            }
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+<div id="app-shell">
+    <!-- Top HUD -->
+    <header id="top-bar">
+        <div class="brand-group">
+            <span class="brand-title">ARCH SCADA · CHPP 3D DIGITAL TWIN</span>
+            <span class="badge badge-ro" title="Zero PLC Write Path · HTTP GET Only">READ-ONLY · NO PLC WRITE</span>
+            <span id="provenance-badge" class="badge badge-demo">SIMULATED DEMO TELEMETRY · READ-ONLY</span>
+            <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES</span>
+        </div>
+
+        <div class="kpi-strip">
+            <div class="kpi-chip"><span class="k">ROM</span><span class="v" id="kpi-rom">640.0 t/h</span></div>
+            <div class="kpi-chip"><span class="k">Clean</span><span class="v" id="kpi-clean">408.0 t/h</span></div>
+            <div class="kpi-chip"><span class="k">Med SG</span><span class="v" id="kpi-sg">1.52</span></div>
+            <div class="kpi-chip"><span class="k">Water</span><span class="v" id="kpi-water">87.4%</span></div>
+            <div class="kpi-chip"><span class="k">Ash</span><span class="v" id="kpi-ash">9.40%</span></div>
+            <div class="kpi-chip"><span class="k">GLB</span><span class="v" id="kpi-glb">0/16</span></div>
+            <div class="kpi-chip"><span class="k">FPS</span><span class="v" id="kpi-fps">--</span></div>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-hud active" id="btn-labels">Labels</button>
+            <button type="button" class="btn-hud active" id="btn-arrows">Flow Chevrons</button>
+            <button type="button" class="btn-hud" id="btn-thermal">Thermal Heatmap</button>
+            <button type="button" class="btn-hud" id="btn-pause">Pause</button>
+            <button type="button" class="btn-hud" id="btn-theme">Light HUD</button>
+            <a class="btn-hud" href="~/About" title="ScadaWeb About">ScadaWeb</a>
+        </div>
+    </header>
+
+    <!-- 3D Viewport -->
+    <main id="viewport-wrap">
+        <div id="gl-container"></div>
+        <canvas id="fallback-canvas" style="display:none;"></canvas>
+        <div id="labels-overlay"></div>
+
+        <div id="offline-banner">
+            <strong>Offline Procedural Fallback Active:</strong> Three.js CDN could not be reached from this browser session. Displaying offline interactive GA schematic twin (read-only telemetry &amp; 29-node flow simulation remain active).
+        </div>
+
+        <div id="status-pill">PBR · ACES · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click</div>
+
+        <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets"></div>
+    </main>
+
+    <!-- Equipment Identification & Process Flow Inspector -->
+    <aside id="inspector" aria-label="Equipment Identification and Process Flow Inspector">
+        <div class="insp-header">
+            <div class="insp-title-row">
+                <span class="insp-id" id="insp-id">JC-101</span>
+                <span class="status-tag st-Running" id="insp-status">Running</span>
+            </div>
+            <div class="insp-stage" id="insp-stage">Stage 3 — Jaw Crushing</div>
+            <div class="insp-ga" id="insp-ga">Primary Jaw Crusher</div>
+        </div>
+
+        <div class="insp-body">
+            <div class="insp-card">
+                <h4>Live / Coupled Process Telemetry (Read-Only)</h4>
+                <div class="kv-grid">
+                    <div class="kv-item"><div class="k">Load / Rate</div><div class="v" id="insp-load">78.4%</div></div>
+                    <div class="kv-item"><div class="k">Throughput</div><div class="v" id="insp-tph">418.0 t/h</div></div>
+                    <div class="kv-item"><div class="k">Motor Power</div><div class="v" id="insp-kw">266.0 kW</div></div>
+                    <div class="kv-item"><div class="k">SCADA Group</div><div class="v" id="insp-scada">CR-101</div></div>
+                </div>
+                <div style="margin-top:8px; font-size:11px; color:var(--text-secondary);" id="insp-plc">
+                    Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)
+                </div>
+                <div style="margin-top:4px; font-size:11px; color:var(--emerald); font-weight:600;" id="insp-prov-note">
+                    [READ-ONLY] [SITE CONFIRMED]
+                </div>
+            </div>
+
+            <div class="insp-card">
+                <h4>Process Flow Topology</h4>
+                <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:5px;">Upstream → Selected → Downstream (click node to inspect)</div>
+                <div class="flow-links" id="insp-topology"></div>
+            </div>
+
+            <div class="insp-card">
+                <h4>Mechanical &amp; GA Specification</h4>
+                <div style="font-size:11.5px; font-weight:700; margin-bottom:5px;" id="insp-spec">3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW</div>
+                <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.45; margin-bottom:6px;" id="insp-principle"></div>
+                <div style="font-size:11px; color:var(--text-muted); line-height:1.4;" id="insp-desc"></div>
+            </div>
+
+            <div class="insp-card">
+                <h4>All 29 GA Plant Nodes (18 Machines + 11 Conveyors)</h4>
+                <div class="node-directory" id="node-directory"></div>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<script type="module">
+// =============================================================================
+// Authoritative 29-Node CHPP GA Scene Definition (100% synced with Desktop & Unity)
+// =============================================================================
+const MACHINE_NODES = [
+    { id: "SP-001", ga: "ROM Raw Coal Stockpile", stage: "Stage 1 — ROM Reception", type: "Stockpile", glb: "stockpile_cone.glb", pos: [-13.8, 0, 16.4], yaw: 0, scale: [1.1, 0.9, 1.1], half: [2.1, 1.35, 2.1], labelH: 2.9, color: "#475569", spec: "Ø 16 m × 5.2 m cone (0–300 mm ROM)", principle: "Bulk run-of-mine coal stockpile reclaimed via front-end wheel loader bucket cycles.", desc: "Unscreened ROM raw coal reserve (0–300 mm) feeding Stage 1 primary hopper loading.", up: [], down: ["FEL-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "FEL-101", ga: "Front-End Wheel Loader", stage: "Stage 1 — ROM Reception", type: "Mobile Wheel Loader", glb: "wheel_loader_chassis.glb", pos: [-13.8, 0, 13.4], yaw: 90, scale: [1, 1, 1], half: [1.1, 1.1, 1.4], labelH: 2.6, color: "#EAB308", spec: "3.4 m × 1.9 m × 2.4 m · 4.5 m³ rock bucket · 260 kW", principle: "4-stage shuttle cycle: scoop ROM at SP-001, climb BN-101 earthen ramp, raise boom (38°), tilt bucket (-58°) to dump, reverse.", desc: "Articulated diesel wheel loader with hydraulic lift arms and high-dump coal bucket.", up: ["SP-001"], down: ["BN-101"], scada: "AF-001", nomTph: 650, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "BN-101", ga: "Feeder Bin / Receiving Hopper", stage: "Stage 1 — ROM Reception", type: "Receiving Hopper", glb: "feeder_bin_bn101.glb", pos: [-13.8, 0, 8.8], yaw: 90, scale: [1, 1, 1], half: [1.7, 1.55, 1.9], labelH: 3.35, color: "#B45309", spec: "4.0 m × 3.6 m × 3.2 m · 45 t surge capacity", principle: "Gravity surge hopper with inclined steel dump ramp and wear-lined discharge throat onto grizzly feeder.", desc: "Heavy-plate ROM receiving bin with loader ramp (-X rotated South toward FEL-101) and surge level monitoring.", up: ["FEL-101"], down: ["VF-101"], scada: "AF-001", nomTph: 650, fill: { r: 0.95, baseY: 1.45, maxH: 1.35, color: "#F59E0B" }, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "VF-101", ga: "Primary Vibro Grizzly Feeder", stage: "Stage 2 — Initial Separation", type: "Vibrating Grizzly Feeder", glb: "vibro_feeder_vf101.glb", pos: [-13.8, 0.2, 6.2], yaw: 90, scale: [1, 1, 1], half: [1.1, 0.95, 1.4], labelH: 2.35, color: "#0284C7", spec: "3.2 m × 1.8 m × 1.7 m · 75 mm grizzly bar aperture · 30 kW", principle: "Dual eccentric unbalanced motors impart linear throw, scalping <75 mm fines onto CV-102 while advancing +75 mm oversize onto CV-101.", desc: "Heavy-duty tapered-bar grizzly feeder splitting ROM coal into Path A (Jaw Feed) and Path B (Undersize Bypass).", up: ["BN-101"], down: ["CV-101", "CV-102"], scada: "AF-001", nomTph: 650, vibrates: true, plc: "Derived Process Model (coupled to AF-001)" },
+    { id: "JC-101", ga: "Primary Jaw Crusher", stage: "Stage 3 — Jaw Crushing", type: "Jaw Crusher", glb: "jaw_crusher_jc101.glb", pos: [-13.8, 0, -0.6], yaw: 0, scale: [1, 1, 1], half: [1.4, 1.55, 1.3], labelH: 3.35, color: "#334155", spec: "3.1 m × 2.6 m × 3.0 m · CSS 110 mm · 315 kW", principle: "Eccentric shaft and twin flywheels drive a reciprocating corrugated swing jaw against a fixed manganese jaw plate.", desc: "Single-toggle primary jaw crusher reducing +75 mm ROM lumps to <110 mm before East discharge onto CV-103.", up: ["CV-101"], down: ["CV-103"], scada: "CR-101", nomTph: 420, plc: "Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)" },
+    { id: "DRC-101", ga: "Double Roller Crusher & Surge Hopper", stage: "Stage 4 — Double Roll Crushing", type: "Double Roll Crusher", glb: "double_roll_crusher_drc101.glb", pos: [-7.2, 0, -0.6], yaw: 0, scale: [1, 1, 1], half: [1.3, 1.65, 1.2], labelH: 3.55, color: "#475569", spec: "2.8 m × 2.4 m × 3.2 m · Ø 760 mm toothed rolls · 160 kW", principle: "Two counter-rotating toothed steel rolls nip and shear recirculated +50 mm oversize lumps with minimal fines generation.", desc: "Secondary toothed double-roll crusher with overhead feed surge hopper receiving CV-106 oversize and CV-103 primary crushed feed.", up: ["CV-106", "CV-103"], down: ["CV-104"], scada: "CR-101", nomTph: 530, plc: "Derived Process Model (coupled to CR-101)" },
+    { id: "SS-101", ga: "Central Multi-Deck Sizing Screen", stage: "Stage 6 — Central Sizing Screen", type: "Multi-Deck Vibrating Screen", glb: "central_sizing_screen_ss101.glb", pos: [0.2, 0, 0.5], yaw: 0, scale: [1, 1, 1], half: [2.1, 1.85, 1.45], labelH: 4.15, color: "#0284C7", spec: "4.4 m × 2.8 m × 3.7 m · 50 mm / 6 mm dual decks · 55 kW", principle: "Dual-shaft circular-motion screen classifies converged streams (CV-102 + CV-104) into +50 mm oversize (CV-106), 6–50 mm plant feed (CV-201), and <6 mm fines (CV-105).", desc: "Central sizing tower with twin overhead feed box, top-deck curved oversize chute, middlings chute, and under-screen fines hopper.", up: ["CV-102", "CV-104"], down: ["CV-106", "CV-201", "CV-105"], scada: "SC-102", nomTph: 760, vibrates: true, plc: "Direct PLC: SC102 (Modbus 10.10.1.12:502 · Cnl 111–112)" },
+    { id: "BN-201", ga: "Plant Feed Surge Bin", stage: "Wash Plant & Medium Recovery", type: "Surge Bin", glb: "surge_bin_bn201.glb", pos: [11.8, 0, -0.8], yaw: 0, scale: [1, 1, 1], half: [1.45, 1.95, 1.45], labelH: 4.15, color: "#0EA5E9", spec: "3.0 m × 3.0 m × 3.9 m · 60 t live surge", principle: "Elevated conical-bottom surge bin buffering dry plant feed fluctuations before steady-rate wet wash plant feeding.", desc: "Structural steel-legged surge bin receiving sized 6–50 mm feed from CV-201 and discharging onto CV-202.", up: ["CV-201"], down: ["CV-202"], scada: "SL-601", nomTph: 510, fill: { r: 1.05, baseY: 1.65, maxH: 1.65, color: "#60A5FA" }, plc: "Derived Process Model (coupled to SL-601)" },
+    { id: "DS-201", ga: "Desliming Screen & Vibro Feeder", stage: "Wash Plant & Medium Recovery", type: "Desliming Screen", glb: "desliming_screen_ds201.glb", pos: [8.8, 0, -9.8], yaw: 180, scale: [1, 1, 1], half: [1.7, 1.45, 1.25], labelH: 3.15, color: "#06B6D4", spec: "3.5 m × 2.4 m × 2.8 m · 0.5 mm wedge-wire · 45 kW", principle: "High-pressure rinse sprays and high-G vibration strip <0.5 mm slimes so magnetite dense medium is not contaminated by clays.", desc: "Wet desliming screen & feed chute receiving CV-202 and discharging washed +0.5 mm coal West onto CV-203.", up: ["CV-202"], down: ["CV-203"], scada: "SC-102", nomTph: 510, vibrates: true, plc: "Derived Process Model (coupled to SC-102)" },
+    { id: "WP-301", ga: "Dense-Medium Wash Plant, Cyclone, Dewatering Screen, Control Room & MCC", stage: "Wash Plant & Medium Recovery", type: "Dense-Medium Cyclone Module", glb: "wash_plant_module_wp301.glb", pos: [-0.8, 0, -7.8], yaw: 0, scale: [1, 1, 1], half: [3.3, 2.35, 2.2], labelH: 4.95, color: "#1D4ED8", spec: "6.8 m × 4.4 m × 4.7 m multi-level module · SG 1.52 · 315 kW", principle: "Centrifugal dense-medium cyclone separates low-density clean coal (overflow) from high-density shale discard (underflow) at SG 1.52, followed by drain-and-rinse dewatering.", desc: "Integrated wash plant structure housing mixing box, DMC cyclone, clean coal & discard dewatering screens, and elevated MCC / Control Room.", up: ["CV-203", "TK-301"], down: ["CV-301", "CV-302", "MS-301"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–305)" },
+    { id: "MS-301", ga: "Wet-Drum Magnetic Separator (Macsep)", stage: "Wash Plant & Medium Recovery", type: "Magnetic Separator", glb: "magnetic_separator_ms301.glb", pos: [-1.6, 0, -11.4], yaw: 0, scale: [1, 1, 1], half: [1.1, 1.0, 0.9], labelH: 2.55, color: "#0D9488", spec: "2.2 m × 1.8 m × 2.0 m · 96.4% recovery · 76.8 kW", principle: "Rotating permanent-magnet drum captures ferromagnetic magnetite particles from dilute rinse water while non-magnetic slimes report to thickener.", desc: "Concurrent wet-drum magnetic separator recovering dense-medium magnetite for return to TK-301.", up: ["WP-301"], down: ["TK-301"], scada: "MS-301", nomTph: 320, rotTop: { y: 1.38, len: 1.45, speed: 1.8 }, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" },
+    { id: "TK-301", ga: "Magnetite Medium Tank", stage: "Wash Plant & Medium Recovery", type: "Medium Sump Tank", glb: "magnetite_tank_tk301.glb", pos: [-5.4, 0, -12.0], yaw: 0, scale: [1, 1, 1], half: [1.45, 1.7, 1.45], labelH: 3.75, color: "#B45309", spec: "Ø 2.9 m × 3.4 m · SG 1.52 controlled · 32 kW", principle: "Agitated holding sump blending recovered magnetite with clarified dilution water to maintain target cyclone medium specific gravity.", desc: "Correct-medium sump tank feeding WP-301 mixing box and receiving magnetite concentrate from MS-301.", up: ["MS-301", "PP-201"], down: ["WP-301"], scada: "TK-301", nomTph: 320, fill: { r: 1.24, baseY: 0.22, maxH: 2.05, color: "#14B8A6" }, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–302)" },
+    { id: "TK-201", ga: "High-Rate Thickener", stage: "Wash Plant & Medium Recovery", type: "High-Rate Thickener", glb: "thickener_tk201.glb", pos: [-1.2, 0, -15.8], yaw: 0, scale: [1, 1, 1], half: [2.85, 1.3, 2.85], labelH: 2.95, color: "#1E40AF", spec: "Ø 5.7 m × 2.6 m · flocculant-assisted · 92 kW", principle: "Rotating central rake mechanism consolidates flocculated fine tailings to the underflow cone while clarified water overflows the peripheral launder.", desc: "High-rate clarifier/thickener closing the plant process water loop (87.4% water recovery).", up: ["WP-301", "PP-203"], down: ["PP-201", "PP-202"], scada: "TK-201", nomTph: 320, fill: { r: 2.52, baseY: 0.25, maxH: 1.30, color: "#38BDF8" }, rotTop: { y: 1.92, len: 5.4, speed: 0.45 }, plc: "Direct PLC: TK201 (Modbus 10.10.2.21:502 · Cnl 201–203)" },
+    { id: "PP-201", ga: "Underflow Pump A (Duty)", stage: "Wash Plant & Medium Recovery", type: "Centrifugal Slurry Pump", glb: "centrifugal_pump.glb", pos: [-4.6, 0, -15.0], yaw: 0, scale: [1, 1, 1], half: [0.8, 0.7, 0.6], labelH: 1.75, color: "#0EA5E9", spec: "1.6 m × 1.2 m × 1.4 m · 385 m³/h @@ 4.2 bar · 110.5 kW", principle: "Rubber-lined centrifugal impeller pumps thickened underflow slurry from TK-201 cone.", desc: "Primary duty thickener underflow pump with VFD speed control.", up: ["TK-201"], down: ["TK-301"], scada: "PP-201", nomTph: 320, plc: "Direct PLC: PP201 (Modbus 10.10.2.22:502 · Cnl 211–212)" },
+    { id: "PP-202", ga: "Underflow Pump B (Standby)", stage: "Wash Plant & Medium Recovery", type: "Centrifugal Slurry Pump", glb: "centrifugal_pump.glb", pos: [-4.6, 0, -16.3], yaw: 0, scale: [1, 1, 1], half: [0.8, 0.7, 0.6], labelH: 1.75, color: "#475569", spec: "1.6 m × 1.2 m × 1.4 m · Standby unit · 110.5 kW", principle: "Hot-standby centrifugal pump manifolded in parallel with PP-201 for zero-downtime changeover.", desc: "Redundant thickener underflow pump (typically Stopped in standby).", up: ["TK-201"], down: ["TK-301"], scada: "PP-202", nomTph: 320, plc: "Direct PLC: PP202 (Modbus 10.10.2.23:502 · Cnl 221)" },
+    { id: "PP-203", ga: "Flocculant & Clarified Water Pump", stage: "Wash Plant & Medium Recovery", type: "Dosing / Return Pump", glb: "centrifugal_pump.glb", pos: [2.2, 0, -15.0], yaw: 180, scale: [0.95, 0.95, 0.95], half: [0.75, 0.7, 0.6], labelH: 1.70, color: "#10B981", spec: "1.5 m × 1.1 m × 1.3 m · 24.5 L/min dosing · 14.2 kW", principle: "Metered flocculant & clarified water return pump supporting rapid settling in TK-201 and rinse sprays at WP-301.", desc: "Thickener flocculant dosing and clarified process water booster pump.", up: ["TK-201"], down: ["WP-301"], scada: "PP-203", nomTph: 320, plc: "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)" },
+    { id: "SP-301", ga: "Clean Product Coal Stockpile", stage: "Wash Plant & Medium Recovery", type: "Product Stockpile", glb: "stockpile_cone.glb", pos: [-9.8, 0, -5.2], yaw: 0, scale: [1.05, 0.88, 1.05], half: [1.9, 1.3, 1.9], labelH: 2.8, color: "#22C55E", spec: "Ø 14 m × 4.6 m · Low-ash product (9.4% ash)", principle: "Conical radial discharge pile built by Product Conv CV-301 below dewatering screen.", desc: "Washed clean coal product stockpile (9.4% ash, 27.8 MJ/kg) ready for dispatch.", up: ["CV-301"], down: [], scada: "SL-601", nomTph: 410, plc: "Direct OPC UA: AN601 (10.10.6.61:4840 · Cnl 601–604)" },
+    { id: "SP-302", ga: "Discard / Refuse Stockpile", stage: "Wash Plant & Medium Recovery", type: "Discard Stockpile", glb: "stockpile_cone.glb", pos: [-10.6, 0, -8.2], yaw: 0, scale: [0.95, 0.78, 0.95], half: [1.7, 1.15, 1.7], labelH: 2.55, color: "#EF4444", spec: "Ø 12 m × 4.0 m · High-ash shale discard", principle: "Conical refuse pile fed by Discard Conv CV-302 from cyclone sinks dewatering.", desc: "High-density rock/shale reject stockpile separated by dense-medium cyclone.", up: ["CV-302"], down: [], scada: "CV-501", nomTph: 100, plc: "Derived Process Model (coupled to CV-501)" }
+];
+
+const CONVEYORS = [
+    { id: "CV-101", ga: "Jaw feed conv", stage: "Stage 2 — Initial Separation", tail: [-13.8, 0.85, 5.4], head: [-13.8, 3.55, 0.8], width: 0.95, dropY: 2.15, dropOff: [0, 0, -0.95], matCol: "#A16207", lump: 0.23, scada: "CV-101", up: ["VF-101"], down: ["JC-101"], nomTph: 420, spec: "5.3 m inclined · 1200 mm belt · 35° trough · 142 kW", principle: "Troughed belt elevating +75 mm grizzly oversize from VF-101 into Primary Jaw Crusher JC-101 feed throat.", desc: "Stage 2 Path A conveyor with tail skirtboard, safety walkway, and enclosed head chute into JC-101.", plc: "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122, 711)" },
+    { id: "CV-102", ga: "Under size conv", stage: "Stage 2 — Initial Separation", tail: [-12.8, 0.65, 6.1], head: [-1.9, 4.15, 1.15], width: 0.85, dropY: 2.95, dropOff: [0.65, 0, -0.25], matCol: "#64748B", lump: 0.15, scada: "CV-102", up: ["VF-101"], down: ["SS-101"], nomTph: 230, spec: "12.5 m diagonal NE · 900 mm belt · 16° incline · 118.6 kW", principle: "Scalped <75 mm grizzly undersize bypasses crushing and conveys directly NE into Central Sizing Screen SS-101 dual feed box (Stream #1).", desc: "Stage 2 Path B bypass conveyor with structural support bents and maintenance walkway.", plc: "Direct PLC: CV102 (Modbus 10.10.1.14:502 · Cnl 131–132, 712)" },
+    { id: "CV-103", ga: "Sizing screen feed", stage: "Stage 3 — Jaw Crushing", tail: [-12.5, 0.75, -0.6], head: [-8.3, 2.75, -0.6], width: 0.95, dropY: 1.35, dropOff: [0.85, 0, 0.10], matCol: "#94A3B8", lump: 0.17, scada: "CV-101", up: ["JC-101"], down: ["DRC-101"], nomTph: 420, spec: "4.6 m East · 1200 mm belt · 24° incline · 55 kW", principle: "Collects <110 mm primary crushed discharge under JC-101 and transfers East into DRC-101 bypass/transfer chute onto CV-104.", desc: "Jaw crusher discharge conveyor linking Stage 3 to the Stage 4–5 transfer tower.", plc: "Derived Process Model (coupled to CV-101)" },
+    { id: "CV-106", ga: "Oversize conv", stage: "Stage 4 — Double Roll Crushing", tail: [1.8, 2.55, -1.8], head: [-7.2, 4.35, -1.8], width: 0.82, dropY: 2.85, dropOff: [0, 0, 0.85], matCol: "#F59E0B", lump: 0.21, scada: "CV-102", up: ["SS-101"], down: ["DRC-101"], nomTph: 110, feedChute: [[2.2, 3.15, 0.3], [2.4, 2.85, -1.8], [1.8, 2.55, -1.8]], spec: "9.2 m West return · 900 mm belt · closed circuit · 45 kW", principle: "Closed-circuit recirculation conveyor returning +50 mm top-deck oversize from SS-101 curved chute West into DRC-101 surge hopper.", desc: "Elevated return belt with curved SS-101 oversize entry chute and overhead discharge into Double Roller Crusher.", plc: "Derived Process Model (coupled to CV-102)" },
+    { id: "CV-104", ga: "Sizing screen feed conv", stage: "Stage 5 — Secondary Transfer", tail: [-6.3, 0.80, -0.4], head: [-1.9, 4.20, 0.15], width: 0.95, dropY: 2.95, dropOff: [0.65, 0, 0.15], matCol: "#CBD5E1", lump: 0.13, scada: "CV-101", up: ["DRC-101"], down: ["SS-101"], nomTph: 530, spec: "5.6 m East incline · 1200 mm belt · 75 kW", principle: "Elevates combined DRC-101 roll-crushed product and CV-103 primary stream into SS-101 dual feed box alongside CV-102 (Stream #2).", desc: "Stage 5 convergence conveyor delivering crushed coal to Central Sizing Screen SS-101.", plc: "Derived Process Model (coupled to CV-101)" },
+    { id: "CV-105", ga: "Fines conv under the sizing screen", stage: "Stage 6 — Central Sizing Screen", tail: [-1.2, 0.55, 0.5], head: [2.8, 1.15, 2.2], width: 0.78, dropY: 0.25, dropOff: [0.25, 0, 0.10], matCol: "#38BDF8", lump: 0.09, scada: "CV-102", up: ["SS-101"], down: [], nomTph: 140, spec: "4.4 m SE takeoff · 900 mm belt · 30 kW", principle: "Extracts <6 mm dry fines from SS-101 under-pan hopper away from the coarse dense-medium wash plant circuit.", desc: "Under-screen fines takeaway conveyor routing <6 mm dry coal to fines handling.", plc: "Derived Process Model (coupled to CV-102)" },
+    { id: "CV-201", ga: "Plant feed conv", stage: "Stage 6 — Central Sizing Screen", tail: [2.3, 1.45, 0.4], head: [10.6, 4.25, -0.8], width: 0.92, dropY: 3.10, dropOff: [0.95, 0, 0], matCol: "#60A5FA", lump: 0.13, scada: "CV-101", up: ["SS-101"], down: ["BN-201"], nomTph: 510, spec: "8.8 m East · 1200 mm belt · 19° incline · 132 kW", principle: "Carries sized 6–50 mm middlings from SS-101 East into Plant Feed Surge Bin BN-201.", desc: "Main plant feed transfer conveyor bridging dry screening (Stage 6) and the wet washing plant.", plc: "Derived Process Model (coupled to CV-101)" },
+    { id: "CV-202", ga: "Desliming screen feed", stage: "Wash Plant & Medium Recovery", tail: [11.4, 0.85, -1.9], head: [9.6, 3.95, -8.6], width: 0.90, dropY: 2.55, dropOff: [-0.45, 0, -0.85], matCol: "#60A5FA", lump: 0.13, scada: "CV-101", up: ["BN-201"], down: ["DS-201"], nomTph: 510, spec: "7.6 m NNW · 1200 mm belt · 24° incline · 110 kW", principle: "Draws metered feed from BN-201 discharge gate North-Northwest to Desliming Screen DS-201.", desc: "Inclined surge-bin reclaim conveyor feeding the wet desliming station.", plc: "Derived Process Model (coupled to CV-101)" },
+    { id: "CV-203", ga: "Cyclone feed conv", stage: "Wash Plant & Medium Recovery", tail: [7.2, 1.85, -9.6], head: [2.6, 3.65, -8.1], width: 0.90, dropY: 2.35, dropOff: [-0.85, 0, 0.25], matCol: "#2DD4BF", lump: 0.12, scada: "DM-301", up: ["DS-201"], down: ["WP-301"], nomTph: 510, spec: "5.2 m WSW · 1200 mm belt · 20° incline · 90 kW", principle: "Delivers deslimed +0.5 mm coal from DS-201 into WP-301 Dense-Medium Mixing Box.", desc: "Wash plant cyclone feed conveyor linking desliming screen and dense-medium module.", plc: "Derived Process Model (coupled to DM-301)" },
+    { id: "CV-301", ga: "Product conv", stage: "Wash Plant & Medium Recovery", tail: [-4.2, 2.10, -6.8], head: [-8.8, 2.65, -5.4], width: 0.85, dropY: 1.55, dropOff: [-0.75, 0, 0.15], matCol: "#22C55E", lump: 0.12, scada: "CV-102", up: ["WP-301"], down: ["SP-301"], nomTph: 410, spec: "4.8 m WSW · 900 mm belt · 75 kW", principle: "Conveys dewatered low-ash clean coal product from WP-301 onto Product Stockpile SP-301.", desc: "Clean coal product stacker conveyor.", plc: "Derived Process Model (coupled to CV-102)" },
+    { id: "CV-302", ga: "discard conv", stage: "Wash Plant & Medium Recovery", tail: [-4.4, 2.05, -8.4], head: [-9.6, 2.55, -8.2], width: 0.80, dropY: 1.45, dropOff: [-0.75, 0, 0], matCol: "#EF4444", lump: 0.16, scada: "CV-501", up: ["WP-301"], down: ["SP-302"], nomTph: 100, spec: "5.2 m WSW · 900 mm belt · 74.5 kW", principle: "Conveys high-ash shale sinks from WP-301 refuse screen onto Discard Stockpile SP-302.", desc: "Plant reject / shale discard stacker conveyor.", plc: "Derived Process Model (coupled to CV-501)" }
+];
+
+const ALL_NODES = [
+    ...MACHINE_NODES.map(m => ({ ...m, isConveyor: false })),
+    ...CONVEYORS.map(c => ({
+        id: c.id,
+        ga: c.ga,
+        stage: c.stage,
+        type: "Belt Conveyor",
+        pos: [(c.tail[0] + c.head[0]) * 0.5, (c.tail[1] + c.head[1]) * 0.5, (c.tail[2] + c.head[2]) * 0.5],
+        labelH: Math.max(c.tail[1], c.head[1]) - (c.tail[1] + c.head[1]) * 0.5 + 1.05,
+        color: c.matCol,
+        spec: c.spec,
+        principle: c.principle,
+        desc: c.desc,
+        up: c.up,
+        down: c.down,
+        scada: c.scada,
+        nomTph: c.nomTph,
+        plc: c.plc,
+        isConveyor: true
+    }))
+];
+
+const NODE_BY_ID = Object.fromEntries(ALL_NODES.map(n => [n.id, n]));
+
+const FOUNDATION_PADS = [
+    { name: "STAGE 1–2", center: [-13.8, -0.06, 11.4], size: [6.0, 0.12, 15.8], accent: "#F59E0B" },
+    { name: "STAGE 3–5", center: [-10.5, -0.06, -0.8], size: [10.2, 0.12, 4.4], accent: "#FB923C" },
+    { name: "STAGE 6", center: [0.4, -0.06, 0.6], size: [5.6, 0.12, 4.8], accent: "#38BDF8" },
+    { name: "SURGE & DESLIMING", center: [10.4, -0.06, -5.2], size: [6.2, 0.12, 12.0], accent: "#0EA5E9" },
+    { name: "WASH PLANT & PILES", center: [-5.0, -0.06, -7.2], size: [14.5, 0.12, 6.2], accent: "#22C55E" },
+    { name: "MEDIUM & THICKENER", center: [-1.6, -0.06, -13.9], size: [11.6, 0.12, 7.6], accent: "#14B8A6" }
+];
+
+const PIPE_ROUTES = [
+    { src: "MS-301", color: "#14B8A6", r: 0.07, pts: [[-1.0, 1.35, -9.2], [-1.0, 1.35, -11.4], [-1.6, 1.35, -11.4]] },
+    { src: "MS-301", color: "#14B8A6", r: 0.07, pts: [[-2.3, 1.10, -11.4], [-5.4, 1.10, -11.4], [-5.4, 1.10, -12.0]] },
+    { src: "DM-301", color: "#14B8A6", r: 0.08, pts: [[-5.4, 1.45, -12.0], [-5.4, 1.45, -7.8], [-2.4, 1.45, -7.8]] },
+    { src: "WP-301", color: "#38BDF8", r: 0.08, pts: [[-0.8, 0.90, -9.4], [-0.8, 0.90, -13.5], [-1.2, 1.85, -15.8]] },
+    { src: "PP-201", color: "#38BDF8", r: 0.075, pts: [[-1.2, 0.45, -15.8], [-4.6, 0.45, -15.8], [-4.6, 0.45, -15.0], [-5.4, 0.95, -15.0], [-5.4, 0.95, -12.0]] },
+    { src: "PP-203", color: "#22C55E", r: 0.07, pts: [[1.4, 1.45, -15.8], [2.2, 1.45, -15.8], [2.2, 0.65, -15.0], [2.2, 1.10, -8.8], [0.8, 1.10, -8.8]] }
+];
+
+// 9 GA Camera Presets matching Desktop & Unity
+const CAMERA_PRESETS = [
+    { name: "Plant Overview", yaw: -0.58, pitch: 0.56, zoom: 0.52, tx: -1.8, tz: -1.2 },
+    { name: "Top-Down GA Layout", yaw: 0.0, pitch: 1.48, zoom: 0.42, tx: -1.6, tz: -0.2 },
+    { name: "Front View (South)", yaw: 0.0, pitch: 0.24, zoom: 0.72, tx: -4.5, tz: 2.0 },
+    { name: "Side View (West)", yaw: -1.57, pitch: 0.28, zoom: 0.92, tx: -13.5, tz: 7.8 },
+    { name: "Stage 1: Loader & Feeder", yaw: -1.18, pitch: 0.38, zoom: 1.18, tx: -13.8, tz: 11.4 },
+    { name: "Stage 2–3: Jaw Crusher", yaw: -0.55, pitch: 0.44, zoom: 1.48, tx: -12.5, tz: 1.6 },
+    { name: "Stage 4–5: Double Roll Crusher", yaw: -0.35, pitch: 0.46, zoom: 1.48, tx: -5.2, tz: -0.8 },
+    { name: "Stage 6: Central Sizing Screen", yaw: -0.48, pitch: 0.48, zoom: 1.48, tx: 0.0, tz: 0.5 },
+    { name: "Wash Plant & Thickener", yaw: -0.45, pitch: 0.58, zoom: 0.78, tx: -0.8, tz: -11.8 }
+];
+
+// =============================================================================
+// Application State & Coupled 16-Pass Process Flow Solver
+// =============================================================================
+const state = {
+    selectedId: "JC-101",
+    activePreset: "Plant Overview",
+    showLabels: true,
+    showArrows: true,
+    thermalHeatmap: false,
+    paused: false,
+    simTime: 0,
+    telemetry: null,
+    flowMap: {},
+    loadedGlbSet: new Set()
+};
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+
+function computeLoaderPose(simTime, active) {
+    if (!active) {
+        return { x: -13.8, y: 0, z: 13.4, yaw: 90, pitch: 0, boom: 8, dump: 0, dumping: false, dumpInt: 0, binPulse: 0 };
+    }
+    const cycle = 12.0;
+    const t = ((simTime % cycle) + cycle) % cycle / cycle;
+    const zStock = 14.3, zTop = 11.75, zToe = 13.1, yTop = 0.88;
+    let z, y, yaw, pitch, boom, dump = 0, dumping = false, dumpInt = 0;
+
+    if (t < 0.14) {
+        const u = smooth01(t / 0.14);
+        z = zStock + Math.sin(u * Math.PI) * 0.25;
+        y = 0; yaw = -90; pitch = 0; boom = 4 + u * 6; dump = 12 * (1 - u);
+    } else if (t < 0.32) {
+        const u = smooth01((t - 0.14) / 0.18);
+        const turnU = smooth01(Math.min(1, (t - 0.14) / 0.08));
+        z = lerp(zStock, zTop, u);
+        const rf = Math.max(0, Math.min(1, (zToe - z) / (zToe - zTop)));
+        y = rf * yTop; yaw = lerp(-90, 90, turnU); pitch = rf * 14; boom = lerp(10, 38, u);
+    } else if (t <= 0.48) {
+        const u = (t - 0.32) / 0.16;
+        z = zTop; y = yTop; yaw = 90; pitch = 14; boom = 38;
+        const dc = Math.sin(u * Math.PI);
+        dump = (u >= 0.18 && u <= 0.78) ? -58 : -58 * smooth01(Math.min(u * 2.2, 1) * (u < 0.85 ? 1 : (1 - (u - 0.85) / 0.15)));
+        dumping = true; dumpInt = dc;
+    } else if (t < 0.74) {
+        const u = smooth01((t - 0.48) / 0.26);
+        z = lerp(zTop, zStock, u);
+        const rf = Math.max(0, Math.min(1, (zToe - z) / (zToe - zTop)));
+        y = rf * yTop; yaw = 90; pitch = rf * 14; boom = lerp(38, 6, u);
+        dump = lerp(-58, 0, Math.min(1, u * 1.6));
+    } else {
+        const u = smooth01((t - 0.74) / 0.26);
+        z = zStock; y = 0; yaw = lerp(90, -90, u); pitch = 0; boom = lerp(6, 4, u); dump = lerp(0, 12, u);
+    }
+    return { x: -13.8, y, z, yaw, pitch, boom, dump, dumping, dumpInt, binPulse: dumping ? 0.14 * dumpInt : 0 };
+}
+
+function getEqSpeedFactor(eq) {
+    if (!eq) return 0.78;
+    if (eq.status === "Stopped" || eq.status === "Fault" || eq.status === "Offline") return 0.0;
+    return Math.max(0.35, Math.min(1.30, 0.35 + (eq.loadPct / 100.0) * 0.95));
+}
+
+function evaluateProcessFlows(simTime) {
+    const eqMap = state.telemetry?.equipment || {};
+    const rates = {};
+    const localSpeeds = {};
+    for (const n of ALL_NODES) {
+        const s = getEqSpeedFactor(eqMap[n.scada]);
+        localSpeeds[n.id] = s;
+        rates[n.id] = s;
+    }
+    const lp = computeLoaderPose(simTime, (localSpeeds["FEL-101"] || 0) > 0);
+    const binWave = 0.92 + 0.16 * lp.dumpInt;
+
+    for (let pass = 0; pass < 16; pass++) {
+        let maxDelta = 0;
+        for (const n of ALL_NODES) {
+            const local = localSpeeds[n.id];
+            if (local <= 0) {
+                maxDelta = Math.max(maxDelta, Math.abs(rates[n.id]));
+                rates[n.id] = 0;
+                continue;
+            }
+            if (n.up.length === 0) {
+                maxDelta = Math.max(maxDelta, Math.abs(rates[n.id] - local));
+                rates[n.id] = local;
+                continue;
+            }
+            let upFactor = 0;
+            if (n.id === "SS-101") upFactor = 0.45 * (rates["CV-102"] || 0) + 0.55 * (rates["CV-104"] || 0);
+            else if (n.id === "DRC-101") upFactor = rates["CV-106"] || 0;
+            else if (n.id === "CV-104") upFactor = 0.72 * (rates["CV-103"] || 0) + 0.28 * (rates["DRC-101"] || 0);
+            else if (n.id === "WP-301") upFactor = (rates["CV-203"] || 0) * ((rates["TK-301"] || 0) > 0.05 ? 1.0 : 0.25);
+            else if (n.id === "BN-101") upFactor = (rates["FEL-101"] || 0) * binWave;
+            else {
+                for (const u of n.up) upFactor = Math.max(upFactor, rates[u] || 0);
+            }
+            const nextRate = Math.max(0, Math.min(1.35, local * Math.max(0, Math.min(1.25, upFactor))));
+            maxDelta = Math.max(maxDelta, Math.abs(nextRate - rates[n.id]));
+            rates[n.id] = nextRate;
+        }
+        if (maxDelta < 1e-4) break;
+    }
+
+    const out = {};
+    for (const n of ALL_NODES) {
+        const local = localSpeeds[n.id];
+        const eff = rates[n.id];
+        out[n.id] = {
+            rate: eff,
+            running: local > 0,
+            starved: local > 0 && n.up.length > 0 && eff < 0.05,
+            tph: Math.round(n.nomTph * eff * 10) / 10
+        };
+    }
+    state.flowMap = out;
+}
+
+// =============================================================================
+// Inspector & HUD UI Wiring
+// =============================================================================
+function buildUiChrome() {
+    const camBar = document.getElementById("camera-bar");
+    CAMERA_PRESETS.forEach((p, idx) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "preset-btn" + (p.name === state.activePreset ? " active" : "");
+        btn.textContent = `${idx + 1}. ${p.name}`;
+        btn.dataset.preset = p.name;
+        btn.addEventListener("click", () => applyCameraPreset(p.name));
+        camBar.appendChild(btn);
+    });
+
+    const dir = document.getElementById("node-directory");
+    ALL_NODES.forEach(n => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "dir-btn" + (n.id === state.selectedId ? " active" : "");
+        b.textContent = n.id;
+        b.dataset.nodeId = n.id;
+        b.title = `${n.id} — ${n.ga}`;
+        b.addEventListener("click", () => selectNode(n.id, true));
+        dir.appendChild(b);
+    });
+
+    document.getElementById("btn-labels").addEventListener("click", e => {
+        state.showLabels = !state.showLabels;
+        e.currentTarget.classList.toggle("active", state.showLabels);
+        document.getElementById("labels-overlay").style.display = state.showLabels ? "block" : "none";
+    });
+    document.getElementById("btn-arrows").addEventListener("click", e => {
+        state.showArrows = !state.showArrows;
+        e.currentTarget.classList.toggle("active", state.showArrows);
+    });
+    document.getElementById("btn-thermal").addEventListener("click", e => {
+        state.thermalHeatmap = !state.thermalHeatmap;
+        e.currentTarget.classList.toggle("active", state.thermalHeatmap);
+    });
+    document.getElementById("btn-pause").addEventListener("click", e => {
+        state.paused = !state.paused;
+        e.currentTarget.textContent = state.paused ? "Resume" : "Pause";
+        e.currentTarget.classList.toggle("active", state.paused);
+    });
+    document.getElementById("btn-theme").addEventListener("click", e => {
+        const root = document.documentElement;
+        const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        e.currentTarget.textContent = next === "dark" ? "Light HUD" : "Dark HUD";
+        if (window.__updateThreeTheme) window.__updateThreeTheme(next);
+    });
+
+    window.addEventListener("keydown", ev => {
+        if (ev.target && ["INPUT", "TEXTAREA", "SELECT"].includes(ev.target.tagName)) return;
+        if (ev.key >= "1" && ev.key <= "9") {
+            const p = CAMERA_PRESETS[Number(ev.key) - 1];
+            if (p) applyCameraPreset(p.name);
+        } else if (ev.key === "r" || ev.key === "R") {
+            applyCameraPreset("Plant Overview");
+        } else if (ev.key === "f" || ev.key === "F") {
+            focusNode(state.selectedId);
+        } else if (ev.key === " ") {
+            ev.preventDefault();
+            document.getElementById("btn-pause").click();
+        }
+    });
+}
+
+function selectNode(id, shouldFocus = false) {
+    if (!NODE_BY_ID[id]) return;
+    state.selectedId = id;
+    document.querySelectorAll(".dir-btn").forEach(b => b.classList.toggle("active", b.dataset.nodeId === id));
+    updateInspector();
+    if (shouldFocus) focusNode(id);
+}
+
+function focusNode(id) {
+    const n = NODE_BY_ID[id];
+    if (!n) return;
+    if (window.__focusTarget) window.__focusTarget(n.pos[0], n.pos[1] + 1.0, n.pos[2]);
+}
+
+function applyCameraPreset(name) {
+    state.activePreset = name;
+    document.querySelectorAll(".preset-btn").forEach(b => b.classList.toggle("active", b.dataset.preset === name));
+    const p = CAMERA_PRESETS.find(x => x.name === name) || CAMERA_PRESETS[0];
+    if (window.__applyPreset) window.__applyPreset(p);
+}
+
+function updateInspector() {
+    const n = NODE_BY_ID[state.selectedId] || ALL_NODES[0];
+    const eq = state.telemetry?.equipment?.[n.scada];
+    const flow = state.flowMap[n.id];
+    const statusText = flow?.starved ? "Warning" : (eq?.status || "Running");
+
+    document.getElementById("insp-id").textContent = n.id;
+    document.getElementById("insp-stage").textContent = n.stage;
+    document.getElementById("insp-ga").textContent = n.ga;
+    const stEl = document.getElementById("insp-status");
+    stEl.textContent = flow?.starved ? "Starved" : statusText;
+    stEl.className = "status-tag st-" + (statusText === "Offline" ? "Stopped" : statusText);
+
+    document.getElementById("insp-load").textContent = eq ? `${eq.loadPct.toFixed(1)}%` : "78.0%";
+    document.getElementById("insp-tph").textContent = flow ? `${flow.tph.toFixed(1)} t/h` : `${n.nomTph.toFixed(1)} t/h`;
+    document.getElementById("insp-kw").textContent = eq ? `${eq.powerKw.toFixed(1)} kW` : "--";
+    document.getElementById("insp-scada").textContent = n.scada;
+    document.getElementById("insp-plc").textContent = n.plc;
+    const isLive = !!state.telemetry?.isLive;
+    const provEl = document.getElementById("insp-prov-note");
+    provEl.textContent = `[READ-ONLY] [SITE CONFIRMED] · ${isLive ? "LIVE SCADA" : "SIMULATED DEMO"}`;
+    provEl.style.color = isLive ? "var(--emerald)" : "var(--amber)";
+
+    document.getElementById("insp-spec").textContent = n.spec;
+    document.getElementById("insp-principle").textContent = n.principle;
+    document.getElementById("insp-desc").textContent = n.desc;
+
+    const topo = document.getElementById("insp-topology");
+    topo.innerHTML = "";
+    const addPill = (label, targetId, isCurrent = false) => {
+        const el = document.createElement(targetId ? "button" : "span");
+        if (targetId) el.type = "button";
+        el.className = "node-pill" + (isCurrent ? " current" : "");
+        el.textContent = label;
+        if (targetId && !isCurrent) {
+            el.addEventListener("click", () => selectNode(targetId, true));
+        }
+        topo.appendChild(el);
+    };
+    if (n.up.length === 0) addPill("ROM Source", null);
+    else n.up.forEach(u => addPill(u, u));
+    const arr1 = document.createElement("span"); arr1.textContent = "→"; arr1.style.color = "var(--text-muted)"; topo.appendChild(arr1);
+    addPill(n.id, n.id, true);
+    const arr2 = document.createElement("span"); arr2.textContent = "→"; arr2.style.color = "var(--text-muted)"; topo.appendChild(arr2);
+    if (n.down.length === 0) addPill("Stockpile / Output", null);
+    else n.down.forEach(d => addPill(d, d));
+}
+
+// =============================================================================
+// Read-Only Telemetry Polling (GET /DigitalTwin3D?handler=Telemetry)
+// =============================================================================
+async function pollTelemetry() {
+    try {
+        const resp = await fetch("/DigitalTwin3D?handler=Telemetry", { method: "GET", cache: "no-store" });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        state.telemetry = data;
+
+        const badge = document.getElementById("provenance-badge");
+        badge.textContent = data.source || "SIMULATED DEMO TELEMETRY · READ-ONLY";
+        badge.className = "badge " + (data.isLive ? "badge-live" : "badge-demo");
+
+        if (data.plantTotals) {
+            document.getElementById("kpi-rom").textContent = `${Number(data.plantTotals.romFeedTph).toFixed(1)} t/h`;
+            document.getElementById("kpi-clean").textContent = `${Number(data.plantTotals.cleanProductTph).toFixed(1)} t/h`;
+            document.getElementById("kpi-sg").textContent = Number(data.plantTotals.mediumSg).toFixed(2);
+            document.getElementById("kpi-water").textContent = `${Number(data.plantTotals.waterRecoveryPct).toFixed(1)}%`;
+            document.getElementById("kpi-ash").textContent = `${Number(data.plantTotals.ashPct).toFixed(2)}%`;
+        }
+        updateInspector();
+    } catch {
+        // Keep last known demo state if poll temporarily interrupted
+    }
+}
+
+buildUiChrome();
+evaluateProcessFlows(0);
+updateInspector();
+pollTelemetry();
+setInterval(pollTelemetry, 1000);
+
+// =============================================================================
+// Three.js PBR + PCFSoftShadowMap + PMREM IBL + InstancedMesh Coal Lumps
+// =============================================================================
+function startOfflineFallback(reason) {
+    console.warn("[DigitalTwin3D] Falling back to offline 2D GA canvas:", reason);
+    document.getElementById("offline-banner").style.display = "block";
+    document.getElementById("status-pill").textContent = "Offline GA Twin Fallback · Read-Only";
+    const canvas = document.getElementById("fallback-canvas");
+    canvas.style.display = "block";
+    const ctx = canvas.getContext("2d");
+
+    const draw = (now) => {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
+            canvas.width = Math.max(1, Math.floor(rect.width));
+            canvas.height = Math.max(1, Math.floor(rect.height));
+        }
+        if (!state.paused) state.simTime += 0.016;
+        evaluateProcessFlows(state.simTime);
+
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        ctx.fillStyle = isDark ? "#070d1a" : "#e2e8f0";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const scale = Math.min(canvas.width / 34, canvas.height / 38);
+        const ox = canvas.width * 0.5 + 1.5 * scale;
+        const oz = canvas.height * 0.5;
+        const toPx = (x, z) => [ox + x * scale, oz + z * scale];
+
+        // Foundation pads
+        for (const pad of FOUNDATION_PADS) {
+            const [cx, cz] = toPx(pad.center[0], pad.center[2]);
+            ctx.fillStyle = isDark ? "rgba(30,41,59,0.65)" : "rgba(255,255,255,0.85)";
+            ctx.strokeStyle = pad.accent;
+            ctx.lineWidth = 1.2;
+            const w = pad.size[0] * scale, h = pad.size[2] * scale;
+            ctx.fillRect(cx - w * 0.5, cz - h * 0.5, w, h);
+            ctx.strokeRect(cx - w * 0.5, cz - h * 0.5, w, h);
+        }
+
+        // Conveyors
+        for (const c of CONVEYORS) {
+            const [x1, z1] = toPx(c.tail[0], c.tail[2]);
+            const [x2, z2] = toPx(c.head[0], c.head[2]);
+            ctx.strokeStyle = c.id === state.selectedId ? "#38bdf8" : c.matCol;
+            ctx.lineWidth = c.id === state.selectedId ? 6 : 4;
+            ctx.beginPath(); ctx.moveTo(x1, z1); ctx.lineTo(x2, z2); ctx.stroke();
+        }
+
+        // Machines
+        const lp = computeLoaderPose(state.simTime, (state.flowMap["FEL-101"]?.rate || 0) > 0);
+        for (const m of MACHINE_NODES) {
+            const pos = m.id === "FEL-101" ? [lp.x, lp.y, lp.z] : m.pos;
+            const [px, pz] = toPx(pos[0], pos[2]);
+            const w = m.half[0] * 1.6 * scale, h = m.half[2] * 1.6 * scale;
+            ctx.fillStyle = m.id === state.selectedId ? "#38bdf8" : m.color;
+            ctx.fillRect(px - w * 0.5, pz - h * 0.5, w, h);
+            ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
+            ctx.font = "bold 10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(m.id, px, pz - h * 0.5 - 4);
+        }
+        requestAnimationFrame(draw);
+    };
+    canvas.addEventListener("click", ev => {
+        const rect = canvas.getBoundingClientRect();
+        const scale = Math.min(canvas.width / 34, canvas.height / 38);
+        const ox = canvas.width * 0.5 + 1.5 * scale;
+        const oz = canvas.height * 0.5;
+        const wx = (ev.clientX - rect.left - ox) / scale;
+        const wz = (ev.clientY - rect.top - oz) / scale;
+        let best = null, bestD = 3.0;
+        for (const n of ALL_NODES) {
+            const d = Math.hypot(n.pos[0] - wx, n.pos[2] - wz);
+            if (d < bestD) { bestD = d; best = n.id; }
+        }
+        if (best) selectNode(best, false);
+    });
+    requestAnimationFrame(draw);
+}
+
+try {
+    const THREE = await import("three");
+    const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
+    const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
+    const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
+
+    const container = document.getElementById("gl-container");
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x070d1a);
+    scene.fog = new THREE.FogExp2(0x070d1a, 0.011);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+    const camera = new THREE.PerspectiveCamera(42, container.clientWidth / Math.max(1, container.clientHeight), 0.2, 160);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.maxPolarAngle = Math.PI * 0.485;
+    controls.minDistance = 4;
+    controls.maxDistance = 65;
+
+    // Lighting: Hemisphere + 2048² PCFSoftShadowMap Sun + Cool Industrial Rim
+    const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x1a2436, 0.72);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff4e0, 2.35);
+    sun.position.set(16, 28, 14);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 2;
+    sun.shadow.camera.far = 80;
+    sun.shadow.camera.left = -22;
+    sun.shadow.camera.right = 22;
+    sun.shadow.camera.top = 24;
+    sun.shadow.camera.bottom = -24;
+    sun.shadow.bias = -0.00045;
+    scene.add(sun);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.55);
+    rimLight.position.set(-18, 12, -18);
+    scene.add(rimLight);
+
+    // Ground Plane & Grid
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0b1324, roughness: 0.92, metalness: 0.08 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(76, 76), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(-1, -0.02, -1);
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const grid = new THREE.GridHelper(52, 26, 0x1e3a5f, 0x11223a);
+    grid.position.set(-2, -0.005, -1);
+    scene.add(grid);
+
+    // 6 Concrete Foundation Pads
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.12 });
+    for (const pad of FOUNDATION_PADS) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(...pad.size), padMat);
+        mesh.position.set(...pad.center);
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+
+        const trim = new THREE.Mesh(
+            new THREE.BoxGeometry(pad.size[0], 0.04, 0.14),
+            new THREE.MeshStandardMaterial({ color: pad.accent, roughness: 0.4, metalness: 0.3 })
+        );
+        trim.position.set(pad.center[0], 0.02, pad.center[2] + pad.size[2] * 0.5 - 0.07);
+        scene.add(trim);
+    }
+
+    // 6 Orthogonal Slurry / Magnetite / Water Pipes + Flow Spheres
+    const pipeFlowSpheres = [];
+    const sphereGeo = new THREE.SphereGeometry(0.11, 10, 10);
+    for (const route of PIPE_ROUTES) {
+        const pipeMat = new THREE.MeshStandardMaterial({ color: route.color, roughness: 0.34, metalness: 0.72 });
+        for (let i = 0; i < route.pts.length - 1; i++) {
+            const a = new THREE.Vector3(...route.pts[i]);
+            const b = new THREE.Vector3(...route.pts[i + 1]);
+            const dir = new THREE.Vector3().subVectors(b, a);
+            const len = dir.length();
+            if (len < 0.01) continue;
+            const cyl = new THREE.Mesh(new THREE.CylinderGeometry(route.r, route.r, len, 10), pipeMat);
+            cyl.position.addVectors(a, b).multiplyScalar(0.5);
+            cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+            cyl.castShadow = true;
+            cyl.receiveShadow = true;
+            scene.add(cyl);
+        }
+        const pMat = new THREE.MeshBasicMaterial({ color: route.color });
+        for (let k = 0; k < 5; k++) {
+            const sp = new THREE.Mesh(sphereGeo, pMat);
+            scene.add(sp);
+            pipeFlowSpheres.push({ mesh: sp, route, offset: k / 5 });
+        }
+    }
+
+    // Procedural Grounded Industrial Conveyors + InstancedMesh Coal Lumps
+    const conveyorData = [];
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.45, metalness: 0.72 });
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0x181c24, roughness: 0.88, metalness: 0.1 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.42, metalness: 0.3 });
+    const motorMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.38, metalness: 0.65 });
+    const pulleyMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4, metalness: 0.7 });
+    const chevronMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const chevronGeo = new THREE.ConeGeometry(0.18, 0.42, 8);
+    chevronGeo.rotateZ(-Math.PI / 2);
+
+    let totalCoalInstances = 0;
+    const samplePolyline = (pts, t) => {
+        if (pts.length === 1) return pts[0].clone();
+        let total = 0;
+        const segs = [];
+        for (let i = 0; i < pts.length - 1; i++) {
+            const d = pts[i].distanceTo(pts[i + 1]);
+            segs.push(d);
+            total += d;
+        }
+        let target = Math.max(0, Math.min(1, t)) * total;
+        for (let i = 0; i < segs.length; i++) {
+            if (target <= segs[i] || i === segs.length - 1) {
+                const f = segs[i] > 1e-5 ? target / segs[i] : 0;
+                return new THREE.Vector3().lerpVectors(pts[i], pts[i + 1], Math.max(0, Math.min(1, f)));
+            }
+            target -= segs[i];
+        }
+        return pts[pts.length - 1].clone();
+    };
+
+    for (const c of CONVEYORS) {
+        const grp = new THREE.Group();
+        grp.userData.nodeId = c.id;
+        scene.add(grp);
+
+        const tail = new THREE.Vector3(...c.tail);
+        const head = new THREE.Vector3(...c.head);
+        const delta = new THREE.Vector3().subVectors(head, tail);
+        const len = delta.length();
+        const dir = delta.clone().normalize();
+        const yaw = Math.atan2(-dir.z, dir.x);
+        const pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+        const mid = new THREE.Vector3().addVectors(tail, head).multiplyScalar(0.5);
+        const halfW = c.width * 0.5;
+
+        const beltGrp = new THREE.Group();
+        beltGrp.position.copy(mid);
+        beltGrp.rotation.order = "YXZ";
+        beltGrp.rotation.y = yaw;
+        beltGrp.rotation.z = pitch;
+        beltGrp.userData.nodeId = c.id;
+        grp.add(beltGrp);
+
+        // Belt bed
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, c.width * 0.90), beltMat);
+        bed.castShadow = true; bed.receiveShadow = true; bed.userData.nodeId = c.id;
+        beltGrp.add(bed);
+
+        // Side stringers
+        for (const side of [-halfW, halfW]) {
+            const str = new THREE.Mesh(new THREE.BoxGeometry(len + 0.35, 0.22, 0.08), steelMat);
+            str.position.set(0, -0.04, side);
+            str.castShadow = true; str.receiveShadow = true; str.userData.nodeId = c.id;
+            beltGrp.add(str);
+        }
+
+        // Support trestles grounded at Y=0
+        const bentCount = Math.max(2, Math.ceil(len / 3.5) + 1);
+        for (let i = 0; i < bentCount; i++) {
+            const frac = Math.max(0.08, Math.min(0.92, 0.10 + 0.80 * i / Math.max(1, bentCount - 1)));
+            const bp = new THREE.Vector3().lerpVectors(tail, head, frac);
+            const h = bp.y - 0.12;
+            if (h <= 0.18) continue;
+            const bent = new THREE.Group();
+            bent.position.set(bp.x, 0, bp.z);
+            bent.rotation.y = yaw;
+            for (const side of [-halfW - 0.06, halfW + 0.06]) {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.11, h, 0.11), steelMat);
+                leg.position.set(0, h * 0.5, side);
+                leg.castShadow = true; leg.receiveShadow = true;
+                bent.add(leg);
+            }
+            if (h > 1.2) {
+                const brace = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, c.width + 0.18), steelMat);
+                brace.position.set(0, h * 0.52, 0);
+                bent.add(brace);
+            }
+            grp.add(bent);
+        }
+
+        // Walkway & safety-yellow handrail on elevated belts
+        if (len > 4.2 || Math.abs(head.y - tail.y) > 0.6) {
+            const walk = new THREE.Mesh(new THREE.BoxGeometry(len * 0.92, 0.05, 0.52), steelMat);
+            walk.position.set(0, -0.05, halfW + 0.34);
+            walk.receiveShadow = true;
+            beltGrp.add(walk);
+
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(len * 0.92, 0.05, 0.05), railMat);
+            rail.position.set(0, 0.78, halfW + 0.58);
+            beltGrp.add(rail);
+        }
+
+        // Head motor gearbox & enclosed transfer chute
+        const motor = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.42, 0.44), motorMat);
+        motor.position.set(len * 0.5 - 0.25, -0.05, -halfW - 0.32);
+        motor.castShadow = true;
+        beltGrp.add(motor);
+
+        const chuteBot = new THREE.Vector3(head.x + c.dropOff[0], c.dropY, head.z + c.dropOff[2]);
+        const chuteTop = new THREE.Vector3(head.x, head.y + 0.10, head.z);
+        const chuteDir = new THREE.Vector3().subVectors(chuteTop, chuteBot);
+        const chuteH = Math.max(0.4, chuteDir.length());
+        const chute = new THREE.Mesh(new THREE.BoxGeometry(0.68, chuteH, c.width * 0.86), steelMat);
+        chute.position.addVectors(chuteTop, chuteBot).multiplyScalar(0.5);
+        chute.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), chuteDir.normalize());
+        chute.castShadow = true; chute.userData.nodeId = c.id;
+        grp.add(chute);
+
+        if (c.feedChute) {
+            for (let w = 0; w < c.feedChute.length - 1; w++) {
+                const a = new THREE.Vector3(...c.feedChute[w]);
+                const b = new THREE.Vector3(...c.feedChute[w + 1]);
+                const sd = new THREE.Vector3().subVectors(b, a);
+                const sl = sd.length();
+                const seg = new THREE.Mesh(new THREE.BoxGeometry(sl + 0.15, 0.38, 0.62), steelMat);
+                seg.position.addVectors(a, b).multiplyScalar(0.5);
+                seg.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), sd.normalize());
+                seg.castShadow = true;
+                grp.add(seg);
+            }
+        }
+
+        // Rotating tail & head pulleys
+        const pulleys = [];
+        for (const pPos of [tail, head]) {
+            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, c.width * 1.12, 12), pulleyMat);
+            p.position.set(pPos.x, pPos.y - 0.04, pPos.z);
+            p.rotation.order = "YXZ";
+            p.rotation.y = yaw;
+            p.rotation.x = Math.PI * 0.5;
+            p.castShadow = true;
+            grp.add(p);
+            pulleys.push(p);
+        }
+
+        // Full flow waypoints & chevrons
+        const flowPts = [
+            ...(c.feedChute ? c.feedChute.map(x => new THREE.Vector3(...x)) : []),
+            tail, head, chuteBot
+        ];
+        let flowLen = 0;
+        for (let i = 0; i < flowPts.length - 1; i++) flowLen += flowPts[i].distanceTo(flowPts[i + 1]);
+        const parcelCount = Math.max(8, Math.floor(flowLen / 0.55));
+        totalCoalInstances += parcelCount;
+
+        const arrows = [];
+        const arrowCount = Math.max(2, Math.floor(len / 2.8));
+        for (let a = 0; a < arrowCount; a++) {
+            const cm = new THREE.Mesh(chevronGeo, chevronMat);
+            cm.rotation.order = "YXZ";
+            cm.rotation.y = yaw;
+            cm.rotation.z = pitch;
+            scene.add(cm);
+            arrows.push(cm);
+        }
+
+        // Selection ring on conveyor midpoint
+        const selRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.95, 1.15, 28),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+        );
+        selRing.rotation.x = -Math.PI / 2;
+        selRing.position.set(mid.x, mid.y + 0.18, mid.z);
+        selRing.visible = false;
+        scene.add(selRing);
+
+        conveyorData.push({ spec: c, tail, head, dir, len, flowPts, parcelCount, pulleys, arrows, selRing });
+    }
+
+    // GPU InstancedMesh for ALL coal lumps across all 11 conveyors + loader dump
+    const lumpGeo = new THREE.DodecahedronGeometry(0.5, 0);
+    const lumpMat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.08 });
+    const dumpLumps = 10;
+    const coalInstanced = new THREE.InstancedMesh(lumpGeo, lumpMat, totalCoalInstances + dumpLumps);
+    coalInstanced.castShadow = true;
+    coalInstanced.receiveShadow = true;
+    coalInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(coalInstanced);
+
+    // Tag per-instance color by conveyor CoalMaterialClass
+    let instIdx = 0;
+    const tmpColor = new THREE.Color();
+    for (const cd of conveyorData) {
+        cd.startIdx = instIdx;
+        tmpColor.set(cd.spec.matCol);
+        for (let i = 0; i < cd.parcelCount; i++) {
+            coalInstanced.setColorAt(instIdx++, tmpColor);
+        }
+    }
+    const dumpStartIdx = instIdx;
+    tmpColor.set("#A16207");
+    for (let i = 0; i < dumpLumps; i++) coalInstanced.setColorAt(instIdx++, tmpColor);
+    if (coalInstanced.instanceColor) coalInstanced.instanceColor.needsUpdate = true;
+
+    // =========================================================================
+    // Machine Groups, Mechanical Sub-Animations, Live Fill Levels & GLB Loader
+    // =========================================================================
+    const machineObjects = {};
+    const labelElems = {};
+    const overlay = document.getElementById("labels-overlay");
+    const raycastTargets = [];
+
+    const ringGeo = new THREE.RingGeometry(0.86, 1.0, 32);
+    const fillCylGeo = new THREE.CylinderGeometry(1, 1, 1, 20);
+
+    for (const m of MACHINE_NODES) {
+        const root = new THREE.Group();
+        root.position.set(...m.pos);
+        root.rotation.y = THREE.MathUtils.degToRad(m.yaw);
+        root.scale.set(...m.scale);
+        root.userData.nodeId = m.id;
+        scene.add(root);
+
+        // Fallback proxy box while GLB streams in (replaced once GLB loads)
+        const proxy = new THREE.Mesh(
+            new THREE.BoxGeometry(m.half[0] * 1.6, m.half[1] * 1.6, m.half[2] * 1.6),
+            new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.55, metalness: 0.45 })
+        );
+        proxy.position.y = m.half[1] * 0.8;
+        proxy.castShadow = true; proxy.receiveShadow = true;
+        proxy.userData.nodeId = m.id;
+        root.add(proxy);
+        raycastTargets.push(proxy);
+
+        // Selection / Alarm Ring
+        const ringR = Math.max(m.half[0], m.half[2]) + 0.35;
+        const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(m.pos[0], 0.08, m.pos[2]);
+        ring.scale.set(ringR, ringR, 1);
+        ring.visible = false;
+        scene.add(ring);
+
+        // Optional live fill-level cylinder
+        let fillMesh = null;
+        if (m.fill) {
+            fillMesh = new THREE.Mesh(fillCylGeo, new THREE.MeshStandardMaterial({
+                color: m.fill.color, roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.55
+            }));
+            fillMesh.position.set(m.pos[0], m.fill.baseY + m.fill.maxH * 0.3, m.pos[2]);
+            fillMesh.scale.set(m.fill.r, m.fill.maxH * 0.6, m.fill.r);
+            scene.add(fillMesh);
+        }
+
+        // Optional rotating top (MS-301 wet drum / TK-201 thickener rake)
+        let rotBar = null;
+        if (m.rotTop) {
+            rotBar = new THREE.Mesh(
+                new THREE.BoxGeometry(m.rotTop.len, 0.14, 0.24),
+                new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, metalness: 0.6 })
+            );
+            rotBar.position.set(m.pos[0], m.pos[1] + m.rotTop.y, m.pos[2]);
+            rotBar.castShadow = true;
+            scene.add(rotBar);
+        }
+
+        machineObjects[m.id] = { spec: m, root, proxy, ring, fillMesh, rotBar, glbRoot: null, bucketPivot: null, extras: null };
+
+        // Label badge
+        const lbl = document.createElement("div");
+        lbl.className = "node-label";
+        lbl.innerHTML = `<span class="dot" style="background:${m.color}"></span>${m.id}`;
+        lbl.addEventListener("click", () => selectNode(m.id, false));
+        overlay.appendChild(lbl);
+        labelElems[m.id] = lbl;
+    }
+
+    // Conveyor labels too
+    for (const c of CONVEYORS) {
+        const lbl = document.createElement("div");
+        lbl.className = "node-label";
+        lbl.innerHTML = `<span class="dot" style="background:${c.matCol}"></span>${c.id}`;
+        lbl.addEventListener("click", () => selectNode(c.id, false));
+        overlay.appendChild(lbl);
+        labelElems[c.id] = lbl;
+    }
+
+    // JC-101 dual flywheels + reciprocating swing jaw
+    {
+        const jc = machineObjects["JC-101"];
+        const wheelGeo = new THREE.CylinderGeometry(0.56, 0.56, 0.18, 20);
+        wheelGeo.rotateX(Math.PI * 0.5);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.35, metalness: 0.72 });
+        const spokeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.7 });
+        const wheels = [];
+        for (const zOff of [-1.06, 1.06]) {
+            const wg = new THREE.Group();
+            wg.position.set(-13.8, 2.50, -0.6 + zOff);
+            const w = new THREE.Mesh(wheelGeo, wheelMat); w.castShadow = true; wg.add(w);
+            const sp = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.12, 0.20), spokeMat); wg.add(sp);
+            scene.add(wg);
+            wheels.push(wg);
+        }
+        const jaw = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 1.05, 1.16),
+            new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.45, metalness: 0.65 })
+        );
+        jaw.position.set(-13.92, 2.48, -0.6);
+        jaw.rotation.z = -0.20;
+        jaw.castShadow = true;
+        scene.add(jaw);
+        jc.extras = { wheels, jaw };
+    }
+
+    // DRC-101 counter-rotating toothed rolls
+    {
+        const drc = machineObjects["DRC-101"];
+        const drumGeo = new THREE.CylinderGeometry(0.32, 0.32, 1.32, 16);
+        drumGeo.rotateX(Math.PI * 0.5);
+        const drumMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.4, metalness: 0.75 });
+        const toothMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35, metalness: 0.7 });
+        const rolls = [];
+        for (let r = 0; r < 2; r++) {
+            const xOff = r === 0 ? -0.36 : 0.36;
+            const rg = new THREE.Group();
+            rg.position.set(-7.2 + xOff, 2.02, -0.6);
+            rg.add(new THREE.Mesh(drumGeo, drumMat));
+            for (let t = 0; t < 4; t++) {
+                const rib = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.09, 1.28), toothMat);
+                rib.rotation.z = t * Math.PI * 0.25;
+                rg.add(rib);
+            }
+            scene.add(rg);
+            rolls.push(rg);
+        }
+        drc.extras = { rolls };
+    }
+
+    // Load all 16 .glb models from /models3d/{fileName}
+    const gltfLoader = new GLTFLoader();
+    const glbCache = new Map();
+    const loadGlb = (fileName) => {
+        if (glbCache.has(fileName)) return glbCache.get(fileName);
+        const p = new Promise((resolve, reject) => {
+            gltfLoader.load(`/models3d/${encodeURIComponent(fileName)}`, gltf => {
+                state.loadedGlbSet.add(fileName);
+                document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/16`;
+                resolve(gltf.scene);
+            }, undefined, reject);
+        });
+        glbCache.set(fileName, p);
+        return p;
+    };
+
+    const tagNodeHierarchy = (obj, nodeId) => {
+        obj.traverse(ch => {
+            ch.userData.nodeId = nodeId;
+            if (ch.isMesh) {
+                ch.castShadow = true;
+                ch.receiveShadow = true;
+                if (ch.material) ch.material = ch.material.clone();
+                raycastTargets.push(ch);
+            }
+        });
+    };
+
+    for (const m of MACHINE_NODES) {
+        loadGlb(m.glb).then(template => {
+            const entry = machineObjects[m.id];
+            const clone = template.clone(true);
+            tagNodeHierarchy(clone, m.id);
+            entry.root.remove(entry.proxy);
+            entry.root.add(clone);
+            entry.glbRoot = clone;
+
+            if (m.id === "FEL-101") {
+                loadGlb("wheel_loader_bucket.glb").then(bTemplate => {
+                    const pivot = new THREE.Group();
+                    pivot.position.set(1.30, 1.38, 0);
+                    const bClone = bTemplate.clone(true);
+                    tagNodeHierarchy(bClone, "FEL-101");
+                    pivot.add(bClone);
+                    entry.root.add(pivot);
+                    entry.bucketPivot = pivot;
+                }).catch(() => {});
+            }
+        }).catch(() => {});
+    }
+
+    // Preload conveyor_segment.glb so all 16 GLB assets are counted & available
+    loadGlb("conveyor_segment.glb").catch(() => {});
+
+    // Camera Rig Bridge
+    window.__applyPreset = (p) => {
+        const dist = 19.0 / Math.max(0.35, Math.min(3.2, p.zoom));
+        const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch);
+        const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+        controls.target.set(p.tx, 0.9, p.tz);
+        camera.position.set(p.tx + dist * cp * sy, 0.9 + dist * sp, p.tz + dist * cp * cy);
+        controls.update();
+    };
+    window.__focusTarget = (x, y, z) => {
+        const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+        if (offset.length() > 14) offset.setLength(12);
+        controls.target.set(x, y, z);
+        camera.position.copy(controls.target).add(offset);
+        controls.update();
+    };
+    window.__updateThreeTheme = (theme) => {
+        const dark = theme === "dark";
+        scene.background.setHex(dark ? 0x070d1a : 0xdbe5f0);
+        scene.fog.color.setHex(dark ? 0x070d1a : 0xdbe5f0);
+        groundMat.color.setHex(dark ? 0x0b1324 : 0xcbd5e1);
+    };
+    applyCameraPreset("Plant Overview");
+
+    // Raycast Click Selection
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    let downPt = null;
+    renderer.domElement.addEventListener("pointerdown", e => { downPt = { x: e.clientX, y: e.clientY }; });
+    renderer.domElement.addEventListener("pointerup", e => {
+        if (!downPt || Math.hypot(e.clientX - downPt.x, e.clientY - downPt.y) > 5) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(scene.children, true);
+        for (const h of hits) {
+            let cur = h.object;
+            while (cur) {
+                if (cur.userData && cur.userData.nodeId) {
+                    selectNode(cur.userData.nodeId, false);
+                    return;
+                }
+                cur = cur.parent;
+            }
+        }
+    });
+
+    window.addEventListener("resize", () => {
+        const w = container.clientWidth, h = Math.max(1, container.clientHeight);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+
+    // Main Render Loop
+    const dummy = new THREE.Object3D();
+    const projVec = new THREE.Vector3();
+    let lastTime = performance.now(), fpsFrames = 0, fpsTimer = 0;
+
+    function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.1, (now - lastTime) / 1000);
+        lastTime = now;
+
+        fpsFrames++;
+        fpsTimer += dt;
+        if (fpsTimer >= 0.5) {
+            document.getElementById("kpi-fps").textContent = Math.round(fpsFrames / fpsTimer).toString();
+            fpsFrames = 0; fpsTimer = 0;
+        }
+
+        if (!state.paused) state.simTime += dt;
+        const t = state.simTime;
+        evaluateProcessFlows(t);
+
+        const eqMap = state.telemetry?.equipment || {};
+        const loaderFlow = state.flowMap["FEL-101"];
+        const lp = computeLoaderPose(t, !state.paused && (loaderFlow?.running ?? true));
+
+        // Update 18 machines
+        for (const m of MACHINE_NODES) {
+            const entry = machineObjects[m.id];
+            const flow = state.flowMap[m.id];
+            const eq = eqMap[m.scada];
+            const running = flow ? flow.running : true;
+            const isSel = state.selectedId === m.id;
+
+            if (m.id === "FEL-101") {
+                entry.root.position.set(lp.x, lp.y, lp.z);
+                entry.root.rotation.order = "YXZ";
+                entry.root.rotation.y = THREE.MathUtils.degToRad(lp.yaw);
+                entry.root.rotation.z = THREE.MathUtils.degToRad(lp.pitch);
+                entry.ring.position.set(lp.x, 0.08, lp.z);
+                if (entry.bucketPivot) {
+                    entry.bucketPivot.rotation.z = THREE.MathUtils.degToRad(lp.boom + lp.dump * 0.45);
+                }
+            } else if (m.vibrates && running && !state.paused) {
+                const load = eq ? eq.loadPct / 100 : 0.7;
+                entry.root.position.y = m.pos[1] + Math.sin(t * 28.0) * (0.018 + 0.024 * load);
+            } else {
+                entry.root.position.y = m.pos[1];
+            }
+
+            // Selection / Alarm Ring
+            const isWarnOrFault = eq && (eq.status === "Warning" || eq.status === "Fault");
+            entry.ring.visible = isSel || isWarnOrFault;
+            if (entry.ring.visible) {
+                entry.ring.material.color.setHex(isSel ? 0x38bdf8 : (eq.status === "Fault" ? 0xef4444 : 0xf59e0b));
+                entry.ring.material.opacity = isSel ? 0.9 : 0.45 + 0.35 * Math.sin(t * 4.5);
+            }
+
+            // Optional thermal heatmap emissive tint
+            if (entry.glbRoot) {
+                let tintHex = 0x000000;
+                let tintStrength = 0.0;
+                if (state.thermalHeatmap && eq) {
+                    tintStrength = 0.45;
+                    tintHex = eq.loadPct >= 85 ? 0xef4444 : (eq.loadPct >= 70 ? 0xf59e0b : (eq.loadPct >= 40 ? 0x22c55e : 0x38bdf8));
+                } else if (isSel) {
+                    tintHex = 0x0284c7; tintStrength = 0.25;
+                } else if (eq && eq.status === "Fault") {
+                    tintHex = 0xef4444; tintStrength = 0.45;
+                }
+                entry.glbRoot.traverse(ch => {
+                    if (ch.isMesh && ch.material && "emissive" in ch.material) {
+                        ch.material.emissive.setHex(tintHex);
+                        ch.material.emissiveIntensity = tintStrength;
+                    }
+                });
+            }
+
+            // Fill level
+            if (entry.fillMesh && m.fill) {
+                let frac = eq ? Math.max(0.12, Math.min(0.95, eq.loadPct / 100)) : 0.6;
+                if (m.id === "BN-101") frac = Math.min(0.98, frac + lp.binPulse);
+                const fh = m.fill.maxH * frac;
+                entry.fillMesh.scale.y = fh;
+                entry.fillMesh.position.y = m.fill.baseY + fh * 0.5;
+            }
+
+            // Rotating top (MS-301 / TK-201)
+            if (entry.rotBar && m.rotTop && running && !state.paused) {
+                entry.rotBar.rotation.y = t * m.rotTop.speed;
+            }
+
+            // JC-101 & DRC-101 mechanical sub-animations
+            if (m.id === "JC-101" && entry.extras && running && !state.paused) {
+                const ang = t * 6.5;
+                entry.extras.wheels.forEach(w => { w.rotation.z = ang; });
+                const swing = Math.sin(t * 28.27) * 0.08;
+                entry.extras.jaw.position.x = -13.92 + swing;
+                entry.extras.jaw.rotation.z = -0.20 + swing * 1.4;
+            }
+            if (m.id === "DRC-101" && entry.extras && running && !state.paused) {
+                entry.extras.rolls[0].rotation.z = t * 5.2;
+                entry.extras.rolls[1].rotation.z = -t * 5.2;
+            }
+        }
+
+        // Update 11 conveyors + InstancedMesh coal lumps
+        for (const cd of conveyorData) {
+            const flow = state.flowMap[cd.spec.id];
+            const spd = (!state.paused && flow) ? flow.rate : 0;
+            cd.selRing.visible = state.selectedId === cd.spec.id;
+
+            for (const p of cd.pulleys) {
+                if (spd > 0) p.rotation.z -= dt * spd * 4.5;
+            }
+
+            const lumpSize = cd.spec.lump;
+            const right = new THREE.Vector3().crossVectors(cd.dir, new THREE.Vector3(0, 1, 0)).normalize();
+            for (let i = 0; i < cd.parcelCount; i++) {
+                if (!flow || flow.rate <= 0.02) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    coalInstanced.setMatrixAt(cd.startIdx + i, dummy.matrix);
+                    continue;
+                }
+                const ptFrac = ((t * 0.24 * Math.max(0.2, spd) + i / cd.parcelCount) % 1.0 + 1.0) % 1.0;
+                const pos = samplePolyline(cd.flowPts, ptFrac);
+                pos.addScaledVector(right, Math.sin(i * 3.1) * cd.spec.width * 0.16);
+                pos.y += 0.14;
+                dummy.position.copy(pos);
+                dummy.rotation.set(i * 0.4, i * 0.9, 0);
+                dummy.scale.set(lumpSize * 1.35, lumpSize * 0.9, lumpSize * 1.15);
+                dummy.updateMatrix();
+                coalInstanced.setMatrixAt(cd.startIdx + i, dummy.matrix);
+            }
+
+            cd.arrows.forEach((cm, a) => {
+                cm.visible = state.showArrows && flow && flow.rate > 0.02;
+                if (cm.visible) {
+                    const af = ((t * 0.35 * Math.max(0.25, spd) + a / cd.arrows.length) % 1.0 + 1.0) % 1.0;
+                    cm.position.lerpVectors(cd.tail, cd.head, af);
+                    cm.position.y += 0.65;
+                }
+            });
+        }
+
+        // FEL-101 coal dump boulders into BN-101
+        for (let i = 0; i < dumpLumps; i++) {
+            if (!lp.dumping) {
+                dummy.scale.set(0, 0, 0);
+                dummy.updateMatrix();
+                coalInstanced.setMatrixAt(dumpStartIdx + i, dummy.matrix);
+            } else {
+                const f = (t * 2.6 + i / dumpLumps) % 1.0;
+                const ox = lp.x, oy = lp.y + 2.35, oz = lp.z - 2.1;
+                const tx = -13.8, ty = 2.15, tz = 8.8;
+                dummy.position.set(
+                    lerp(ox, tx, f) + Math.sin(i * 2.1) * 0.22,
+                    lerp(oy, ty, f) - f * f * 0.35,
+                    lerp(oz, tz, f) + Math.cos(i * 1.7) * 0.22
+                );
+                dummy.rotation.set(t * 2 + i, i * 0.8, 0);
+                dummy.scale.setScalar(0.24);
+                dummy.updateMatrix();
+                coalInstanced.setMatrixAt(dumpStartIdx + i, dummy.matrix);
+            }
+        }
+        coalInstanced.instanceMatrix.needsUpdate = true;
+
+        // Pipe flow spheres
+        for (const ps of pipeFlowSpheres) {
+            const eq = eqMap[ps.route.src];
+            const spd = eq && (eq.status === "Stopped" || eq.status === "Fault") ? 0 : 0.30;
+            ps.mesh.visible = spd > 0;
+            if (ps.mesh.visible) {
+                const pf = (t * spd + ps.offset) % 1.0;
+                const pts = ps.route.pts.map(x => new THREE.Vector3(...x));
+                ps.mesh.position.copy(samplePolyline(pts, pf));
+            }
+        }
+
+        // Project 2D HTML labels
+        if (state.showLabels) {
+            const w = container.clientWidth, h = container.clientHeight;
+            for (const n of ALL_NODES) {
+                const lbl = labelElems[n.id];
+                const pos = n.id === "FEL-101" ? [lp.x, lp.y, lp.z] : n.pos;
+                projVec.set(pos[0], pos[1] + n.labelH, pos[2]).project(camera);
+                if (projVec.z > 1 || projVec.z < -1) {
+                    lbl.style.display = "none";
+                } else {
+                    lbl.style.display = "block";
+                    lbl.style.left = `${(projVec.x * 0.5 + 0.5) * w}px`;
+                    lbl.style.top = `${(-projVec.y * 0.5 + 0.5) * h}px`;
+                    lbl.classList.toggle("selected", state.selectedId === n.id);
+                }
+            }
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+} catch (err) {
+    startOfflineFallback(err?.message || err);
+}
+</script>
+</body>
+</html>

@@ -369,4 +369,29 @@ public class Plant3DTests
         Assert.True(metrics.ColdGlbLoadMs < 2000.0, $"Cold GLB load took {metrics.ColdGlbLoadMs} ms (expected < 2000 ms)");
         Assert.True(metrics.FlowAndPoseMicrosPerFrame < 500.0, $"Flow+Pose took {metrics.FlowAndPoseMicrosPerFrame} µs/frame (expected < 500 µs)");
     }
+
+    [Fact]
+    public void Plant3DSceneData_SampleConveyorCoalTrajectory_HasLinearBeltAndParabolicDischarge()
+    {
+        foreach (var conv in Plant3DSceneData.Conveyors)
+        {
+            var pStart = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, 0f);
+            var pMid = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, 0.41f);
+            var pHead = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, 0.82f);
+            var pEnd = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, 1.0f);
+
+            Assert.True(Vector3.Distance(pStart, conv.TailPos) < 1e-4f, $"{conv.Id} u=0 should be at TailPos");
+            Assert.True(Vector3.Distance(pMid, Vector3.Lerp(conv.TailPos, conv.HeadPos, 0.5f)) < 1e-4f, $"{conv.Id} u=0.41 should be belt midpoint");
+            Assert.True(Vector3.Distance(pHead, conv.HeadPos) < 1e-4f, $"{conv.Id} u=0.82 should be at HeadPos");
+            Assert.True(Vector3.Distance(pEnd, conv.GetChuteBottomPos()) < 1e-3f, $"{conv.Id} u=1.0 should land at GetChuteBottomPos()");
+
+            // Verify Newtonian downward acceleration d^2y/du^2 < 0 in the head-pulley discharge zone (0.82, 1.0]
+            float u1 = 0.85f, u2 = 0.91f, u3 = 0.97f;
+            float y1 = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, u1).Y;
+            float y2 = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, u2).Y;
+            float y3 = Plant3DSceneData.SampleConveyorCoalTrajectory(conv, u3).Y;
+            float secondDiff = y1 - 2f * y2 + y3;
+            Assert.True(secondDiff < -1e-4f, $"{conv.Id} discharge arc must have downward acceleration d²y/du² < 0 (got {secondDiff})");
+        }
+    }
 }

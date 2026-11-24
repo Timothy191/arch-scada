@@ -14,10 +14,11 @@ using ArchScada.Desktop.Models;
 namespace ArchScada.Desktop.Controls.ThreeD;
 
 /// <summary>
-/// Hardware-accelerated OpenGL 3.3 Core / OpenGL ES 3.0 viewport for the CHPP 3D Digital Twin.
-/// Renders Blender-exported .glb meshes, procedural industrial conveyors with trestles/chutes/pulleys,
-/// 4-stage articulated wheel loader, jaw &amp; double-roll crusher mechanics, live tank fill levels,
-/// coupled process flows, alarm halos, and selection/hover highlights.
+/// Hardware-accelerated OpenGL 3.2+ Core / OpenGL ES 3.0 viewport for the CHPP 3D Digital Twin.
+/// Implements a 3-pass PBR pipeline:
+///   Pass 1: 2048x2048 directional shadow map with polygon offset
+///   Pass 2: 4x MSAA offscreen Cook-Torrance GGX PBR + procedural sky/ground IBL + 3x3 PCF shadows + dFdx/dFdy micro-bump + hardware instancing
+///   Pass 3: MSAA resolve + 8-tap depth SSAO + subtle highlight bloom + ACES Filmic tone mapping &amp; gamma 2.2 encoding
 /// </summary>
 public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 {
@@ -31,18 +32,48 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_TRIANGLES = 0x0004;
     private const int GL_LINES = 0x0001;
     private const int GL_UNSIGNED_INT = 0x1405;
+    private const int GL_UNSIGNED_INT_24_8 = 0x84FA;
     private const int GL_FLOAT = 0x1406;
     private const int GL_ARRAY_BUFFER = 0x8892;
     private const int GL_ELEMENT_ARRAY_BUFFER = 0x8893;
     private const int GL_STATIC_DRAW = 0x88E4;
+    private const int GL_DYNAMIC_DRAW = 0x88E8;
     private const int GL_VERTEX_SHADER = 0x8B31;
     private const int GL_FRAGMENT_SHADER = 0x8B30;
     private const int GL_COMPILE_STATUS = 0x8B81;
     private const int GL_LINK_STATUS = 0x8B82;
     private const int GL_RGBA = 0x1908;
+    private const int GL_RGBA8 = 0x8058;
+    private const int GL_DEPTH_COMPONENT = 0x1902;
+    private const int GL_DEPTH_COMPONENT24 = 0x81A6;
+    private const int GL_DEPTH_STENCIL = 0x84F9;
+    private const int GL_DEPTH24_STENCIL8 = 0x88F0;
     private const int GL_UNSIGNED_BYTE = 0x1401;
     private const int GL_PACK_ALIGNMENT = 0x0D05;
     private const int GL_MULTISAMPLE = 0x809D;
+    private const int GL_POLYGON_OFFSET_FILL = 0x8037;
+    private const int GL_TEXTURE_2D = 0x0DE1;
+    private const int GL_TEXTURE0 = 0x84C0;
+    private const int GL_TEXTURE1 = 0x84C1;
+    private const int GL_TEXTURE_MAG_FILTER = 0x2800;
+    private const int GL_TEXTURE_MIN_FILTER = 0x2801;
+    private const int GL_TEXTURE_WRAP_S = 0x2802;
+    private const int GL_TEXTURE_WRAP_T = 0x2803;
+    private const int GL_NEAREST = 0x2600;
+    private const int GL_LINEAR = 0x2601;
+    private const int GL_CLAMP_TO_EDGE = 0x812F;
+    private const int GL_FRAMEBUFFER = 0x8D40;
+    private const int GL_READ_FRAMEBUFFER = 0x8CA8;
+    private const int GL_DRAW_FRAMEBUFFER = 0x8CA9;
+    private const int GL_RENDERBUFFER = 0x8D41;
+    private const int GL_COLOR_ATTACHMENT0 = 0x8CE0;
+    private const int GL_DEPTH_ATTACHMENT = 0x8D00;
+    private const int GL_DEPTH_STENCIL_ATTACHMENT = 0x821A;
+    private const int GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
+    private const int GL_NONE = 0;
+
+    private const int ShadowMapSize = 2048;
+    private const int InstanceFloats = 22; // mat4(16) + vec4 colorAlpha(4) + vec2 pbr(2)
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlViewportDel(int x, int y, int w, int h);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlClearColorDel(float r, float g, float b, float a);
@@ -51,36 +82,65 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDisableDel(int cap);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBlendFuncDel(int sfactor, int dfactor);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDepthMaskDel(byte flag);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlCullFaceDel(int mode);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlPolygonOffsetDel(float factor, float units);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlCreateShaderDel(int type);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlShaderSourceDel(int shader, int count, byte** strings, int* length);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlCompileShaderDel(int shader);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetShaderivDel(int shader, int pname, int* param);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetShaderInfoLogDel(int shader, int maxLength, int* length, byte* infoLog);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteShaderDel(int shader);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlCreateProgramDel();
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlAttachShaderDel(int program, int shader);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindAttribLocationDel(int program, uint index, byte* name);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlLinkProgramDel(int program);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetProgramivDel(int program, int pname, int* param);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGetProgramInfoLogDel(int program, int maxLength, int* length, byte* infoLog);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUseProgramDel(int program);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteProgramDel(int program);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlGetUniformLocationDel(int program, byte* name);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniformMatrix4fvDel(int loc, int count, byte transpose, float* value);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniformMatrix3fvDel(int loc, int count, byte transpose, float* value);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniform3fDel(int loc, float x, float y, float z);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniform2fDel(int loc, float x, float y);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniform1fDel(int loc, float v);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlUniform1iDel(int loc, int v);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGenVertexArraysDel(int n, uint* arrays);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindVertexArrayDel(uint array);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteVertexArraysDel(int n, uint* arrays);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGenBuffersDel(int n, uint* buffers);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindBufferDel(int target, uint buffer);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBufferDataDel(int target, nint size, void* data, int usage);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBufferSubDataDel(int target, nint offset, nint size, void* data);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteBuffersDel(int n, uint* buffers);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlEnableVertexAttribArrayDel(uint index);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlVertexAttribPointerDel(uint index, int size, int type, byte normalized, int stride, nint pointer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlVertexAttribDivisorDel(uint index, uint divisor);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawElementsDel(int mode, int count, int type, nint indices);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawElementsInstancedDel(int mode, int count, int type, nint indices, int instancecount);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawArraysDel(int mode, int first, int count);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlReadPixelsDel(int x, int y, int width, int height, int format, int type, void* pixels);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlPixelStoreiDel(int pname, int param);
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlFinishDel();
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGenFramebuffersDel(int n, uint* framebuffers);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteFramebuffersDel(int n, uint* framebuffers);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindFramebufferDel(int target, uint framebuffer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int GlCheckFramebufferStatusDel(int target);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlFramebufferTexture2DDel(int target, int attachment, int textarget, uint texture, int level);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlFramebufferRenderbufferDel(int target, int attachment, int renderbuffertarget, uint renderbuffer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBlitFramebufferDel(int srcX0, int srcY0, int srcX1, int srcY1, int dstX0, int dstY0, int dstX1, int dstY1, int mask, int filter);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGenRenderbuffersDel(int n, uint* renderbuffers);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteRenderbuffersDel(int n, uint* renderbuffers);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindRenderbufferDel(int target, uint renderbuffer);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlRenderbufferStorageMultisampleDel(int target, int samples, int internalformat, int width, int height);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlGenTexturesDel(int n, uint* textures);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDeleteTexturesDel(int n, uint* textures);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlBindTextureDel(int target, uint texture);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlActiveTextureDel(int texture);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlTexImage2DDel(int target, int level, int internalformat, int width, int height, int border, int format, int type, void* pixels);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlTexParameteriDel(int target, int pname, int param);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawBuffersDel(int n, uint* bufs);
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlDrawBufferDel(int mode);
 
     private GlViewportDel? _glViewport;
     private GlClearColorDel? _glClearColor;
@@ -89,36 +149,65 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GlDisableDel? _glDisable;
     private GlBlendFuncDel? _glBlendFunc;
     private GlDepthMaskDel? _glDepthMask;
+    private GlCullFaceDel? _glCullFace;
+    private GlPolygonOffsetDel? _glPolygonOffset;
     private GlCreateShaderDel? _glCreateShader;
     private GlShaderSourceDel? _glShaderSource;
     private GlCompileShaderDel? _glCompileShader;
     private GlGetShaderivDel? _glGetShaderiv;
+    private GlGetShaderInfoLogDel? _glGetShaderInfoLog;
     private GlDeleteShaderDel? _glDeleteShader;
     private GlCreateProgramDel? _glCreateProgram;
     private GlAttachShaderDel? _glAttachShader;
     private GlBindAttribLocationDel? _glBindAttribLocation;
     private GlLinkProgramDel? _glLinkProgram;
     private GlGetProgramivDel? _glGetProgramiv;
+    private GlGetProgramInfoLogDel? _glGetProgramInfoLog;
     private GlUseProgramDel? _glUseProgram;
     private GlDeleteProgramDel? _glDeleteProgram;
     private GlGetUniformLocationDel? _glGetUniformLocation;
     private GlUniformMatrix4fvDel? _glUniformMatrix4fv;
+    private GlUniformMatrix3fvDel? _glUniformMatrix3fv;
     private GlUniform3fDel? _glUniform3f;
+    private GlUniform2fDel? _glUniform2f;
     private GlUniform1fDel? _glUniform1f;
+    private GlUniform1iDel? _glUniform1i;
     private GlGenVertexArraysDel? _glGenVertexArrays;
     private GlBindVertexArrayDel? _glBindVertexArray;
     private GlDeleteVertexArraysDel? _glDeleteVertexArrays;
     private GlGenBuffersDel? _glGenBuffers;
     private GlBindBufferDel? _glBindBuffer;
     private GlBufferDataDel? _glBufferData;
+    private GlBufferSubDataDel? _glBufferSubData;
     private GlDeleteBuffersDel? _glDeleteBuffers;
     private GlEnableVertexAttribArrayDel? _glEnableVertexAttribArray;
     private GlVertexAttribPointerDel? _glVertexAttribPointer;
+    private GlVertexAttribDivisorDel? _glVertexAttribDivisor;
     private GlDrawElementsDel? _glDrawElements;
+    private GlDrawElementsInstancedDel? _glDrawElementsInstanced;
     private GlDrawArraysDel? _glDrawArrays;
     private GlReadPixelsDel? _glReadPixels;
     private GlPixelStoreiDel? _glPixelStorei;
     private GlFinishDel? _glFinish;
+    private GlGenFramebuffersDel? _glGenFramebuffers;
+    private GlDeleteFramebuffersDel? _glDeleteFramebuffers;
+    private GlBindFramebufferDel? _glBindFramebuffer;
+    private GlCheckFramebufferStatusDel? _glCheckFramebufferStatus;
+    private GlFramebufferTexture2DDel? _glFramebufferTexture2D;
+    private GlFramebufferRenderbufferDel? _glFramebufferRenderbuffer;
+    private GlBlitFramebufferDel? _glBlitFramebuffer;
+    private GlGenRenderbuffersDel? _glGenRenderbuffers;
+    private GlDeleteRenderbuffersDel? _glDeleteRenderbuffers;
+    private GlBindRenderbufferDel? _glBindRenderbuffer;
+    private GlRenderbufferStorageMultisampleDel? _glRenderbufferStorageMultisample;
+    private GlGenTexturesDel? _glGenTextures;
+    private GlDeleteTexturesDel? _glDeleteTextures;
+    private GlBindTextureDel? _glBindTexture;
+    private GlActiveTextureDel? _glActiveTexture;
+    private GlTexImage2DDel? _glTexImage2D;
+    private GlTexParameteriDel? _glTexParameteri;
+    private GlDrawBuffersDel? _glDrawBuffers;
+    private GlDrawBufferDel? _glDrawBuffer;
 
     private readonly object _captureLock = new();
     private byte[]? _lastFrameRgba;
@@ -128,11 +217,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private sealed class GpuMesh
     {
         public uint Vao;
+        public uint InstancedVao;
         public uint Vbo;
         public uint Ebo;
         public int IndexCount;
         public bool IsLines;
     }
+
+    private readonly record struct InstanceItem(Matrix4x4 Model, float R, float G, float B, float Alpha, float Metallic, float Roughness);
 
     private readonly Dictionary<string, GpuMesh> _glbGpuMeshes = new(StringComparer.OrdinalIgnoreCase);
     private GpuMesh? _unitBox;
@@ -143,14 +235,66 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GpuMesh? _pipesMesh;
     private GpuMesh? _conveyorStructureMesh;
 
+    private uint _instanceVbo;
+    private int _instanceCapacity = 1024;
+    private float[] _instanceScratch = new float[1024 * InstanceFloats];
+
+    private readonly List<InstanceItem> _groundPadBoxes = new(16);
+    private readonly List<InstanceItem> _casterBoxes = new(512);
+    private readonly List<InstanceItem> _casterCylinders = new(48);
+    private readonly List<InstanceItem> _unlitBoxes = new(64);
+    private readonly List<InstanceItem> _unlitCones = new(64);
+    private readonly List<InstanceItem> _fillCylinders = new(8);
+
+    // Pass 1: Shadow Map
+    private int _shadowProgram;
+    private int _uShadowLightVp = -1;
+    private int _uShadowModel = -1;
+    private int _uShadowIsInstanced = -1;
+    private uint _shadowFbo;
+    private uint _shadowDepthTex;
+    private bool _shadowReady;
+
+    // Pass 2: Main PBR + MSAA
     private int _program;
     private int _uModel = -1;
+    private int _uNormalMat = -1;
     private int _uViewProj = -1;
+    private int _uLightViewProj = -1;
     private int _uCamPos = -1;
     private int _uTint = -1;
     private int _uTintMix = -1;
     private int _uAlpha = -1;
     private int _uUnlit = -1;
+    private int _uIsInstanced = -1;
+    private int _uShadowMap = -1;
+    private int _uShadowsEnabled = -1;
+    private int _uEncodeHdr = -1;
+    private int _uApplyToneMap = -1;
+
+    private uint _msaaFbo;
+    private uint _msaaColorRbo;
+    private uint _msaaDepthRbo;
+    private bool _msaaReady;
+
+    // Pass 3: Post-FX (SSAO + Bloom + ACES + Gamma)
+    private int _postProgram;
+    private int _uPostColorTex = -1;
+    private int _uPostDepthTex = -1;
+    private int _uPostTexelSize = -1;
+    private int _uPostEnableAo = -1;
+    private int _uPostIsOrtho = -1;
+    private int _uPostNear = -1;
+    private int _uPostFar = -1;
+    private uint _postVao;
+    private uint _postFbo;
+    private uint _postColorTex;
+    private uint _postDepthTex;
+    private bool _postReady;
+
+    private int _offscreenW;
+    private int _offscreenH;
+    private int _frameDrawCalls;
 
     public double CameraYaw { get; set; } = -0.58;
     public double CameraPitch { get; set; } = 0.56;
@@ -166,6 +310,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
     public bool IsHardwareActive { get; private set; }
     public int LoadedGlbCount => _glbGpuMeshes.Count;
+    public int LastFrameDrawCalls { get; private set; }
     public volatile bool CaptureRequested;
 
     public WriteableBitmap? CaptureLastFrameBitmap()
@@ -220,56 +365,124 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glDisable = LoadProc<GlDisableDel>(gl, "glDisable");
             _glBlendFunc = LoadProc<GlBlendFuncDel>(gl, "glBlendFunc");
             _glDepthMask = LoadProc<GlDepthMaskDel>(gl, "glDepthMask");
+            _glCullFace = LoadProc<GlCullFaceDel>(gl, "glCullFace");
+            _glPolygonOffset = LoadProc<GlPolygonOffsetDel>(gl, "glPolygonOffset");
             _glCreateShader = LoadProc<GlCreateShaderDel>(gl, "glCreateShader");
             _glShaderSource = LoadProc<GlShaderSourceDel>(gl, "glShaderSource");
             _glCompileShader = LoadProc<GlCompileShaderDel>(gl, "glCompileShader");
             _glGetShaderiv = LoadProc<GlGetShaderivDel>(gl, "glGetShaderiv");
+            _glGetShaderInfoLog = LoadProc<GlGetShaderInfoLogDel>(gl, "glGetShaderInfoLog");
             _glDeleteShader = LoadProc<GlDeleteShaderDel>(gl, "glDeleteShader");
             _glCreateProgram = LoadProc<GlCreateProgramDel>(gl, "glCreateProgram");
             _glAttachShader = LoadProc<GlAttachShaderDel>(gl, "glAttachShader");
             _glBindAttribLocation = LoadProc<GlBindAttribLocationDel>(gl, "glBindAttribLocation");
             _glLinkProgram = LoadProc<GlLinkProgramDel>(gl, "glLinkProgram");
             _glGetProgramiv = LoadProc<GlGetProgramivDel>(gl, "glGetProgramiv");
+            _glGetProgramInfoLog = LoadProc<GlGetProgramInfoLogDel>(gl, "glGetProgramInfoLog");
             _glUseProgram = LoadProc<GlUseProgramDel>(gl, "glUseProgram");
             _glDeleteProgram = LoadProc<GlDeleteProgramDel>(gl, "glDeleteProgram");
             _glGetUniformLocation = LoadProc<GlGetUniformLocationDel>(gl, "glGetUniformLocation");
             _glUniformMatrix4fv = LoadProc<GlUniformMatrix4fvDel>(gl, "glUniformMatrix4fv");
+            _glUniformMatrix3fv = LoadProc<GlUniformMatrix3fvDel>(gl, "glUniformMatrix3fv");
             _glUniform3f = LoadProc<GlUniform3fDel>(gl, "glUniform3f");
+            _glUniform2f = LoadProc<GlUniform2fDel>(gl, "glUniform2f");
             _glUniform1f = LoadProc<GlUniform1fDel>(gl, "glUniform1f");
+            _glUniform1i = LoadProc<GlUniform1iDel>(gl, "glUniform1i");
             _glGenVertexArrays = LoadProc<GlGenVertexArraysDel>(gl, "glGenVertexArrays");
             _glBindVertexArray = LoadProc<GlBindVertexArrayDel>(gl, "glBindVertexArray");
             _glDeleteVertexArrays = LoadProc<GlDeleteVertexArraysDel>(gl, "glDeleteVertexArrays");
             _glGenBuffers = LoadProc<GlGenBuffersDel>(gl, "glGenBuffers");
             _glBindBuffer = LoadProc<GlBindBufferDel>(gl, "glBindBuffer");
             _glBufferData = LoadProc<GlBufferDataDel>(gl, "glBufferData");
+            _glBufferSubData = LoadProc<GlBufferSubDataDel>(gl, "glBufferSubData");
             _glDeleteBuffers = LoadProc<GlDeleteBuffersDel>(gl, "glDeleteBuffers");
             _glEnableVertexAttribArray = LoadProc<GlEnableVertexAttribArrayDel>(gl, "glEnableVertexAttribArray");
             _glVertexAttribPointer = LoadProc<GlVertexAttribPointerDel>(gl, "glVertexAttribPointer");
+            _glVertexAttribDivisor = LoadProc<GlVertexAttribDivisorDel>(gl, "glVertexAttribDivisor");
             _glDrawElements = LoadProc<GlDrawElementsDel>(gl, "glDrawElements");
+            _glDrawElementsInstanced = LoadProc<GlDrawElementsInstancedDel>(gl, "glDrawElementsInstanced");
             _glDrawArrays = LoadProc<GlDrawArraysDel>(gl, "glDrawArrays");
             _glReadPixels = LoadProc<GlReadPixelsDel>(gl, "glReadPixels");
             _glPixelStorei = LoadProc<GlPixelStoreiDel>(gl, "glPixelStorei");
             _glFinish = LoadProc<GlFinishDel>(gl, "glFinish");
+            _glGenFramebuffers = LoadProc<GlGenFramebuffersDel>(gl, "glGenFramebuffers");
+            _glDeleteFramebuffers = LoadProc<GlDeleteFramebuffersDel>(gl, "glDeleteFramebuffers");
+            _glBindFramebuffer = LoadProc<GlBindFramebufferDel>(gl, "glBindFramebuffer");
+            _glCheckFramebufferStatus = LoadProc<GlCheckFramebufferStatusDel>(gl, "glCheckFramebufferStatus");
+            _glFramebufferTexture2D = LoadProc<GlFramebufferTexture2DDel>(gl, "glFramebufferTexture2D");
+            _glFramebufferRenderbuffer = LoadProc<GlFramebufferRenderbufferDel>(gl, "glFramebufferRenderbuffer");
+            _glBlitFramebuffer = LoadProc<GlBlitFramebufferDel>(gl, "glBlitFramebuffer");
+            _glGenRenderbuffers = LoadProc<GlGenRenderbuffersDel>(gl, "glGenRenderbuffers");
+            _glDeleteRenderbuffers = LoadProc<GlDeleteRenderbuffersDel>(gl, "glDeleteRenderbuffers");
+            _glBindRenderbuffer = LoadProc<GlBindRenderbufferDel>(gl, "glBindRenderbuffer");
+            _glRenderbufferStorageMultisample = LoadProc<GlRenderbufferStorageMultisampleDel>(gl, "glRenderbufferStorageMultisample");
+            _glGenTextures = LoadProc<GlGenTexturesDel>(gl, "glGenTextures");
+            _glDeleteTextures = LoadProc<GlDeleteTexturesDel>(gl, "glDeleteTextures");
+            _glBindTexture = LoadProc<GlBindTextureDel>(gl, "glBindTexture");
+            _glActiveTexture = LoadProc<GlActiveTextureDel>(gl, "glActiveTexture");
+            _glTexImage2D = LoadProc<GlTexImage2DDel>(gl, "glTexImage2D");
+            _glTexParameteri = LoadProc<GlTexParameteriDel>(gl, "glTexParameteri");
+            _glDrawBuffers = LoadProc<GlDrawBuffersDel>(gl, "glDrawBuffers");
+            _glDrawBuffer = LoadProc<GlDrawBufferDel>(gl, "glDrawBuffer");
 
             if (_glCreateProgram is null || _glGenVertexArrays is null || _glDrawElements is null)
                 return;
 
             bool isEs = GlVersion.Type == GlProfileType.OpenGLES;
-            _program = BuildShaderProgram(isEs);
+
+            _program = BuildMainPbrProgram(isEs);
             if (_program == 0)
                 return;
 
-            _uModel = GetUniformLoc("uModel");
-            _uViewProj = GetUniformLoc("uViewProj");
-            _uCamPos = GetUniformLoc("uCamPos");
-            _uTint = GetUniformLoc("uTint");
-            _uTintMix = GetUniformLoc("uTintMix");
-            _uAlpha = GetUniformLoc("uAlpha");
-            _uUnlit = GetUniformLoc("uUnlit");
+            _uModel = GetUniformLoc(_program, "uModel");
+            _uNormalMat = GetUniformLoc(_program, "uNormalMat");
+            _uViewProj = GetUniformLoc(_program, "uViewProj");
+            _uLightViewProj = GetUniformLoc(_program, "uLightViewProj");
+            _uCamPos = GetUniformLoc(_program, "uCamPos");
+            _uTint = GetUniformLoc(_program, "uTint");
+            _uTintMix = GetUniformLoc(_program, "uTintMix");
+            _uAlpha = GetUniformLoc(_program, "uAlpha");
+            _uUnlit = GetUniformLoc(_program, "uUnlit");
+            _uIsInstanced = GetUniformLoc(_program, "uIsInstanced");
+            _uShadowMap = GetUniformLoc(_program, "uShadowMap");
+            _uShadowsEnabled = GetUniformLoc(_program, "uShadowsEnabled");
+            _uEncodeHdr = GetUniformLoc(_program, "uEncodeHdr");
+            _uApplyToneMap = GetUniformLoc(_program, "uApplyToneMap");
+
+            _shadowProgram = BuildShadowProgram(isEs);
+            if (_shadowProgram != 0)
+            {
+                _uShadowLightVp = GetUniformLoc(_shadowProgram, "uLightViewProj");
+                _uShadowModel = GetUniformLoc(_shadowProgram, "uModel");
+                _uShadowIsInstanced = GetUniformLoc(_shadowProgram, "uIsInstanced");
+            }
+
+            _postProgram = BuildPostProgram(isEs);
+            if (_postProgram != 0)
+            {
+                _uPostColorTex = GetUniformLoc(_postProgram, "uColorTex");
+                _uPostDepthTex = GetUniformLoc(_postProgram, "uDepthTex");
+                _uPostTexelSize = GetUniformLoc(_postProgram, "uTexelSize");
+                _uPostEnableAo = GetUniformLoc(_postProgram, "uEnableAo");
+                _uPostIsOrtho = GetUniformLoc(_postProgram, "uIsOrtho");
+                _uPostNear = GetUniformLoc(_postProgram, "uNear");
+                _uPostFar = GetUniformLoc(_postProgram, "uFar");
+                uint postVao = 0;
+                _glGenVertexArrays!(1, &postVao);
+                _postVao = postVao;
+            }
+
+            // Instance VBO shared across instanced VAOs
+            uint instVbo = 0;
+            _glGenBuffers!(1, &instVbo);
+            _instanceVbo = instVbo;
+            _glBindBuffer!(GL_ARRAY_BUFFER, _instanceVbo);
+            _glBufferData!(GL_ARRAY_BUFFER, (nint)(_instanceCapacity * InstanceFloats * sizeof(float)), null, GL_DYNAMIC_DRAW);
+            _glBindBuffer!(GL_ARRAY_BUFFER, 0);
 
             foreach (var (fileName, meshData) in Plant3DSceneData.LoadAllGlbMeshes())
             {
-                _glbGpuMeshes[fileName] = UploadIndexedMesh(meshData.Vertices, meshData.Indices);
+                _glbGpuMeshes[fileName] = UploadIndexedMesh(meshData.Vertices, meshData.Indices, withInstancing: false);
             }
 
             _unitBox = BuildUnitBoxMesh();
@@ -280,10 +493,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _pipesMesh = BuildOrthogonalPipesMesh();
             _conveyorStructureMesh = BuildConveyorStructuresMesh();
 
+            InitShadowFbo();
+
             IsHardwareActive = true;
         }
-        catch
+        catch (Exception ex)
         {
+            // Log the failure so headless/no-GPU or bad-mesh init is diagnosable instead of silent.
+            Console.Error.WriteLine($"[Plant3D] OpenGL init failed: {ex}");
             IsHardwareActive = false;
         }
     }
@@ -301,12 +518,213 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         DeleteMesh(_pipesMesh); _pipesMesh = null;
         DeleteMesh(_conveyorStructureMesh); _conveyorStructureMesh = null;
 
-        if (_program != 0)
+        if (_instanceVbo != 0)
         {
-            _glDeleteProgram?.Invoke(_program);
-            _program = 0;
+            uint iv = _instanceVbo;
+            _glDeleteBuffers?.Invoke(1, &iv);
+            _instanceVbo = 0;
         }
+
+        if (_postVao != 0)
+        {
+            uint pv = _postVao;
+            _glDeleteVertexArrays?.Invoke(1, &pv);
+            _postVao = 0;
+        }
+
+        DeleteShadowFbo();
+        DeleteOffscreenFbos();
+
+        if (_program != 0) { _glDeleteProgram?.Invoke(_program); _program = 0; }
+        if (_shadowProgram != 0) { _glDeleteProgram?.Invoke(_shadowProgram); _shadowProgram = 0; }
+        if (_postProgram != 0) { _glDeleteProgram?.Invoke(_postProgram); _postProgram = 0; }
+
         base.OnOpenGlDeinit(gl);
+    }
+
+    private bool HasFboSupport() =>
+        _glGenFramebuffers is not null &&
+        _glDeleteFramebuffers is not null &&
+        _glBindFramebuffer is not null &&
+        _glCheckFramebufferStatus is not null &&
+        _glFramebufferTexture2D is not null &&
+        _glFramebufferRenderbuffer is not null &&
+        _glBlitFramebuffer is not null &&
+        _glGenRenderbuffers is not null &&
+        _glDeleteRenderbuffers is not null &&
+        _glBindRenderbuffer is not null &&
+        _glRenderbufferStorageMultisample is not null &&
+        _glGenTextures is not null &&
+        _glDeleteTextures is not null &&
+        _glBindTexture is not null &&
+        _glActiveTexture is not null &&
+        _glTexImage2D is not null &&
+        _glTexParameteri is not null;
+
+    private void InitShadowFbo()
+    {
+        DeleteShadowFbo();
+        if (!HasFboSupport() || _shadowProgram == 0)
+            return;
+
+        uint tex = 0, fbo = 0;
+        _glGenTextures!(1, &tex);
+        _glBindTexture!(GL_TEXTURE_2D, tex);
+        _glTexImage2D!(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, ShadowMapSize, ShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, null);
+        _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        _glBindTexture!(GL_TEXTURE_2D, 0);
+
+        _glGenFramebuffers!(1, &fbo);
+        _glBindFramebuffer!(GL_FRAMEBUFFER, fbo);
+        _glFramebufferTexture2D!(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex, 0);
+
+        if (_glDrawBuffers is not null)
+        {
+            uint none = GL_NONE;
+            _glDrawBuffers(1, &none);
+        }
+        else
+        {
+            _glDrawBuffer?.Invoke(GL_NONE);
+        }
+
+        int status = _glCheckFramebufferStatus!(GL_FRAMEBUFFER);
+        _glBindFramebuffer!(GL_FRAMEBUFFER, 0);
+
+        _shadowDepthTex = tex;
+        _shadowFbo = fbo;
+        _shadowReady = status == GL_FRAMEBUFFER_COMPLETE;
+        if (!_shadowReady)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Plant3D] Shadow FBO incomplete (status=0x{status:X}); disabling shadow map.");
+            DeleteShadowFbo();
+        }
+    }
+
+    private void DeleteShadowFbo()
+    {
+        _shadowReady = false;
+        if (_shadowFbo != 0)
+        {
+            uint f = _shadowFbo;
+            _glDeleteFramebuffers?.Invoke(1, &f);
+            _shadowFbo = 0;
+        }
+        if (_shadowDepthTex != 0)
+        {
+            uint t = _shadowDepthTex;
+            _glDeleteTextures?.Invoke(1, &t);
+            _shadowDepthTex = 0;
+        }
+    }
+
+    private void EnsureOffscreenFbos(int pw, int ph, uint returnFb)
+    {
+        if (_offscreenW == pw && _offscreenH == ph)
+            return;
+
+        DeleteOffscreenFbos();
+        _offscreenW = pw;
+        _offscreenH = ph;
+
+        if (!HasFboSupport())
+            return;
+
+        // 1. 4x MSAA FBO
+        uint msaaFbo = 0, msaaColor = 0, msaaDepth = 0;
+        _glGenFramebuffers!(1, &msaaFbo);
+        _glGenRenderbuffers!(1, &msaaColor);
+        _glGenRenderbuffers!(1, &msaaDepth);
+
+        _glBindRenderbuffer!(GL_RENDERBUFFER, msaaColor);
+        _glRenderbufferStorageMultisample!(GL_RENDERBUFFER, 4, GL_RGBA8, pw, ph);
+        _glBindRenderbuffer!(GL_RENDERBUFFER, msaaDepth);
+        _glRenderbufferStorageMultisample!(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, pw, ph);
+        _glBindRenderbuffer!(GL_RENDERBUFFER, 0);
+
+        _glBindFramebuffer!(GL_FRAMEBUFFER, msaaFbo);
+        _glFramebufferRenderbuffer!(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColor);
+        _glFramebufferRenderbuffer!(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msaaDepth);
+        int msaaStatus = _glCheckFramebufferStatus!(GL_FRAMEBUFFER);
+
+        _msaaFbo = msaaFbo;
+        _msaaColorRbo = msaaColor;
+        _msaaDepthRbo = msaaDepth;
+        _msaaReady = msaaStatus == GL_FRAMEBUFFER_COMPLETE;
+
+        if (!_msaaReady)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Plant3D] 4x MSAA FBO incomplete (status=0x{msaaStatus:X}); falling back.");
+            DeleteMsaaFboOnly();
+        }
+
+        // 2. Single-sample post-processing FBO (color + depth textures)
+        if (_msaaReady && _postProgram != 0 && _postVao != 0)
+        {
+            uint postFbo = 0, postColor = 0, postDepth = 0;
+            _glGenTextures!(1, &postColor);
+            _glBindTexture!(GL_TEXTURE_2D, postColor);
+            _glTexImage2D!(GL_TEXTURE_2D, 0, GL_RGBA8, pw, ph, 0, GL_RGBA, GL_UNSIGNED_BYTE, null);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            _glGenTextures!(1, &postDepth);
+            _glBindTexture!(GL_TEXTURE_2D, postDepth);
+            _glTexImage2D!(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, pw, ph, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, null);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            _glBindTexture!(GL_TEXTURE_2D, 0);
+
+            _glGenFramebuffers!(1, &postFbo);
+            _glBindFramebuffer!(GL_FRAMEBUFFER, postFbo);
+            _glFramebufferTexture2D!(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postColor, 0);
+            _glFramebufferTexture2D!(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, postDepth, 0);
+            int postStatus = _glCheckFramebufferStatus!(GL_FRAMEBUFFER);
+
+            _postFbo = postFbo;
+            _postColorTex = postColor;
+            _postDepthTex = postDepth;
+            _postReady = postStatus == GL_FRAMEBUFFER_COMPLETE;
+
+            if (!_postReady)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Plant3D] Post FBO incomplete (status=0x{postStatus:X}); falling back to direct blit.");
+                DeletePostFboOnly();
+            }
+        }
+
+        _glBindFramebuffer!(GL_FRAMEBUFFER, returnFb);
+    }
+
+    private void DeleteMsaaFboOnly()
+    {
+        _msaaReady = false;
+        if (_msaaFbo != 0) { uint f = _msaaFbo; _glDeleteFramebuffers?.Invoke(1, &f); _msaaFbo = 0; }
+        if (_msaaColorRbo != 0) { uint r = _msaaColorRbo; _glDeleteRenderbuffers?.Invoke(1, &r); _msaaColorRbo = 0; }
+        if (_msaaDepthRbo != 0) { uint r = _msaaDepthRbo; _glDeleteRenderbuffers?.Invoke(1, &r); _msaaDepthRbo = 0; }
+    }
+
+    private void DeletePostFboOnly()
+    {
+        _postReady = false;
+        if (_postFbo != 0) { uint f = _postFbo; _glDeleteFramebuffers?.Invoke(1, &f); _postFbo = 0; }
+        if (_postColorTex != 0) { uint t = _postColorTex; _glDeleteTextures?.Invoke(1, &t); _postColorTex = 0; }
+        if (_postDepthTex != 0) { uint t = _postDepthTex; _glDeleteTextures?.Invoke(1, &t); _postDepthTex = 0; }
+    }
+
+    private void DeleteOffscreenFbos()
+    {
+        DeleteMsaaFboOnly();
+        DeletePostFboOnly();
+        _offscreenW = 0;
+        _offscreenH = 0;
     }
 
     protected override void OnOpenGlRender(GlInterface gl, int fb)
@@ -314,20 +732,20 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         if (!IsHardwareActive || _program == 0)
             return;
 
+        // Guard against a partially-initialized context where some GL delegates are null.
+        if (_glViewport is null || _glClearColor is null || _glClear is null ||
+            _glEnable is null || _glDisable is null || _glBlendFunc is null ||
+            _glDepthMask is null || _glUseProgram is null || _glGetUniformLocation is null ||
+            _glUniformMatrix4fv is null || _glGenVertexArrays is null ||
+            _glBindVertexArray is null || _glDrawElements is null || _glDrawArrays is null)
+            return;
+
         double scale = Avalonia.Controls.TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         int pw = Math.Max(1, (int)(Bounds.Width * scale));
         int ph = Math.Max(1, (int)(Bounds.Height * scale));
 
-        _glViewport!(0, 0, pw, ph);
-        _glClearColor!(0.031f, 0.055f, 0.106f, 1.0f);
-        _glClear!(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        _glEnable!(GL_DEPTH_TEST);
-        _glEnable!(GL_MULTISAMPLE);
-        _glDisable!(GL_CULL_FACE);
-        _glEnable!(GL_BLEND);
-        _glBlendFunc!(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        _glUseProgram!(_program);
+        EnsureOffscreenFbos(pw, ph, (uint)fb);
+        _frameDrawCalls = 0;
 
         var fx = Effects ?? new Unity3DEffectSettings();
         var (view, proj, camPos) = Plant3DSceneData.BuildCameraMatrices(
@@ -336,8 +754,10 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             fx.IsOrthographic);
         var viewProj = view * proj;
 
-        SetMatrix(_uViewProj, viewProj);
-        _glUniform3f!(_uCamPos, camPos.X, camPos.Y, camPos.Z);
+        var lightDir = Vector3.Normalize(new Vector3(0.48f, 0.82f, 0.34f));
+        var shadowCenter = new Vector3(-2.5f, 0.5f, -0.5f);
+        var lightViewProj = Matrix4x4.CreateLookAt(shadowCenter + lightDir * 32f, shadowCenter, Vector3.UnitY)
+                          * Plant3DSceneData.CreateOpenGlOrthographic(44f, 44f, 2f, 68f);
 
         var eqMap = new Dictionary<string, EquipmentItem>(StringComparer.OrdinalIgnoreCase);
         if (Equipment is not null)
@@ -350,10 +770,98 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         bool loaderActive = fx.AnimateConveyors && (afEq is null || afEq.Status is not (EquipmentStatus.Stopped or EquipmentStatus.Fault or EquipmentStatus.Offline));
         var loaderPose = Plant3DSceneData.ComputeLoaderPose(SimTime, loaderActive);
 
+        string? activeSelected = SelectedNodeId ?? SelectedEquipmentId;
+        BuildInstancedSceneBatches(eqMap, flowMap, loaderPose, fx, activeSelected, HoveredNodeId);
+
+        // =====================================================================
+        // PASS 1: 2048x2048 Directional Shadow Map
+        // =====================================================================
+        bool useShadows = fx.ShowGroundShadows && _shadowReady && _shadowProgram != 0;
+        if (useShadows)
+        {
+            _glBindFramebuffer!(GL_FRAMEBUFFER, _shadowFbo);
+            _glViewport!(0, 0, ShadowMapSize, ShadowMapSize);
+            _glDepthMask!(1);
+            _glEnable!(GL_DEPTH_TEST);
+            _glDisable!(GL_BLEND);
+            _glDisable!(GL_CULL_FACE);
+            _glEnable!(GL_POLYGON_OFFSET_FILL);
+            _glPolygonOffset?.Invoke(2.2f, 4.0f);
+            _glClear!(GL_DEPTH_BUFFER_BIT);
+
+            _glUseProgram!(_shadowProgram);
+            SetMatrix(_uShadowLightVp, lightViewProj);
+            _glUniform1f!(_uShadowIsInstanced, 0f);
+
+            if (_conveyorStructureMesh is not null)
+            {
+                SetMatrix(_uShadowModel, Matrix4x4.Identity);
+                DrawMesh(_conveyorStructureMesh);
+            }
+
+            if (_pipesMesh is not null)
+            {
+                SetMatrix(_uShadowModel, Matrix4x4.Identity);
+                DrawMesh(_pipesMesh);
+            }
+
+            DrawMachineNodesShadowPass(loaderPose, eqMap, flowMap, fx);
+
+            if (_unitBox is not null && _casterBoxes.Count > 0)
+            {
+                DrawInstancedBatch(_unitBox, _casterBoxes, isShadowPass: true);
+            }
+            if (_unitCylinder is not null && _casterCylinders.Count > 0)
+            {
+                DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: true);
+            }
+
+            _glDisable!(GL_POLYGON_OFFSET_FILL);
+        }
+
+        // =====================================================================
+        // PASS 2: 4x MSAA Offscreen Cook-Torrance GGX PBR Pass
+        // =====================================================================
+        bool runPostPass = _msaaReady && _postReady && _postProgram != 0 && _postVao != 0;
+        if (_msaaReady)
+            _glBindFramebuffer!(GL_FRAMEBUFFER, _msaaFbo);
+        else
+            _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)fb);
+
+        _glViewport!(0, 0, pw, ph);
+        if (runPostPass)
+            _glClearColor!(0.0346f, 0.0490f, 0.0775f, 1.0f); // sqrt(linear(0.003,0.006,0.015) * 0.4)
+        else
+            _glClearColor!(0.031f, 0.055f, 0.106f, 1.0f);
+
+        _glClear!(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        _glEnable!(GL_DEPTH_TEST);
+        _glEnable!(GL_MULTISAMPLE);
+        _glDisable!(GL_CULL_FACE);
+        _glEnable!(GL_BLEND);
+        _glBlendFunc!(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        _glUseProgram!(_program);
+
+        if (_glActiveTexture is not null && _glBindTexture is not null && _shadowDepthTex != 0)
+        {
+            _glActiveTexture(GL_TEXTURE0);
+            _glBindTexture(GL_TEXTURE_2D, _shadowDepthTex);
+            _glUniform1i?.Invoke(_uShadowMap, 0);
+        }
+
+        SetMatrix(_uViewProj, viewProj);
+        SetMatrix(_uLightViewProj, lightViewProj);
+        _glUniform3f!(_uCamPos, camPos.X, camPos.Y, camPos.Z);
+        _glUniform1f!(_uShadowsEnabled, useShadows ? 1f : 0f);
+        _glUniform1f!(_uEncodeHdr, runPostPass ? 1f : 0f);
+        _glUniform1f!(_uApplyToneMap, runPostPass ? 0f : 1f);
+        _glUniform1f!(_uIsInstanced, 0f);
+
         // 1. Ground Grid
         if (_gridLines is not null)
         {
-            SetMatrix(_uModel, Matrix4x4.Identity);
+            SetModelAndNormalMatrix(Matrix4x4.Identity);
             _glUniform3f!(_uTint, 0.22f, 0.65f, 0.92f);
             _glUniform1f!(_uTintMix, 1.0f);
             _glUniform1f!(_uAlpha, 0.20f);
@@ -361,72 +869,551 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             DrawMesh(_gridLines);
         }
 
-        // 2. Concrete Foundation Pads + Circuit Accent Trim
-        if (_unitBox is not null)
+        // 2. Concrete Foundation Pads + Circuit Accent Trim (Instanced)
+        if (_unitBox is not null && _groundPadBoxes.Count > 0)
         {
             _glUniform1f!(_uUnlit, 0.0f);
-            _glUniform1f!(_uAlpha, 1.0f);
-            foreach (var pad in Plant3DSceneData.FoundationPads)
-            {
-                var padMat = Matrix4x4.CreateScale(pad.Size) * Matrix4x4.CreateTranslation(pad.Center);
-                SetMatrix(_uModel, padMat);
-                _glUniform3f!(_uTint, 0.14f, 0.18f, 0.25f);
-                _glUniform1f!(_uTintMix, 1.0f);
-                DrawMesh(_unitBox);
-
-                var trimMat = Matrix4x4.CreateScale(pad.Size.X, 0.04f, 0.12f)
-                            * Matrix4x4.CreateTranslation(pad.Center.X, 0.02f, pad.Center.Z + pad.Size.Z * 0.5f - 0.06f);
-                SetMatrix(_uModel, trimMat);
-                _glUniform3f!(_uTint, pad.AccentColor.R / 255f, pad.AccentColor.G / 255f, pad.AccentColor.B / 255f);
-                DrawMesh(_unitBox);
-            }
-        }
-
-        // 3. Ground Contact Shadows
-        if (fx.ShowGroundShadows && _unitCylinder is not null)
-        {
-            _glDepthMask!(0);
-            _glUniform1f!(_uUnlit, 1.0f);
-            _glUniform3f!(_uTint, 0.01f, 0.02f, 0.05f);
             _glUniform1f!(_uTintMix, 1.0f);
-            _glUniform1f!(_uAlpha, 0.50f);
-            foreach (var p in Plant3DSceneData.MachineNodes)
-            {
-                var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
-                float rx = p.HalfExtents.X * 1.05f;
-                float rz = p.HalfExtents.Z * 1.05f;
-                var sm = Matrix4x4.CreateScale(rx, 0.02f, rz)
-                       * Matrix4x4.CreateTranslation(pos.X + 0.18f, 0.015f, pos.Z + 0.18f);
-                SetMatrix(_uModel, sm);
-                DrawMesh(_unitCylinder);
-            }
-            _glDepthMask!(1);
+            DrawInstancedBatch(_unitBox, _groundPadBoxes, isShadowPass: false);
         }
 
-        // 4. Orthogonal 3D Slurry / Magnetite / Water Piping
+        // 3. Orthogonal 3D Slurry / Magnetite / Water Piping
         if (_pipesMesh is not null)
         {
-            SetMatrix(_uModel, Matrix4x4.Identity);
+            SetModelAndNormalMatrix(Matrix4x4.Identity);
             _glUniform3f!(_uTint, 0.55f, 0.64f, 0.75f);
-            _glUniform1f!(_uTintMix, 0.25f);
+            _glUniform1f!(_uTintMix, 0.20f);
             _glUniform1f!(_uAlpha, 1.0f);
             _glUniform1f!(_uUnlit, 0.0f);
             DrawMesh(_pipesMesh);
         }
 
-        // 5. Procedural Industrial Conveyor Structures (trestles, stringers, walkways, handrails, transfer chutes)
+        // 4. Procedural Industrial Conveyor Structures (trestles, stringers, walkways, handrails, transfer chutes)
         if (_conveyorStructureMesh is not null)
         {
-            SetMatrix(_uModel, Matrix4x4.Identity);
+            SetModelAndNormalMatrix(Matrix4x4.Identity);
             _glUniform3f!(_uTint, 0.45f, 0.54f, 0.64f);
-            _glUniform1f!(_uTintMix, 0.05f);
+            _glUniform1f!(_uTintMix, 0.04f);
             _glUniform1f!(_uAlpha, 1.0f);
             _glUniform1f!(_uUnlit, 0.0f);
             DrawMesh(_conveyorStructureMesh);
         }
 
-        // 6. All 18 Machine Nodes (Blender .glb meshes + mechanical animations)
-        string? activeSelected = SelectedNodeId ?? SelectedEquipmentId;
+        // 5. All 18 Machine Nodes (Blender .glb meshes)
+        DrawMachineNodesMainPass(eqMap, flowMap, loaderPose, fx, activeSelected, HoveredNodeId);
+
+        // 6. Instanced Opaque Mechanical Sub-Parts, Pulleys, Cleats, Coal Stream & Dump Boulders
+        _glUniform1f!(_uUnlit, 0.0f);
+        _glUniform1f!(_uTintMix, 1.0f);
+        if (_unitBox is not null && _casterBoxes.Count > 0)
+        {
+            DrawInstancedBatch(_unitBox, _casterBoxes, isShadowPass: false);
+        }
+        if (_unitCylinder is not null && _casterCylinders.Count > 0)
+        {
+            DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: false);
+        }
+
+        // 7. Instanced Unlit Pipe Flow Particles, Conveyor Highlights & Directional Flow Chevrons
+        _glUniform1f!(_uUnlit, 1.0f);
+        _glUniform1f!(_uTintMix, 1.0f);
+        if (_unitBox is not null && _unlitBoxes.Count > 0)
+        {
+            DrawInstancedBatch(_unitBox, _unlitBoxes, isShadowPass: false);
+        }
+        if (_unitCone is not null && _unlitCones.Count > 0)
+        {
+            DrawInstancedBatch(_unitCone, _unlitCones, isShadowPass: false);
+        }
+
+        // 8. Transparent Overlays: Live 3D Fill-Level Indicators & Alarm / Selection Rings
+        _glDepthMask!(0);
+        if (_unitCylinder is not null && _fillCylinders.Count > 0)
+        {
+            _glUniform1f!(_uUnlit, 0.25f);
+            _glUniform1f!(_uTintMix, 1.0f);
+            DrawInstancedBatch(_unitCylinder, _fillCylinders, isShadowPass: false);
+        }
+
+        _glUniform1f!(_uIsInstanced, 0f);
+        if (_unitRing is not null)
+        {
+            _glUniform1f!(_uUnlit, 1.0f);
+            _glUniform1f!(_uTintMix, 1.0f);
+
+            float pulse = 0.55f + 0.45f * MathF.Sin((float)(SimTime * 4.5));
+            foreach (var p in Plant3DSceneData.AllNodes)
+            {
+                eqMap.TryGetValue(p.LinkedScadaId, out var eq);
+                var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
+                float baseR = p.IsConveyor ? 1.15f : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
+
+                if (!p.IsConveyor && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
+                {
+                    var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
+                    var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
+                           * Matrix4x4.CreateTranslation(pos.X, 0.08f, pos.Z);
+                    SetModelAndNormalMatrix(rm);
+                    _glUniform3f!(_uTint, ac.R / 255f, ac.G / 255f, ac.B / 255f);
+                    _glUniform1f!(_uAlpha, 0.42f + 0.42f * pulse);
+                    DrawMesh(_unitRing);
+                }
+
+                bool isSel = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
+                bool isHov = string.Equals(HoveredNodeId, p.Id, StringComparison.OrdinalIgnoreCase);
+                if (isSel || isHov)
+                {
+                    var sc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
+                    var rm = Matrix4x4.CreateScale(baseR + 0.16f, 1f, baseR + 0.16f)
+                           * Matrix4x4.CreateTranslation(pos.X, p.IsConveyor ? pos.Y : 0.10f, pos.Z);
+                    SetModelAndNormalMatrix(rm);
+                    _glUniform3f!(_uTint, sc.R / 255f, sc.G / 255f, sc.B / 255f);
+                    _glUniform1f!(_uAlpha, isSel ? 0.92f : 0.62f);
+                    DrawMesh(_unitRing);
+                }
+            }
+        }
+        _glDepthMask!(1);
+
+        // =====================================================================
+        // PASS 3: MSAA Blit + Post-FX SSAO, Bloom & ACES Tone Mapping into fb
+        // =====================================================================
+        if (runPostPass)
+        {
+            _glBindFramebuffer!(GL_READ_FRAMEBUFFER, _msaaFbo);
+            _glBindFramebuffer!(GL_DRAW_FRAMEBUFFER, _postFbo);
+            _glBlitFramebuffer!(0, 0, pw, ph, 0, 0, pw, ph, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+            _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)fb);
+            _glViewport!(0, 0, pw, ph);
+            _glDisable!(GL_DEPTH_TEST);
+            _glDisable!(GL_BLEND);
+            _glDepthMask!(0);
+
+            _glUseProgram!(_postProgram);
+            _glActiveTexture!(GL_TEXTURE0);
+            _glBindTexture!(GL_TEXTURE_2D, _postColorTex);
+            _glUniform1i!(_uPostColorTex, 0);
+
+            _glActiveTexture!(GL_TEXTURE1);
+            _glBindTexture!(GL_TEXTURE_2D, _postDepthTex);
+            _glUniform1i!(_uPostDepthTex, 1);
+
+            _glUniform2f?.Invoke(_uPostTexelSize, 1f / pw, 1f / ph);
+            _glUniform1f!(_uPostEnableAo, fx.EnableAmbientOcclusion ? 1f : 0f);
+            _glUniform1f!(_uPostIsOrtho, fx.IsOrthographic ? 1f : 0f);
+            _glUniform1f!(_uPostNear, fx.IsOrthographic ? 0.1f : 0.2f);
+            _glUniform1f!(_uPostFar, 140.0f);
+
+            _glBindVertexArray!(_postVao);
+            _glDrawArrays!(GL_TRIANGLES, 0, 3);
+            _frameDrawCalls++;
+
+            _glDepthMask!(1);
+            _glEnable!(GL_DEPTH_TEST);
+        }
+        else if (_msaaReady)
+        {
+            _glBindFramebuffer!(GL_READ_FRAMEBUFFER, _msaaFbo);
+            _glBindFramebuffer!(GL_DRAW_FRAMEBUFFER, (uint)fb);
+            _glBlitFramebuffer!(0, 0, pw, ph, 0, 0, pw, ph, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)fb);
+        }
+
+        LastFrameDrawCalls = _frameDrawCalls;
+
+        // Capture final resolved, anti-aliased, SSAO + PBR + tone-mapped framebuffer
+        if (CaptureRequested)
+        {
+            CaptureFramePixels(pw, ph);
+        }
+
+        _glActiveTexture?.Invoke(GL_TEXTURE1);
+        _glBindTexture?.Invoke(GL_TEXTURE_2D, 0);
+        _glActiveTexture?.Invoke(GL_TEXTURE0);
+        _glBindTexture?.Invoke(GL_TEXTURE_2D, 0);
+        _glBindVertexArray!(0);
+        _glUseProgram!(0);
+    }
+
+    private void CaptureFramePixels(int pw, int ph)
+    {
+        if (_glReadPixels is null || pw <= 0 || ph <= 0)
+            return;
+
+        _glFinish?.Invoke();
+        _glPixelStorei?.Invoke(GL_PACK_ALIGNMENT, 1);
+        var buf = new byte[pw * ph * 4];
+        fixed (byte* pBuf = buf)
+        {
+            _glReadPixels(0, 0, pw, ph, GL_RGBA, GL_UNSIGNED_BYTE, pBuf);
+        }
+        lock (_captureLock)
+        {
+            _lastFrameRgba = buf;
+            _lastFrameWidth = pw;
+            _lastFrameHeight = ph;
+        }
+    }
+
+    private void BuildInstancedSceneBatches(
+        Dictionary<string, EquipmentItem> eqMap,
+        IReadOnlyDictionary<string, ProcessFlowState> flowMap,
+        LoaderPose loaderPose,
+        Unity3DEffectSettings fx,
+        string? activeSelected,
+        string? hoveredId)
+    {
+        _groundPadBoxes.Clear();
+        _casterBoxes.Clear();
+        _casterCylinders.Clear();
+        _unlitBoxes.Clear();
+        _unlitCones.Clear();
+        _fillCylinders.Clear();
+
+        // 1. Concrete Foundation Pads + Circuit Accent Trim (rough non-metal concrete + painted trim)
+        foreach (var pad in Plant3DSceneData.FoundationPads)
+        {
+            var padMat = Matrix4x4.CreateScale(pad.Size) * Matrix4x4.CreateTranslation(pad.Center);
+            _groundPadBoxes.Add(new InstanceItem(padMat, 0.14f, 0.18f, 0.25f, 1.0f, 0.05f, 0.88f));
+
+            var trimMat = Matrix4x4.CreateScale(pad.Size.X, 0.04f, 0.12f)
+                        * Matrix4x4.CreateTranslation(pad.Center.X, 0.02f, pad.Center.Z + pad.Size.Z * 0.5f - 0.06f);
+            _groundPadBoxes.Add(new InstanceItem(trimMat, pad.AccentColor.R / 255f, pad.AccentColor.G / 255f, pad.AccentColor.B / 255f, 1.0f, 0.25f, 0.45f));
+        }
+
+        // 2. Machine Mechanical Sub-Parts & Live Fill Levels
+        foreach (var p in Plant3DSceneData.MachineNodes)
+        {
+            eqMap.TryGetValue(p.LinkedScadaId, out var eq);
+            var flow = flowMap.GetValueOrDefault(p.Id);
+            bool running = flow is not null ? flow.IsRunning : (eq is null || eq.Status != EquipmentStatus.Stopped);
+
+            if (p.Id == "JC-101")
+            {
+                AppendJawCrusherMechanics(p.Position, running && fx.AnimateConveyors);
+            }
+            else if (p.Id == "DRC-101")
+            {
+                AppendDoubleRollCrusherMechanics(p.Position, running && fx.AnimateConveyors);
+            }
+            else if (p.HasRotatingTop)
+            {
+                float ang = (fx.AnimateConveyors && running) ? (float)(SimTime * (p.Id == "TK-201" ? 0.45 : 1.8)) : 0.2f;
+                var rotMat = Matrix4x4.CreateScale(p.RotatingTopLength, 0.14f, 0.24f)
+                           * Matrix4x4.CreateRotationY(ang)
+                           * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.RotatingTopY, p.Position.Z);
+                _casterBoxes.Add(new InstanceItem(rotMat, 0.22f, 0.78f, 0.98f, 1.0f, 0.72f, 0.30f));
+            }
+
+            if (p.HasFillLevel)
+            {
+                float fillFrac = eq is not null ? Math.Clamp((float)(eq.LoadPercent / 100.0), 0.12f, 0.95f) : 0.60f;
+                if (p.Id == "BN-101") fillFrac = Math.Clamp(fillFrac + loaderPose.BinFillPulse, 0.15f, 0.98f);
+
+                float fillH = p.FillMaxHeight * fillFrac;
+                var fillColor = p.Id == "BN-101" ? Color.Parse("#F59E0B")
+                              : p.Id == "BN-201" ? Color.Parse("#60A5FA")
+                              : p.Id == "TK-301" ? Color.Parse("#14B8A6")
+                              : Color.Parse("#38BDF8");
+
+                var fm = Matrix4x4.CreateScale(p.FillRadius, fillH, p.FillRadius)
+                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.FillBaseY + fillH * 0.5f, p.Position.Z);
+                _fillCylinders.Add(new InstanceItem(fm, fillColor.R / 255f, fillColor.G / 255f, fillColor.B / 255f, 0.44f, 0.15f, 0.35f));
+            }
+        }
+
+        // 3. Loader Dump Coal Boulders
+        if (loaderPose.IsDumpingCoal)
+        {
+            const float deg = MathF.PI / 180f;
+            var chassisWorld = Matrix4x4.CreateRotationZ(loaderPose.PitchDegrees * deg)
+                             * Matrix4x4.CreateRotationY(loaderPose.YawDegrees * deg)
+                             * Matrix4x4.CreateTranslation(loaderPose.ChassisPosition);
+            var glbBucketWorld = Matrix4x4.CreateRotationZ((loaderPose.BoomAngleDegrees + loaderPose.BucketDumpAngleDegrees * 0.45f) * deg)
+                               * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f)
+                               * chassisWorld;
+            var dumpOrigin = Vector3.Transform(new Vector3(2.45f, -0.95f, 0f), glbBucketWorld);
+            var binTarget = new Vector3(-13.8f, 2.15f, 8.8f);
+            for (int i = 0; i < 7; i++)
+            {
+                float frac = (float)((SimTime * 2.8 + i / 7.0) % 1.0);
+                var p = Vector3.Lerp(dumpOrigin, binTarget, frac);
+                p.X += MathF.Sin(i * 2.1f) * 0.22f;
+                p.Z += MathF.Cos(i * 1.7f) * 0.22f;
+                p.Y -= frac * frac * 0.35f;
+                var bm = Matrix4x4.CreateScale(0.22f - 0.04f * (i % 2))
+                       * Matrix4x4.CreateRotationY(i * 0.8f + (float)SimTime * 3f)
+                       * Matrix4x4.CreateTranslation(p);
+                _casterBoxes.Add(new InstanceItem(bm, 0.26f, 0.21f, 0.14f, 1.0f, 0.04f, 0.90f));
+            }
+        }
+
+        // 4. Conveyors: Pulleys, Keys, Cleats, Ballistic Coal Lumps, Highlights, Chevrons
+        foreach (var c in Plant3DSceneData.Conveyors)
+        {
+            var flow = flowMap.GetValueOrDefault(c.Id);
+            double speed = (fx.AnimateConveyors && flow is not null) ? flow.NormalizedRate : 0.0;
+            bool isSel = string.Equals(activeSelected, c.Id, StringComparison.OrdinalIgnoreCase);
+            bool isHov = string.Equals(hoveredId, c.Id, StringComparison.OrdinalIgnoreCase);
+
+            var delta = c.HeadPos - c.TailPos;
+            float length = delta.Length();
+            if (length < 0.1f) continue;
+
+            var dir = delta / length;
+            float yaw = MathF.Atan2(-dir.Z, dir.X);
+            float pitch = MathF.Asin(Math.Clamp(dir.Y, -1f, 1f));
+            var beltRot = Matrix4x4.CreateRotationZ(pitch) * Matrix4x4.CreateRotationY(yaw);
+
+            if (isSel || isHov)
+            {
+                var hlColor = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
+                var mid = (c.TailPos + c.HeadPos) * 0.5f;
+                var hlMat = Matrix4x4.CreateScale(length, 0.08f, c.Width + 0.28f)
+                          * beltRot
+                          * Matrix4x4.CreateTranslation(mid.X, mid.Y + 0.04f, mid.Z);
+                _unlitBoxes.Add(new InstanceItem(hlMat, hlColor.R / 255f, hlColor.G / 255f, hlColor.B / 255f, 0.85f, 0f, 0.5f));
+            }
+
+            // Rotating Tail & Head Pulleys
+            float pulleyAng = (float)(SimTime * speed * 4.5);
+            foreach (var endPos in new[] { c.TailPos, c.HeadPos })
+            {
+                var pOrient = Matrix4x4.CreateRotationY(pulleyAng)
+                            * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
+                            * Matrix4x4.CreateRotationY(yaw)
+                            * Matrix4x4.CreateTranslation(endPos.X, endPos.Y - 0.04f, endPos.Z);
+                var pScale = Matrix4x4.CreateScale(0.24f, c.Width * 1.12f, 0.24f) * pOrient;
+                _casterCylinders.Add(new InstanceItem(pScale, 0.88f, 0.48f, 0.08f, 1.0f, 0.72f, 0.34f));
+
+                var keyMat = Matrix4x4.CreateScale(0.50f, c.Width * 1.15f, 0.07f) * pOrient;
+                _casterBoxes.Add(new InstanceItem(keyMat, 0.16f, 0.22f, 0.30f, 1.0f, 0.80f, 0.35f));
+            }
+
+            // Moving Belt Cleats
+            const float cleatSpacing = 0.72f;
+            int cleatCount = Math.Max(3, (int)(length / cleatSpacing));
+            float phase = (float)((SimTime * speed * 1.45) % cleatSpacing);
+            for (int i = 0; i < cleatCount; i++)
+            {
+                float distAlong = i * cleatSpacing + phase;
+                if (distAlong > length) continue;
+                var p = c.TailPos + dir * distAlong;
+                var cm = Matrix4x4.CreateScale(0.08f, 0.05f, c.Width * 0.88f)
+                       * beltRot
+                       * Matrix4x4.CreateTranslation(p.X, p.Y + 0.08f, p.Z);
+                _casterBoxes.Add(new InstanceItem(cm, 0.20f, 0.24f, 0.30f, 1.0f, 0.15f, 0.82f));
+            }
+
+            // Ballistic Coal Stream + Flow Chevrons
+            if (flow is not null && flow.NormalizedRate > 0.02)
+            {
+                var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
+                float lumpSize = Plant3DSceneData.GetMaterialLumpSize(c.MaterialClass);
+                float dropLen = Vector3.Distance(c.HeadPos, c.GetChuteBottomPos());
+                float totalLen = length + dropLen;
+                int parcelCount = Math.Max(8, (int)(totalLen / 0.55f));
+                var right = Vector3.Normalize(Vector3.Cross(dir, Vector3.UnitY));
+
+                for (int i = 0; i < parcelCount; i++)
+                {
+                    float u = (float)((SimTime * 0.24 * Math.Max(0.2, speed) + (double)i / parcelCount) % 1.0);
+                    var pos = Plant3DSceneData.SampleConveyorCoalTrajectory(c, u);
+                    float jitterScale = u <= 0.82f ? 1.0f : Math.Max(0.15f, 1.0f - (u - 0.82f) / 0.18f);
+                    float jitter = MathF.Sin(i * 3.1f) * (c.Width * 0.16f) * jitterScale;
+                    pos += right * jitter;
+                    if (u <= 0.82f)
+                        pos.Y += 0.14f;
+
+                    var pm = Matrix4x4.CreateScale(lumpSize * 1.25f, lumpSize * 0.85f, lumpSize * 1.1f)
+                           * Matrix4x4.CreateRotationY(i * 0.9f)
+                           * Matrix4x4.CreateTranslation(pos);
+                    _casterBoxes.Add(new InstanceItem(pm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, 0.05f, 0.88f));
+                }
+
+                // Curved feed chute coal parcels (e.g. CV-106)
+                if (c.FeedChuteWaypoints is { Length: >= 2 })
+                {
+                    for (int fc = 0; fc < 4; fc++)
+                    {
+                        float ft = (float)((SimTime * 0.35 * Math.Max(0.2, speed) + fc / 4.0) % 1.0);
+                        var fp = Plant3DSceneData.SamplePolyline(c.FeedChuteWaypoints, ft);
+                        var fpm = Matrix4x4.CreateScale(lumpSize * 1.15f, lumpSize * 0.80f, lumpSize * 1.05f)
+                                * Matrix4x4.CreateRotationY(fc * 1.1f)
+                                * Matrix4x4.CreateTranslation(fp);
+                        _casterBoxes.Add(new InstanceItem(fpm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, 0.05f, 0.88f));
+                    }
+                }
+
+                if (fx.ShowFlowDirection && _unitCone is not null)
+                {
+                    int arrowCount = Math.Max(2, (int)(length / 2.8f));
+                    for (int a = 0; a < arrowCount; a++)
+                    {
+                        float t = (float)((SimTime * 0.35 * Math.Max(0.25, speed) + (double)a / arrowCount) % 1.0);
+                        var ap = Vector3.Lerp(c.TailPos, c.HeadPos, t);
+                        ap.Y += 0.65f;
+                        var am = Matrix4x4.CreateScale(0.22f, 0.42f, 0.22f)
+                               * Matrix4x4.CreateRotationZ(-MathF.PI * 0.5f)
+                               * beltRot
+                               * Matrix4x4.CreateTranslation(ap);
+                        _unlitCones.Add(new InstanceItem(am, 0.22f, 0.82f, 0.98f, 0.88f, 0f, 0.5f));
+                    }
+                }
+            }
+        }
+
+        // 5. Pipe Flow Particles
+        if (fx.ShowFlowParticles)
+        {
+            foreach (var route in Plant3DSceneData.PipeRoutes)
+            {
+                eqMap.TryGetValue(route.SourceEquipmentId, out var srcEq);
+                double speed = Plant3DSceneData.GetFlowSpeedFactor(srcEq);
+                if (speed <= 0.0) continue;
+
+                var c = Plant3DSceneData.GetMediumColor(route.Medium);
+                const int count = 6;
+                for (int i = 0; i < count; i++)
+                {
+                    float t = (float)((SimTime * 0.30 * speed + (double)i / count) % 1.0);
+                    var pos = Plant3DSceneData.SamplePolyline(route.Waypoints, t);
+                    var pm = Matrix4x4.CreateScale(0.16f) * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.06f, pos.Z);
+                    _unlitBoxes.Add(new InstanceItem(pm, c.R / 255f, c.G / 255f, c.B / 255f, 0.95f, 0f, 0.4f));
+                }
+            }
+        }
+    }
+
+    private void AppendJawCrusherMechanics(Vector3 pos, bool running)
+    {
+        float flywheelAngle = running ? (float)(SimTime * 6.5) : 0f;
+        foreach (float zOff in new[] { -1.06f, 1.06f })
+        {
+            var wheelCenter = Matrix4x4.CreateRotationY(flywheelAngle)
+                            * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
+                            * Matrix4x4.CreateTranslation(pos.X, pos.Y + 2.50f, pos.Z + zOff);
+            var wheelMat = Matrix4x4.CreateScale(0.58f, 0.18f, 0.58f) * wheelCenter;
+            _casterCylinders.Add(new InstanceItem(wheelMat, 0.85f, 0.55f, 0.10f, 1.0f, 0.78f, 0.32f));
+
+            var spokeMat = Matrix4x4.CreateScale(1.08f, 0.20f, 0.12f) * wheelCenter;
+            _casterBoxes.Add(new InstanceItem(spokeMat, 0.18f, 0.24f, 0.32f, 1.0f, 0.80f, 0.35f));
+        }
+
+        float jawSwing = running ? MathF.Sin((float)(SimTime * 28.27)) * 0.08f : 0f;
+        var jawMat = Matrix4x4.CreateScale(0.16f, 1.05f, 1.16f)
+                   * Matrix4x4.CreateRotationZ(-0.20f + jawSwing * 1.4f)
+                   * Matrix4x4.CreateTranslation(pos.X - 0.12f + jawSwing, pos.Y + 2.48f, pos.Z);
+        _casterBoxes.Add(new InstanceItem(jawMat, 0.92f, 0.68f, 0.18f, 1.0f, 0.82f, 0.38f));
+    }
+
+    private void AppendDoubleRollCrusherMechanics(Vector3 pos, bool running)
+    {
+        float rollAngle = running ? (float)(SimTime * 5.2) : 0f;
+        for (int r = 0; r < 2; r++)
+        {
+            float xOff = r == 0 ? -0.36f : 0.36f;
+            float dir = r == 0 ? 1f : -1f;
+            float ang = rollAngle * dir;
+
+            var rollAxis = Matrix4x4.CreateRotationY(ang)
+                         * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
+                         * Matrix4x4.CreateTranslation(pos.X + xOff, pos.Y + 2.02f, pos.Z);
+
+            var drumMat = Matrix4x4.CreateScale(0.32f, 1.32f, 0.32f) * rollAxis;
+            _casterCylinders.Add(new InstanceItem(drumMat, 0.35f, 0.42f, 0.52f, 1.0f, 0.85f, 0.32f));
+
+            for (int tooth = 0; tooth < 4; tooth++)
+            {
+                float ta = ang + tooth * (MathF.PI * 0.25f);
+                var ribMat = Matrix4x4.CreateScale(0.72f, 1.28f, 0.09f)
+                           * Matrix4x4.CreateRotationY(ta)
+                           * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
+                           * Matrix4x4.CreateTranslation(pos.X + xOff, pos.Y + 2.02f, pos.Z);
+                _casterBoxes.Add(new InstanceItem(ribMat, 0.96f, 0.65f, 0.12f, 1.0f, 0.78f, 0.36f));
+            }
+        }
+    }
+
+    private void DrawMachineNodesShadowPass(
+        LoaderPose loaderPose,
+        Dictionary<string, EquipmentItem> eqMap,
+        IReadOnlyDictionary<string, ProcessFlowState> flowMap,
+        Unity3DEffectSettings fx)
+    {
+        const float deg = MathF.PI / 180f;
+        foreach (var p in Plant3DSceneData.MachineNodes)
+        {
+            if (p.Id == "FEL-101")
+            {
+                var chassisWorld = Matrix4x4.CreateRotationZ(loaderPose.PitchDegrees * deg)
+                                 * Matrix4x4.CreateRotationY(loaderPose.YawDegrees * deg)
+                                 * Matrix4x4.CreateTranslation(loaderPose.ChassisPosition);
+                if (_glbGpuMeshes.TryGetValue("wheel_loader_chassis.glb", out var chassisMesh))
+                {
+                    SetMatrix(_uShadowModel, chassisWorld);
+                    DrawMesh(chassisMesh);
+                }
+                else if (_unitBox is not null)
+                {
+                    SetMatrix(_uShadowModel, Matrix4x4.CreateScale(2.3f, 1.05f, 1.45f) * Matrix4x4.CreateTranslation(-0.15f, 0.85f, 0f) * chassisWorld);
+                    DrawMesh(_unitBox);
+                }
+
+                var glbBucketWorld = Matrix4x4.CreateRotationZ((loaderPose.BoomAngleDegrees + loaderPose.BucketDumpAngleDegrees * 0.45f) * deg)
+                                   * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f)
+                                   * chassisWorld;
+                if (_glbGpuMeshes.TryGetValue("wheel_loader_bucket.glb", out var bucketMesh))
+                {
+                    SetMatrix(_uShadowModel, glbBucketWorld);
+                    DrawMesh(bucketMesh);
+                }
+                continue;
+            }
+
+            eqMap.TryGetValue(p.LinkedScadaId, out var eq);
+            var flow = flowMap.GetValueOrDefault(p.Id);
+            bool running = flow is not null ? flow.IsRunning : (eq is null || eq.Status != EquipmentStatus.Stopped);
+            float vibY = 0f;
+            if (p.Vibrates && fx.EnableVibrationPhysics && running)
+            {
+                float load = eq is not null ? (float)(eq.LoadPercent / 100.0) : 0.7f;
+                vibY = MathF.Sin((float)(SimTime * 28.0)) * (0.018f + 0.024f * load);
+            }
+
+            var model = Matrix4x4.CreateScale(p.Scale)
+                      * Matrix4x4.CreateRotationY(p.YawDegrees * deg)
+                      * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + vibY, p.Position.Z);
+
+            if (_glbGpuMeshes.TryGetValue(p.GlbFileName, out var gpuMesh))
+            {
+                SetMatrix(_uShadowModel, model);
+                DrawMesh(gpuMesh);
+            }
+            else if (p.EquipmentType.Contains("Stockpile", StringComparison.OrdinalIgnoreCase) && _unitCone is not null)
+            {
+                SetMatrix(_uShadowModel, Matrix4x4.CreateScale(p.HalfExtents.X, p.HalfExtents.Y * 2f, p.HalfExtents.Z)
+                                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y, p.Position.Z));
+                DrawMesh(_unitCone);
+            }
+            else if (_unitBox is not null)
+            {
+                SetMatrix(_uShadowModel, Matrix4x4.CreateScale(p.HalfExtents.X * 2f, p.HalfExtents.Y * 2f, p.HalfExtents.Z * 2f)
+                                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y + vibY, p.Position.Z));
+                DrawMesh(_unitBox);
+            }
+        }
+    }
+
+    private void DrawMachineNodesMainPass(
+        Dictionary<string, EquipmentItem> eqMap,
+        IReadOnlyDictionary<string, ProcessFlowState> flowMap,
+        LoaderPose loaderPose,
+        Unity3DEffectSettings fx,
+        string? activeSelected,
+        string? hoveredId)
+    {
         foreach (var p in Plant3DSceneData.MachineNodes)
         {
             eqMap.TryGetValue(p.LinkedScadaId, out var eq);
@@ -435,7 +1422,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
             var tint = Plant3DSceneData.GetStatusTint(p, eq, fx);
             bool isSelected = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
-            bool isHovered = string.Equals(HoveredNodeId, p.Id, StringComparison.OrdinalIgnoreCase);
+            bool isHovered = string.Equals(hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
 
             float tintMix = fx.ShowThermalHeatmap ? 0.78f
                 : (eq?.Status is EquipmentStatus.Fault or EquipmentStatus.Warning or EquipmentStatus.Stopped ? 0.58f : 0.08f);
@@ -458,7 +1445,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             var model = Matrix4x4.CreateScale(p.Scale)
                       * Matrix4x4.CreateRotationY(p.YawDegrees * (MathF.PI / 180f))
                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + vibY, p.Position.Z);
-            SetMatrix(_uModel, model);
+            SetModelAndNormalMatrix(model);
 
             _glUniform3f!(_uTint, tint.R / 255f, tint.G / 255f, tint.B / 255f);
             _glUniform1f!(_uTintMix, tintMix);
@@ -473,7 +1460,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             {
                 var coneMat = Matrix4x4.CreateScale(p.HalfExtents.X, p.HalfExtents.Y * 2f, p.HalfExtents.Z)
                             * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y, p.Position.Z);
-                SetMatrix(_uModel, coneMat);
+                SetModelAndNormalMatrix(coneMat);
                 _glUniform1f!(_uTintMix, 0.85f);
                 DrawMesh(_unitCone);
             }
@@ -481,154 +1468,11 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             {
                 var fbMat = Matrix4x4.CreateScale(p.HalfExtents.X * 2f, p.HalfExtents.Y * 2f, p.HalfExtents.Z * 2f)
                           * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y + vibY, p.Position.Z);
-                SetMatrix(_uModel, fbMat);
+                SetModelAndNormalMatrix(fbMat);
                 _glUniform1f!(_uTintMix, 0.75f);
                 DrawMesh(_unitBox);
             }
-
-            // Mechanical sub-animations
-            if (p.Id == "JC-101")
-            {
-                RenderJawCrusherMechanics(p.Position, running && fx.AnimateConveyors);
-            }
-            else if (p.Id == "DRC-101")
-            {
-                RenderDoubleRollCrusherMechanics(p.Position, running && fx.AnimateConveyors);
-            }
-            else if (p.HasRotatingTop && _unitBox is not null)
-            {
-                float ang = (fx.AnimateConveyors && running) ? (float)(SimTime * (p.Id == "TK-201" ? 0.45 : 1.8)) : 0.2f;
-                var rotMat = Matrix4x4.CreateScale(p.RotatingTopLength, 0.14f, 0.24f)
-                           * Matrix4x4.CreateRotationY(ang)
-                           * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.RotatingTopY, p.Position.Z);
-                SetMatrix(_uModel, rotMat);
-                _glUniform3f!(_uTint, 0.22f, 0.78f, 0.98f);
-                _glUniform1f!(_uTintMix, 1.0f);
-                DrawMesh(_unitBox);
-            }
         }
-
-        // 7. Dynamic Conveyor Pulleys, Moving Belt Cleats, Continuous Coal Stream & Flow Chevrons
-        RenderDynamicConveyors(flowMap, fx, activeSelected, HoveredNodeId);
-
-        // 8. Live 3D Fill-Level Indicators (BN-101, BN-201, TK-301, TK-201)
-        if (_unitCylinder is not null)
-        {
-            _glDepthMask!(0);
-            _glUniform1f!(_uUnlit, 0.2f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            _glUniform1f!(_uAlpha, 0.44f);
-
-            foreach (var p in Plant3DSceneData.MachineNodes)
-            {
-                if (!p.HasFillLevel) continue;
-                eqMap.TryGetValue(p.LinkedScadaId, out var eq);
-                float fillFrac = eq is not null ? Math.Clamp((float)(eq.LoadPercent / 100.0), 0.12f, 0.95f) : 0.60f;
-                if (p.Id == "BN-101") fillFrac = Math.Clamp(fillFrac + loaderPose.BinFillPulse, 0.15f, 0.98f);
-
-                float fillH = p.FillMaxHeight * fillFrac;
-                var fillColor = p.Id == "BN-101" ? Color.Parse("#F59E0B")
-                              : p.Id == "BN-201" ? Color.Parse("#60A5FA")
-                              : p.Id == "TK-301" ? Color.Parse("#14B8A6")
-                              : Color.Parse("#38BDF8");
-
-                var fm = Matrix4x4.CreateScale(p.FillRadius, fillH, p.FillRadius)
-                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.FillBaseY + fillH * 0.5f, p.Position.Z);
-                SetMatrix(_uModel, fm);
-                _glUniform3f!(_uTint, fillColor.R / 255f, fillColor.G / 255f, fillColor.B / 255f);
-                DrawMesh(_unitCylinder);
-            }
-            _glDepthMask!(1);
-        }
-
-        // 9. Telemetry-Coupled Slurry/Magnetite/Water Pipe Flow Particles
-        if (fx.ShowFlowParticles && _unitBox is not null)
-        {
-            _glUniform1f!(_uUnlit, 1.0f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            _glUniform1f!(_uAlpha, 0.95f);
-
-            foreach (var route in Plant3DSceneData.PipeRoutes)
-            {
-                eqMap.TryGetValue(route.SourceEquipmentId, out var srcEq);
-                double speed = Plant3DSceneData.GetFlowSpeedFactor(srcEq);
-                if (speed <= 0.0) continue;
-
-                var c = Plant3DSceneData.GetMediumColor(route.Medium);
-                _glUniform3f!(_uTint, c.R / 255f, c.G / 255f, c.B / 255f);
-
-                const int count = 6;
-                for (int i = 0; i < count; i++)
-                {
-                    float t = (float)((SimTime * 0.30 * speed + (double)i / count) % 1.0);
-                    var pos = Plant3DSceneData.SamplePolyline(route.Waypoints, t);
-                    var pm = Matrix4x4.CreateScale(0.16f) * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.06f, pos.Z);
-                    SetMatrix(_uModel, pm);
-                    DrawMesh(_unitBox);
-                }
-            }
-        }
-
-        // 10. Alarm Halos & Selection / Hover Rings across ALL 29 nodes
-        if (_unitRing is not null)
-        {
-            _glDepthMask!(0);
-            _glUniform1f!(_uUnlit, 1.0f);
-            _glUniform1f!(_uTintMix, 1.0f);
-
-            float pulse = 0.55f + 0.45f * MathF.Sin((float)(SimTime * 4.5));
-            foreach (var p in Plant3DSceneData.AllNodes)
-            {
-                eqMap.TryGetValue(p.LinkedScadaId, out var eq);
-                var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
-                float baseR = p.IsConveyor ? 1.15f : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
-
-                if (!p.IsConveyor && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
-                {
-                    var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
-                    var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
-                           * Matrix4x4.CreateTranslation(pos.X, 0.08f, pos.Z);
-                    SetMatrix(_uModel, rm);
-                    _glUniform3f!(_uTint, ac.R / 255f, ac.G / 255f, ac.B / 255f);
-                    _glUniform1f!(_uAlpha, 0.42f + 0.42f * pulse);
-                    DrawMesh(_unitRing);
-                }
-
-                bool isSel = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
-                bool isHov = string.Equals(HoveredNodeId, p.Id, StringComparison.OrdinalIgnoreCase);
-                if (isSel || isHov)
-                {
-                    var sc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
-                    var rm = Matrix4x4.CreateScale(baseR + 0.16f, 1f, baseR + 0.16f)
-                           * Matrix4x4.CreateTranslation(pos.X, p.IsConveyor ? pos.Y : 0.10f, pos.Z);
-                    SetMatrix(_uModel, rm);
-                    _glUniform3f!(_uTint, sc.R / 255f, sc.G / 255f, sc.B / 255f);
-                    _glUniform1f!(_uAlpha, isSel ? 0.92f : 0.62f);
-                    DrawMesh(_unitRing);
-                }
-            }
-            _glDepthMask!(1);
-        }
-
-        if (CaptureRequested && _glReadPixels is not null && pw > 0 && ph > 0)
-        {
-            _glFinish?.Invoke();
-            _glPixelStorei?.Invoke(GL_PACK_ALIGNMENT, 1);
-            var buf = new byte[pw * ph * 4];
-            fixed (byte* pBuf = buf)
-            {
-                _glReadPixels(0, 0, pw, ph, GL_RGBA, GL_UNSIGNED_BYTE, pBuf);
-            }
-            lock (_captureLock)
-            {
-                _lastFrameRgba = buf;
-                _lastFrameWidth = pw;
-                _lastFrameHeight = ph;
-            }
-        }
-
-        _glBindVertexArray!(0);
-        _glUseProgram!(0);
     }
 
     private void RenderWheelLoader(LoaderPose pose, Color tint, float tintMix)
@@ -638,7 +1482,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                          * Matrix4x4.CreateRotationY(pose.YawDegrees * deg)
                          * Matrix4x4.CreateTranslation(pose.ChassisPosition);
 
-        SetMatrix(_uModel, chassisWorld);
+        SetModelAndNormalMatrix(chassisWorld);
         _glUniform3f!(_uTint, tint.R / 255f, tint.G / 255f, tint.B / 255f);
         _glUniform1f!(_uTintMix, tintMix);
         _glUniform1f!(_uAlpha, 1.0f);
@@ -651,308 +1495,139 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         else if (_unitBox is not null)
         {
             var bodyMat = Matrix4x4.CreateScale(2.3f, 1.05f, 1.45f) * Matrix4x4.CreateTranslation(-0.15f, 0.85f, 0f) * chassisWorld;
-            SetMatrix(_uModel, bodyMat);
+            SetModelAndNormalMatrix(bodyMat);
             _glUniform1f!(_uTintMix, 0.85f);
             DrawMesh(_unitBox);
-
-            var cabMat = Matrix4x4.CreateScale(0.95f, 0.85f, 1.15f) * Matrix4x4.CreateTranslation(-0.35f, 1.72f, 0f) * chassisWorld;
-            SetMatrix(_uModel, cabMat);
-            _glUniform3f!(_uTint, 0.15f, 0.22f, 0.30f);
-            DrawMesh(_unitBox);
-
-            if (_unitCylinder is not null)
-            {
-                _glUniform3f!(_uTint, 0.09f, 0.11f, 0.14f);
-                foreach (float wx in new[] { -0.85f, 0.72f })
-                foreach (float wz in new[] { -0.78f, 0.78f })
-                {
-                    var wMat = Matrix4x4.CreateScale(0.52f, 0.34f, 0.52f)
-                             * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
-                             * Matrix4x4.CreateTranslation(wx, 0.52f, wz)
-                             * chassisWorld;
-                    SetMatrix(_uModel, wMat);
-                    DrawMesh(_unitCylinder);
-                }
-            }
         }
 
-        // Articulated Boom + Bucket assembly (wheel_loader_bucket.glb origin is at chassis boom pivot (1.30, 1.38, 0))
-        var boomPivot = Matrix4x4.CreateRotationZ(pose.BoomAngleDegrees * deg)
-                      * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f);
         var glbBucketWorld = Matrix4x4.CreateRotationZ((pose.BoomAngleDegrees + pose.BucketDumpAngleDegrees * 0.45f) * deg)
                            * Matrix4x4.CreateTranslation(1.30f, 1.38f, 0f)
                            * chassisWorld;
 
         if (_glbGpuMeshes.TryGetValue("wheel_loader_bucket.glb", out var bucketMesh))
         {
-            SetMatrix(_uModel, glbBucketWorld);
+            SetModelAndNormalMatrix(glbBucketWorld);
             _glUniform3f!(_uTint, tint.R / 255f, tint.G / 255f, tint.B / 255f);
             _glUniform1f!(_uTintMix, tintMix);
             DrawMesh(bucketMesh);
         }
         else if (_unitBox is not null)
         {
-            var bucketLocal = Matrix4x4.CreateRotationZ(pose.BucketDumpAngleDegrees * deg)
-                            * Matrix4x4.CreateTranslation(1.55f, -0.75f, 0f)
-                            * boomPivot;
-            var bucketWorld = bucketLocal * chassisWorld;
-            foreach (float bz in new[] { -0.52f, 0.52f })
-            {
-                var armMat = Matrix4x4.CreateScale(1.75f, 0.16f, 0.12f)
-                           * Matrix4x4.CreateRotationZ(-0.45f)
-                           * Matrix4x4.CreateTranslation(0.75f, -0.35f, bz)
-                           * boomPivot * chassisWorld;
-                SetMatrix(_uModel, armMat);
-                _glUniform3f!(_uTint, 0.92f, 0.68f, 0.05f);
-                _glUniform1f!(_uTintMix, 1.0f);
-                DrawMesh(_unitBox);
-            }
-
             var scoopMat = Matrix4x4.CreateScale(0.85f, 0.58f, 1.85f)
                          * Matrix4x4.CreateTranslation(0.35f, -0.10f, 0f)
-                         * bucketWorld;
-            SetMatrix(_uModel, scoopMat);
+                         * glbBucketWorld;
+            SetModelAndNormalMatrix(scoopMat);
             _glUniform3f!(_uTint, 0.25f, 0.30f, 0.38f);
             _glUniform1f!(_uTintMix, 1.0f);
             DrawMesh(_unitBox);
         }
-
-        // Visible coal boulder dump stream into BN-101 during [0.32, 0.48]
-        if (pose.IsDumpingCoal && _unitBox is not null)
-        {
-            var dumpOrigin = Vector3.Transform(new Vector3(2.45f, -0.95f, 0f), glbBucketWorld);
-            var binTarget = new Vector3(-13.8f, 2.15f, 8.8f);
-            _glUniform3f!(_uTint, 0.72f, 0.45f, 0.08f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            _glUniform1f!(_uUnlit, 0.25f);
-            for (int i = 0; i < 7; i++)
-            {
-                float frac = (float)((SimTime * 2.8 + i / 7.0) % 1.0);
-                var p = Vector3.Lerp(dumpOrigin, binTarget, frac);
-                p.X += MathF.Sin(i * 2.1f) * 0.22f;
-                p.Z += MathF.Cos(i * 1.7f) * 0.22f;
-                p.Y -= frac * frac * 0.35f;
-                var bm = Matrix4x4.CreateScale(0.22f - 0.04f * (i % 2))
-                       * Matrix4x4.CreateRotationY(i * 0.8f + (float)SimTime * 3f)
-                       * Matrix4x4.CreateTranslation(p);
-                SetMatrix(_uModel, bm);
-                DrawMesh(_unitBox);
-            }
-            _glUniform1f!(_uUnlit, 0.0f);
-        }
     }
 
-    private void RenderJawCrusherMechanics(Vector3 pos, bool running)
+    private void DrawInstancedBatch(GpuMesh mesh, List<InstanceItem> items, bool isShadowPass)
     {
-        if (_unitCylinder is null || _unitBox is null) return;
-        float flywheelAngle = running ? (float)(SimTime * 6.5) : 0f;
+        int count = items.Count;
+        if (count == 0)
+            return;
 
-        // Dual side flywheels mounted on eccentric shaft bosses (Y=2.50m, Z=+-1.06m)
-        foreach (float zOff in new[] { -1.06f, 1.06f })
+        if (_glDrawElementsInstanced is null || _glBufferSubData is null || mesh.InstancedVao == 0)
         {
-            var wheelCenter = Matrix4x4.CreateRotationY(flywheelAngle)
-                            * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
-                            * Matrix4x4.CreateTranslation(pos.X, pos.Y + 2.50f, pos.Z + zOff);
-            var wheelMat = Matrix4x4.CreateScale(0.58f, 0.18f, 0.58f) * wheelCenter;
-            SetMatrix(_uModel, wheelMat);
-            _glUniform3f!(_uTint, 0.85f, 0.55f, 0.10f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            DrawMesh(_unitCylinder);
-
-            // Spoke bar to make rotation unmistakable
-            var spokeMat = Matrix4x4.CreateScale(1.08f, 0.20f, 0.12f) * wheelCenter;
-            SetMatrix(_uModel, spokeMat);
-            _glUniform3f!(_uTint, 0.18f, 0.24f, 0.32f);
-            DrawMesh(_unitBox);
-        }
-
-        // Reciprocating corrugated swing jaw plate inside open throat (~4.5 Hz)
-        float jawSwing = running ? MathF.Sin((float)(SimTime * 28.27)) * 0.08f : 0f;
-        var jawMat = Matrix4x4.CreateScale(0.16f, 1.05f, 1.16f)
-                   * Matrix4x4.CreateRotationZ(-0.20f + jawSwing * 1.4f)
-                   * Matrix4x4.CreateTranslation(pos.X - 0.12f + jawSwing, pos.Y + 2.48f, pos.Z);
-        SetMatrix(_uModel, jawMat);
-        _glUniform3f!(_uTint, 0.92f, 0.68f, 0.18f);
-        _glUniform1f!(_uTintMix, 1.0f);
-        DrawMesh(_unitBox);
-    }
-
-    private void RenderDoubleRollCrusherMechanics(Vector3 pos, bool running)
-    {
-        if (_unitCylinder is null || _unitBox is null) return;
-        float rollAngle = running ? (float)(SimTime * 5.2) : 0f;
-
-        // Two counter-rotating toothed horizontal rollers at bearing bosses (X=+-0.36m, Y=2.02m, axis along Z)
-        for (int r = 0; r < 2; r++)
-        {
-            float xOff = r == 0 ? -0.36f : 0.36f;
-            float dir = r == 0 ? 1f : -1f; // Counter-rotating!
-            float ang = rollAngle * dir;
-
-            var rollAxis = Matrix4x4.CreateRotationY(ang)
-                         * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
-                         * Matrix4x4.CreateTranslation(pos.X + xOff, pos.Y + 2.02f, pos.Z);
-
-            var drumMat = Matrix4x4.CreateScale(0.32f, 1.32f, 0.32f) * rollAxis;
-            SetMatrix(_uModel, drumMat);
-            _glUniform3f!(_uTint, 0.35f, 0.42f, 0.52f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            DrawMesh(_unitCylinder);
-
-            // Visible toothed crusher ribs
-            _glUniform3f!(_uTint, 0.96f, 0.65f, 0.12f);
-            for (int tooth = 0; tooth < 4; tooth++)
+            // Fallback per-instance draw if instancing extension isn't present
+            int modelLoc = isShadowPass ? _uShadowModel : _uModel;
+            int instLoc = isShadowPass ? _uShadowIsInstanced : _uIsInstanced;
+            _glUniform1f!(instLoc, 0f);
+            for (int i = 0; i < count; i++)
             {
-                float ta = ang + tooth * (MathF.PI * 0.25f);
-                var ribMat = Matrix4x4.CreateScale(0.72f, 1.28f, 0.09f)
-                           * Matrix4x4.CreateRotationY(ta)
-                           * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
-                           * Matrix4x4.CreateTranslation(pos.X + xOff, pos.Y + 2.02f, pos.Z);
-                SetMatrix(_uModel, ribMat);
-                DrawMesh(_unitBox);
-            }
-        }
-    }
-
-    private void RenderDynamicConveyors(
-        IReadOnlyDictionary<string, ProcessFlowState> flowMap,
-        Unity3DEffectSettings fx,
-        string? activeSelected,
-        string? hoveredId)
-    {
-        if (_unitBox is null || _unitCylinder is null) return;
-
-        foreach (var c in Plant3DSceneData.Conveyors)
-        {
-            var flow = flowMap.GetValueOrDefault(c.Id);
-            double speed = (fx.AnimateConveyors && flow is not null) ? flow.NormalizedRate : 0.0;
-            bool isSel = string.Equals(activeSelected, c.Id, StringComparison.OrdinalIgnoreCase);
-            bool isHov = string.Equals(hoveredId, c.Id, StringComparison.OrdinalIgnoreCase);
-
-            var delta = c.HeadPos - c.TailPos;
-            float length = delta.Length();
-            if (length < 0.1f) continue;
-
-            var dir = delta / length;
-            float yaw = MathF.Atan2(-dir.Z, dir.X);
-            float pitch = MathF.Asin(Math.Clamp(dir.Y, -1f, 1f));
-            var beltRot = Matrix4x4.CreateRotationZ(pitch) * Matrix4x4.CreateRotationY(yaw);
-
-            // Selection / hover highlight strip along belt edge
-            if (isSel || isHov)
-            {
-                var hlColor = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
-                var mid = (c.TailPos + c.HeadPos) * 0.5f;
-                var hlMat = Matrix4x4.CreateScale(length, 0.08f, c.Width + 0.28f)
-                          * beltRot
-                          * Matrix4x4.CreateTranslation(mid.X, mid.Y + 0.04f, mid.Z);
-                SetMatrix(_uModel, hlMat);
-                _glUniform3f!(_uTint, hlColor.R / 255f, hlColor.G / 255f, hlColor.B / 255f);
-                _glUniform1f!(_uTintMix, 1.0f);
-                _glUniform1f!(_uAlpha, 0.85f);
-                _glUniform1f!(_uUnlit, 1.0f);
-                DrawMesh(_unitBox);
-                _glUniform1f!(_uAlpha, 1.0f);
-                _glUniform1f!(_uUnlit, 0.0f);
-            }
-
-            // Rotating Tail & Head Pulleys
-            float pulleyAng = (float)(SimTime * speed * 4.5);
-            foreach (var endPos in new[] { c.TailPos, c.HeadPos })
-            {
-                var pOrient = Matrix4x4.CreateRotationY(pulleyAng)
-                            * Matrix4x4.CreateRotationX(MathF.PI * 0.5f)
-                            * Matrix4x4.CreateRotationY(yaw)
-                            * Matrix4x4.CreateTranslation(endPos.X, endPos.Y - 0.04f, endPos.Z);
-                var pScale = Matrix4x4.CreateScale(0.24f, c.Width * 1.12f, 0.24f) * pOrient;
-                SetMatrix(_uModel, pScale);
-                _glUniform3f!(_uTint, 0.88f, 0.48f, 0.08f);
-                _glUniform1f!(_uTintMix, 1.0f);
-                DrawMesh(_unitCylinder);
-
-                // Cross-key bar on pulley to make rotation visible
-                var keyMat = Matrix4x4.CreateScale(0.50f, c.Width * 1.15f, 0.07f) * pOrient;
-                SetMatrix(_uModel, keyMat);
-                _glUniform3f!(_uTint, 0.16f, 0.22f, 0.30f);
-                DrawMesh(_unitBox);
-            }
-
-            // Moving Belt Cleats
-            const float cleatSpacing = 0.72f;
-            int cleatCount = Math.Max(3, (int)(length / cleatSpacing));
-            float phase = (float)((SimTime * speed * 1.45) % cleatSpacing);
-            _glUniform3f!(_uTint, 0.32f, 0.38f, 0.46f);
-            _glUniform1f!(_uTintMix, 1.0f);
-            for (int i = 0; i < cleatCount; i++)
-            {
-                float distAlong = i * cleatSpacing + phase;
-                if (distAlong > length) continue;
-                var p = c.TailPos + dir * distAlong;
-                var cm = Matrix4x4.CreateScale(0.08f, 0.05f, c.Width * 0.88f)
-                       * beltRot
-                       * Matrix4x4.CreateTranslation(p.X, p.Y + 0.08f, p.Z);
-                SetMatrix(_uModel, cm);
-                DrawMesh(_unitBox);
-            }
-
-            // Continuous Coal Stream (along feed chute -> belt -> head transfer chute)
-            if (flow is not null && flow.NormalizedRate > 0.02)
-            {
-                var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
-                float lumpSize = Plant3DSceneData.GetMaterialLumpSize(c.MaterialClass);
-                var fullPts = c.GetFullFlowWaypoints();
-                float totalLen = 0f;
-                for (int i = 0; i < fullPts.Length - 1; i++)
-                    totalLen += Vector3.Distance(fullPts[i], fullPts[i + 1]);
-
-                int parcelCount = Math.Max(8, (int)(totalLen / 0.55f));
-                _glUniform3f!(_uTint, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f);
-                _glUniform1f!(_uTintMix, 1.0f);
-
-                for (int i = 0; i < parcelCount; i++)
+                var it = items[i];
+                if (isShadowPass)
+                    SetMatrix(modelLoc, it.Model);
+                else
                 {
-                    float t = (float)((SimTime * 0.24 * Math.Max(0.2, speed) + (double)i / parcelCount) % 1.0);
-                    var pos = Plant3DSceneData.SamplePolyline(fullPts, t);
-                    float jitter = MathF.Sin(i * 3.1f) * (c.Width * 0.16f);
-                    var right = Vector3.Normalize(Vector3.Cross(dir, Vector3.UnitY));
-                    pos += right * jitter;
-                    pos.Y += 0.14f;
-
-                    var pm = Matrix4x4.CreateScale(lumpSize * 1.25f, lumpSize * 0.85f, lumpSize * 1.1f)
-                           * Matrix4x4.CreateRotationY(i * 0.9f)
-                           * Matrix4x4.CreateTranslation(pos);
-                    SetMatrix(_uModel, pm);
-                    DrawMesh(_unitBox);
+                    SetModelAndNormalMatrix(it.Model);
+                    _glUniform3f!(_uTint, it.R, it.G, it.B);
+                    _glUniform1f!(_uAlpha, it.Alpha);
                 }
-
-                // 3D Directional Flow Chevrons (>>>) when ShowFlowDirection is enabled
-                if (fx.ShowFlowDirection && _unitCone is not null)
-                {
-                    _glUniform3f!(_uTint, 0.22f, 0.82f, 0.98f);
-                    _glUniform1f!(_uUnlit, 1.0f);
-                    _glUniform1f!(_uAlpha, 0.88f);
-                    int arrowCount = Math.Max(2, (int)(length / 2.8f));
-                    for (int a = 0; a < arrowCount; a++)
-                    {
-                        float t = (float)((SimTime * 0.35 * Math.Max(0.25, speed) + (double)a / arrowCount) % 1.0);
-                        var ap = Vector3.Lerp(c.TailPos, c.HeadPos, t);
-                        ap.Y += 0.65f;
-                        // UnitCone points +Y; rotate -90 deg around Z to point +X along belt!
-                        var am = Matrix4x4.CreateScale(0.22f, 0.42f, 0.22f)
-                               * Matrix4x4.CreateRotationZ(-MathF.PI * 0.5f)
-                               * beltRot
-                               * Matrix4x4.CreateTranslation(ap);
-                        SetMatrix(_uModel, am);
-                        DrawMesh(_unitCone);
-                    }
-                    _glUniform1f!(_uUnlit, 0.0f);
-                    _glUniform1f!(_uAlpha, 1.0f);
-                }
+                DrawMesh(mesh);
             }
+            return;
         }
+
+        if (count > _instanceCapacity)
+        {
+            _instanceCapacity = Math.Max(count, _instanceCapacity * 2);
+            _instanceScratch = new float[_instanceCapacity * InstanceFloats];
+            _glBindBuffer!(GL_ARRAY_BUFFER, _instanceVbo);
+            _glBufferData!(GL_ARRAY_BUFFER, (nint)(_instanceCapacity * InstanceFloats * sizeof(float)), null, GL_DYNAMIC_DRAW);
+            _glBindBuffer!(GL_ARRAY_BUFFER, 0);
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            var it = items[i];
+            var m = it.Model;
+            int o = i * InstanceFloats;
+            _instanceScratch[o + 0] = m.M11;  _instanceScratch[o + 1] = m.M12;  _instanceScratch[o + 2] = m.M13;  _instanceScratch[o + 3] = m.M14;
+            _instanceScratch[o + 4] = m.M21;  _instanceScratch[o + 5] = m.M22;  _instanceScratch[o + 6] = m.M23;  _instanceScratch[o + 7] = m.M24;
+            _instanceScratch[o + 8] = m.M31;  _instanceScratch[o + 9] = m.M32;  _instanceScratch[o + 10] = m.M33; _instanceScratch[o + 11] = m.M34;
+            _instanceScratch[o + 12] = m.M41; _instanceScratch[o + 13] = m.M42; _instanceScratch[o + 14] = m.M43; _instanceScratch[o + 15] = m.M44;
+            _instanceScratch[o + 16] = it.R;
+            _instanceScratch[o + 17] = it.G;
+            _instanceScratch[o + 18] = it.B;
+            _instanceScratch[o + 19] = it.Alpha;
+            _instanceScratch[o + 20] = it.Metallic;
+            _instanceScratch[o + 21] = it.Roughness;
+        }
+
+        _glBindBuffer!(GL_ARRAY_BUFFER, _instanceVbo);
+        fixed (float* pData = _instanceScratch)
+        {
+            _glBufferSubData(GL_ARRAY_BUFFER, 0, (nint)(count * InstanceFloats * sizeof(float)), pData);
+        }
+        _glBindBuffer!(GL_ARRAY_BUFFER, 0);
+
+        _glUniform1f!(isShadowPass ? _uShadowIsInstanced : _uIsInstanced, 1.0f);
+        _glBindVertexArray!(mesh.InstancedVao);
+        _glDrawElementsInstanced(GL_TRIANGLES, mesh.IndexCount, GL_UNSIGNED_INT, 0, count);
+        _frameDrawCalls++;
+        _glUniform1f!(isShadowPass ? _uShadowIsInstanced : _uIsInstanced, 0.0f);
     }
 
-    private int BuildShaderProgram(bool isEs)
+    // =========================================================================
+    // Shaders
+    // =========================================================================
+
+    private int BuildShadowProgram(bool isEs)
+    {
+        string header = isEs ? "#version 300 es\nprecision highp float;\n" : "#version 150\n";
+
+        string vsSrc = header + @"
+in vec3 aPos;
+in vec4 aInstCol0;
+in vec4 aInstCol1;
+in vec4 aInstCol2;
+in vec4 aInstCol3;
+
+uniform mat4 uLightViewProj;
+uniform mat4 uModel;
+uniform float uIsInstanced;
+
+void main() {
+    mat4 m = (uIsInstanced > 0.5)
+        ? mat4(aInstCol0, aInstCol1, aInstCol2, aInstCol3)
+        : uModel;
+    gl_Position = uLightViewProj * (m * vec4(aPos, 1.0));
+}
+";
+
+        string fsSrc = header + @"
+out vec4 FragColor;
+void main() {
+    FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+}
+";
+        return CompileAndLinkProgram(vsSrc, fsSrc, bindInstancedAttribs: true);
+    }
+
+    private int BuildMainPbrProgram(bool isEs)
     {
         string header = isEs ? "#version 300 es\nprecision highp float;\n" : "#version 150\n";
 
@@ -961,21 +1636,49 @@ in vec3 aPos;
 in vec3 aNormal;
 in vec3 aColor;
 in vec2 aPbr;
+in vec4 aInstCol0;
+in vec4 aInstCol1;
+in vec4 aInstCol2;
+in vec4 aInstCol3;
+in vec4 aInstColorAlpha;
+in vec2 aInstPbr;
 
 uniform mat4 uModel;
+uniform mat3 uNormalMat;
 uniform mat4 uViewProj;
+uniform mat4 uLightViewProj;
+uniform float uIsInstanced;
 
 out vec3 vWorldPos;
 out vec3 vNormal;
 out vec3 vColor;
 out vec2 vPbr;
+out vec4 vShadowCoord;
+out vec4 vInstColorAlpha;
+out vec2 vInstPbr;
 
 void main() {
-    vec4 wp = uModel * vec4(aPos, 1.0);
+    vec4 wp;
+    if (uIsInstanced > 0.5) {
+        mat4 instM = mat4(aInstCol0, aInstCol1, aInstCol2, aInstCol3);
+        wp = instM * vec4(aPos, 1.0);
+        mat3 m3 = mat3(instM);
+        mat3 adjT = mat3(cross(m3[1], m3[2]), cross(m3[2], m3[0]), cross(m3[0], m3[1]));
+        vec3 n = adjT * aNormal;
+        vNormal = dot(n, n) > 1e-8 ? normalize(n) : vec3(0.0, 1.0, 0.0);
+        vInstColorAlpha = aInstColorAlpha;
+        vInstPbr = aInstPbr;
+    } else {
+        wp = uModel * vec4(aPos, 1.0);
+        vec3 n = uNormalMat * aNormal;
+        vNormal = dot(n, n) > 1e-8 ? normalize(n) : vec3(0.0, 1.0, 0.0);
+        vInstColorAlpha = vec4(1.0);
+        vInstPbr = aPbr;
+    }
     vWorldPos = wp.xyz;
-    vNormal = normalize(mat3(uModel) * aNormal);
     vColor = aColor;
     vPbr = aPbr;
+    vShadowCoord = uLightViewProj * wp;
     gl_Position = uViewProj * wp;
 }
 ";
@@ -985,46 +1688,307 @@ in vec3 vWorldPos;
 in vec3 vNormal;
 in vec3 vColor;
 in vec2 vPbr;
+in vec4 vShadowCoord;
+in vec4 vInstColorAlpha;
+in vec2 vInstPbr;
 
 uniform vec3 uCamPos;
 uniform vec3 uTint;
 uniform float uTintMix;
 uniform float uAlpha;
 uniform float uUnlit;
+uniform float uIsInstanced;
+uniform sampler2D uShadowMap;
+uniform float uShadowsEnabled;
+uniform float uEncodeHdr;
+uniform float uApplyToneMap;
 
 out vec4 FragColor;
 
+float hash31(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+float noise3(vec3 x) {
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(mix(hash31(i + vec3(0.0, 0.0, 0.0)), hash31(i + vec3(1.0, 0.0, 0.0)), f.x),
+            mix(hash31(i + vec3(0.0, 1.0, 0.0)), hash31(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+        mix(mix(hash31(i + vec3(0.0, 0.0, 1.0)), hash31(i + vec3(1.0, 0.0, 1.0)), f.x),
+            mix(hash31(i + vec3(0.0, 1.0, 1.0)), hash31(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
+        f.z);
+}
+
+float fbm3(vec3 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 3; i++) {
+        v += a * noise3(p);
+        p = p * 2.03 + vec3(17.1, 31.7, 11.3);
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float metallic, float roughness, vec3 F0) {
+    vec3 H = normalize(L + V);
+    float NdotL = max(dot(N, L), 0.0);
+    if (NdotL <= 0.0) return vec3(0.0);
+    float NdotV = max(dot(N, V), 0.001);
+    float NdotH = max(dot(N, H), 0.0);
+    float HdotV = max(dot(H, V), 0.0);
+
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float denom = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    float D = a2 / (3.14159265 * denom * denom + 1e-5);
+
+    float k = roughness + 1.0;
+    k = (k * k) / 8.0;
+    float G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
+    vec3 F = F0 + (1.0 - F0) * pow(clamp(1.0 - HdotV, 0.0, 1.0), 5.0);
+
+    vec3 spec = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+    vec3 kD = (1.0 - F) * (1.0 - metallic);
+    return (kD * albedo / 3.14159265 + spec) * lightCol * NdotL;
+}
+
+vec3 ACESFilm(vec3 x) {
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
 void main() {
-    vec3 baseCol = mix(vColor, uTint, uTintMix);
+    vec3 tintSrgb = (uIsInstanced > 0.5) ? vInstColorAlpha.rgb : uTint;
+    vec3 tintLinear = pow(max(tintSrgb, vec3(0.0)), vec3(2.2));
+    float alpha = (uIsInstanced > 0.5) ? vInstColorAlpha.a : uAlpha;
+    float metallic = clamp((uIsInstanced > 0.5) ? vInstPbr.x : vPbr.x, 0.0, 1.0);
+    float roughness = clamp((uIsInstanced > 0.5) ? vInstPbr.y : vPbr.y, 0.06, 1.0);
+
+    vec3 albedo = mix(vColor, tintLinear, uTintMix);
+
+    vec3 hdrCol;
     if (uUnlit > 0.5) {
-        FragColor = vec4(baseCol, uAlpha);
-        return;
+        hdrCol = albedo * (alpha > 0.5 ? 1.32 : 1.0);
+    } else {
+        vec3 N = normalize(vNormal);
+
+        // Micro-surface dFdx/dFdy procedural bump: granular on coal/concrete, brushed on metallic steel
+        bool isGranular = (roughness > 0.65 && metallic < 0.25);
+        bool isBrushed = (metallic > 0.5);
+        float freq = isGranular ? 7.5 : (isBrushed ? 18.0 : 10.0);
+        float bumpAmp = isGranular ? 0.14 : (isBrushed ? 0.035 : 0.02);
+        vec3 samplePos = isBrushed ? vec3(vWorldPos.x * 2.2, vWorldPos.y * 0.8, vWorldPos.z * 2.2) : vWorldPos;
+        float h = fbm3(samplePos * freq);
+        if (isGranular) {
+            albedo *= mix(0.84, 1.16, h);
+        }
+
+        vec3 dpdx = dFdx(vWorldPos);
+        vec3 dpdy = dFdy(vWorldPos);
+        float dhdx = dFdx(h);
+        float dhdy = dFdy(h);
+        vec3 r1 = cross(dpdy, N);
+        vec3 r2 = cross(N, dpdx);
+        float det = dot(dpdx, r1);
+        if (abs(det) > 1e-6) {
+            vec3 surfGrad = sign(det) * (dhdx * r1 + dhdy * r2) / abs(det);
+            float gLen = length(surfGrad);
+            if (gLen > 2.5) surfGrad *= (2.5 / gLen);
+            N = normalize(N - bumpAmp * surfGrad);
+        }
+
+        vec3 V = normalize(uCamPos - vWorldPos);
+        float NdotV = max(dot(N, V), 0.001);
+        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+
+        // Primary directional light + 3x3 PCF soft shadows
+        vec3 L = normalize(vec3(0.48, 0.82, 0.34));
+        float shadow = 1.0;
+        if (uShadowsEnabled > 0.5 && vShadowCoord.w > 0.001) {
+            vec3 projCoords = vShadowCoord.xyz / vShadowCoord.w;
+            vec3 suv = projCoords * 0.5 + 0.5;
+            if (suv.x > 0.01 && suv.x < 0.99 && suv.y > 0.01 && suv.y < 0.99 && suv.z >= 0.0 && suv.z <= 1.0) {
+                float bias = max(0.0026 * (1.0 - max(dot(N, L), 0.0)), 0.0008);
+                vec2 texelSize = vec2(1.0 / 2048.0);
+                float litSum = 0.0;
+                for (int x = -1; x <= 1; x++) {
+                    for (int y = -1; y <= 1; y++) {
+                        float pcfDepth = texture(uShadowMap, suv.xy + vec2(float(x), float(y)) * texelSize).r;
+                        litSum += (suv.z - bias > pcfDepth) ? 0.0 : 1.0;
+                    }
+                }
+                shadow = litSum / 9.0;
+            }
+        }
+
+        vec3 direct = evalCookTorrance(N, V, L, vec3(2.45, 2.38, 2.25), albedo, metallic, roughness, F0) * shadow;
+
+        // Secondary cool/warm industrial fill light
+        vec3 L2 = normalize(vec3(-0.55, 0.38, -0.62));
+        vec3 fill = evalCookTorrance(N, V, L2, vec3(0.46, 0.62, 0.84), albedo, metallic, roughness, F0);
+
+        // Procedural industrial sky / horizon / ground IBL
+        vec3 R = reflect(-V, N);
+        vec3 skyTop = vec3(0.24, 0.42, 0.68);
+        vec3 horizon = vec3(0.48, 0.58, 0.70);
+        vec3 ground = vec3(0.08, 0.10, 0.14);
+
+        vec3 envDiff = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.7, N.y)), smoothstep(-0.35, 0.25, N.y));
+        vec3 envSpec = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.65, R.y)), smoothstep(-0.20, 0.20, R.y));
+        float bayHighlight = pow(max(R.y, 0.0), mix(18.0, 2.0, roughness)) * 0.48;
+        envSpec += vec3(0.55, 0.68, 0.85) * bayHighlight;
+        envSpec = mix(envSpec, envDiff, roughness * roughness * 0.75);
+
+        vec3 F_ibl = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
+        vec3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
+        float specOcc = mix(1.0, 0.28, roughness);
+        float contactAo = mix(0.68, 1.0, smoothstep(0.0, 0.55, vWorldPos.y));
+
+        vec3 ambient = (kD_ibl * albedo * envDiff * 0.58 + F_ibl * envSpec * specOcc * 0.78) * contactAo;
+
+        vec3 lit = ambient + direct + fill;
+
+        float dist = length(uCamPos - vWorldPos);
+        float fog = clamp((dist - 32.0) / 56.0, 0.0, 0.36);
+        hdrCol = mix(lit, vec3(0.005, 0.010, 0.022), fog);
     }
 
-    vec3 N = normalize(vNormal);
-    vec3 L = normalize(vec3(0.48, 0.82, 0.34));
-    vec3 V = normalize(uCamPos - vWorldPos);
-    vec3 H = normalize(L + V);
+    if (uEncodeHdr > 0.5) {
+        // Compress HDR [0, 2.5] perceptually into RGBA8 [0, 1] with smooth dark resolution
+        vec3 encoded = sqrt(clamp(hdrCol * 0.4, 0.0, 1.0));
+        FragColor = vec4(encoded, alpha);
+    } else if (uApplyToneMap > 0.5) {
+        vec3 mapped = ACESFilm(hdrCol);
+        vec3 srgb = pow(mapped, vec3(1.0 / 2.2));
+        FragColor = vec4(srgb, alpha);
+    } else {
+        FragColor = vec4(hdrCol, alpha);
+    }
+}
+";
+        return CompileAndLinkProgram(vsSrc, fsSrc, bindInstancedAttribs: true);
+    }
 
-    float ndotl = max(dot(N, L), 0.0);
-    float hemi = 0.5 + 0.5 * N.y;
-    vec3 ambient = mix(vec3(0.14, 0.18, 0.25), vec3(0.32, 0.40, 0.52), hemi);
+    private int BuildPostProgram(bool isEs)
+    {
+        string header = isEs ? "#version 300 es\nprecision highp float;\n" : "#version 150\n";
 
-    float roughness = clamp(vPbr.y, 0.12, 1.0);
-    float shininess = mix(96.0, 12.0, roughness);
-    float spec = pow(max(dot(N, H), 0.0), shininess) * mix(0.20, 0.65, vPbr.x);
-    float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.18;
-
-    vec3 lit = baseCol * (ambient + vec3(0.88, 0.90, 0.94) * ndotl) + vec3(spec) + vec3(0.22, 0.52, 0.85) * rim;
-
-    float dist = length(uCamPos - vWorldPos);
-    float fog = clamp((dist - 28.0) / 48.0, 0.0, 0.40);
-    vec3 finalCol = mix(lit, vec3(0.035, 0.062, 0.118), fog);
-
-    FragColor = vec4(finalCol, uAlpha);
+        string vsSrc = header + @"
+out vec2 vUv;
+void main() {
+    vec2 pos = vec2((gl_VertexID == 1) ? 3.0 : -1.0, (gl_VertexID == 2) ? 3.0 : -1.0);
+    vUv = pos * 0.5 + 0.5;
+    gl_Position = vec4(pos, 0.0, 1.0);
 }
 ";
 
+        string fsSrc = header + @"
+in vec2 vUv;
+
+uniform sampler2D uColorTex;
+uniform sampler2D uDepthTex;
+uniform vec2 uTexelSize;
+uniform float uEnableAo;
+uniform float uIsOrtho;
+uniform float uNear;
+uniform float uFar;
+
+out vec4 FragColor;
+
+vec3 decodeHdr(vec3 c) {
+    return (c * c) * 2.5;
+}
+
+float linearizeDepth(float d) {
+    if (uIsOrtho > 0.5) {
+        return mix(uNear, uFar, d);
+    }
+    float zNdc = d * 2.0 - 1.0;
+    return (2.0 * uNear * uFar) / max(uFar + uNear - zNdc * (uFar - uNear), 0.0001);
+}
+
+vec3 ACESFilm(vec3 x) {
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+void main() {
+    vec3 hdrCol = decodeHdr(texture(uColorTex, vUv).rgb);
+    float centerDepth = texture(uDepthTex, vUv).r;
+
+    // 8-tap rotated Poisson/spiral SSAO
+    float ao = 1.0;
+    if (uEnableAo > 0.5 && centerDepth < 0.9995) {
+        float linCenter = linearizeDepth(centerDepth);
+        float ang = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
+        float ca = cos(ang);
+        float sa = sin(ang);
+        mat2 rot = mat2(ca, -sa, sa, ca);
+
+        float radiusPx = uIsOrtho > 0.5 ? 6.0 : clamp(85.0 / max(linCenter, 4.0), 3.0, 12.0);
+        vec2 offsets[8];
+        offsets[0] = vec2(-0.707, -0.707) * 0.45;
+        offsets[1] = vec2( 0.707, -0.707) * 0.55;
+        offsets[2] = vec2(-0.707,  0.707) * 0.65;
+        offsets[3] = vec2( 0.707,  0.707) * 0.75;
+        offsets[4] = vec2(-1.000,  0.000) * 0.85;
+        offsets[5] = vec2( 1.000,  0.000) * 0.95;
+        offsets[6] = vec2( 0.000, -1.000) * 0.70;
+        offsets[7] = vec2( 0.000,  1.000) * 1.00;
+
+        float occSum = 0.0;
+        for (int i = 0; i < 8; i++) {
+            vec2 uvTap = vUv + (rot * offsets[i]) * radiusPx * uTexelSize;
+            float tapDepth = texture(uDepthTex, uvTap).r;
+            if (tapDepth >= 0.9995) continue;
+            float linTap = linearizeDepth(tapDepth);
+            float diff = linCenter - linTap;
+            float occ = smoothstep(0.05, 0.36, diff) * (1.0 - smoothstep(0.85, 2.10, diff));
+            occSum += occ;
+        }
+        ao = clamp(1.0 - (occSum / 8.0) * 0.60, 0.40, 1.0);
+    }
+
+    // Subtle highlight bloom for bright emissive / specular pixels (luminance > 1.15)
+    vec3 bloom = vec3(0.0);
+    vec2 bOff[8];
+    bOff[0] = vec2(-2.0, -2.0); bOff[1] = vec2( 2.0, -2.0);
+    bOff[2] = vec2(-2.0,  2.0); bOff[3] = vec2( 2.0,  2.0);
+    bOff[4] = vec2(-4.5,  0.0); bOff[5] = vec2( 4.5,  0.0);
+    bOff[6] = vec2( 0.0, -4.5); bOff[7] = vec2( 0.0,  4.5);
+    for (int i = 0; i < 8; i++) {
+        vec3 nCol = decodeHdr(texture(uColorTex, vUv + bOff[i] * uTexelSize).rgb);
+        float lum = dot(nCol, vec3(0.2126, 0.7152, 0.0722));
+        if (lum > 1.15) {
+            bloom += nCol * ((lum - 1.15) / max(lum, 1e-4));
+        }
+    }
+    bloom *= (1.0 / 8.0) * 0.24;
+
+    vec3 finalHdr = hdrCol * ao + bloom;
+    vec3 mapped = ACESFilm(finalHdr);
+    vec3 srgb = pow(mapped, vec3(1.0 / 2.2));
+    FragColor = vec4(srgb, 1.0);
+}
+";
+        return CompileAndLinkProgram(vsSrc, fsSrc, bindInstancedAttribs: false);
+    }
+
+    private int CompileAndLinkProgram(string vsSrc, string fsSrc, bool bindInstancedAttribs)
+    {
         int vs = CompileShader(GL_VERTEX_SHADER, vsSrc);
         int fs = CompileShader(GL_FRAGMENT_SHADER, fsSrc);
         if (vs == 0 || fs == 0)
@@ -1041,6 +2005,15 @@ void main() {
         BindAttribLocation(prog, 1, "aNormal");
         BindAttribLocation(prog, 2, "aColor");
         BindAttribLocation(prog, 3, "aPbr");
+        if (bindInstancedAttribs)
+        {
+            BindAttribLocation(prog, 4, "aInstCol0");
+            BindAttribLocation(prog, 5, "aInstCol1");
+            BindAttribLocation(prog, 6, "aInstCol2");
+            BindAttribLocation(prog, 7, "aInstCol3");
+            BindAttribLocation(prog, 8, "aInstColorAlpha");
+            BindAttribLocation(prog, 9, "aInstPbr");
+        }
         _glLinkProgram!(prog);
 
         int ok = 0;
@@ -1049,6 +2022,14 @@ void main() {
         _glDeleteShader!(fs);
         if (ok == 0)
         {
+            if (_glGetProgramInfoLog is not null)
+            {
+                var logBuf = stackalloc byte[1024];
+                int len = 0;
+                _glGetProgramInfoLog(prog, 1024, &len, logBuf);
+                var msg = Encoding.UTF8.GetString(logBuf, Math.Clamp(len, 0, 1023));
+                Console.Error.WriteLine($"[Plant3D] Program link error: {msg}");
+            }
             _glDeleteProgram!(prog);
             return 0;
         }
@@ -1070,6 +2051,14 @@ void main() {
         _glGetShaderiv!(shader, GL_COMPILE_STATUS, &ok);
         if (ok == 0)
         {
+            if (_glGetShaderInfoLog is not null)
+            {
+                var logBuf = stackalloc byte[1024];
+                int len = 0;
+                _glGetShaderInfoLog(shader, 1024, &len, logBuf);
+                var msg = Encoding.UTF8.GetString(logBuf, Math.Clamp(len, 0, 1023));
+                Console.Error.WriteLine($"[Plant3D] Shader compile error ({type}): {msg}");
+            }
             _glDeleteShader!(shader);
             return 0;
         }
@@ -1084,11 +2073,11 @@ void main() {
             _glBindAttribLocation(prog, index, p);
     }
 
-    private int GetUniformLoc(string name)
+    private int GetUniformLoc(int program, string name)
     {
         var bytes = Encoding.UTF8.GetBytes(name + "\0");
         fixed (byte* p = bytes)
-            return _glGetUniformLocation!(_program, p);
+            return _glGetUniformLocation!(program, p);
     }
 
     private void SetMatrix(int loc, Matrix4x4 m)
@@ -1102,9 +2091,28 @@ void main() {
         _glUniformMatrix4fv!(loc, 1, 0, ptr);
     }
 
-    private GpuMesh UploadIndexedMesh(float[] vertices, uint[] indices)
+    private void SetModelAndNormalMatrix(Matrix4x4 model)
     {
-        uint vao = 0, vbo = 0, ebo = 0;
+        SetMatrix(_uModel, model);
+        if (_uNormalMat < 0 || _glUniformMatrix3fv is null)
+            return;
+
+        var nMat = Matrix4x4.Identity;
+        if (Matrix4x4.Invert(model, out var inv))
+        {
+            nMat = Matrix4x4.Transpose(inv);
+        }
+
+        float* ptr = stackalloc float[9];
+        ptr[0] = nMat.M11; ptr[1] = nMat.M12; ptr[2] = nMat.M13;
+        ptr[3] = nMat.M21; ptr[4] = nMat.M22; ptr[5] = nMat.M23;
+        ptr[6] = nMat.M31; ptr[7] = nMat.M32; ptr[8] = nMat.M33;
+        _glUniformMatrix3fv(_uNormalMat, 1, 0, ptr);
+    }
+
+    private GpuMesh UploadIndexedMesh(float[] vertices, uint[] indices, bool withInstancing)
+    {
+        uint vao = 0, instVao = 0, vbo = 0, ebo = 0;
         _glGenVertexArrays!(1, &vao);
         _glGenBuffers!(1, &vbo);
         _glGenBuffers!(1, &ebo);
@@ -1129,8 +2137,42 @@ void main() {
         _glEnableVertexAttribArray!(3);
         _glVertexAttribPointer!(3, 2, GL_FLOAT, 0, stride, 9 * sizeof(float));
 
+        if (withInstancing && _instanceVbo != 0 && _glVertexAttribDivisor is not null)
+        {
+            _glGenVertexArrays!(1, &instVao);
+            _glBindVertexArray!(instVao);
+
+            _glBindBuffer!(GL_ARRAY_BUFFER, vbo);
+            _glBindBuffer!(GL_ELEMENT_ARRAY_BUFFER, ebo);
+            _glEnableVertexAttribArray!(0);
+            _glVertexAttribPointer!(0, 3, GL_FLOAT, 0, stride, 0);
+            _glEnableVertexAttribArray!(1);
+            _glVertexAttribPointer!(1, 3, GL_FLOAT, 0, stride, 3 * sizeof(float));
+            _glEnableVertexAttribArray!(2);
+            _glVertexAttribPointer!(2, 3, GL_FLOAT, 0, stride, 6 * sizeof(float));
+            _glEnableVertexAttribArray!(3);
+            _glVertexAttribPointer!(3, 2, GL_FLOAT, 0, stride, 9 * sizeof(float));
+
+            _glBindBuffer!(GL_ARRAY_BUFFER, _instanceVbo);
+            int instStride = InstanceFloats * sizeof(float);
+            for (uint loc = 4; loc <= 7; loc++)
+            {
+                _glEnableVertexAttribArray!(loc);
+                _glVertexAttribPointer!(loc, 4, GL_FLOAT, 0, instStride, (nint)((loc - 4) * 4 * sizeof(float)));
+                _glVertexAttribDivisor(loc, 1);
+            }
+            _glEnableVertexAttribArray!(8);
+            _glVertexAttribPointer!(8, 4, GL_FLOAT, 0, instStride, 16 * sizeof(float));
+            _glVertexAttribDivisor(8, 1);
+
+            _glEnableVertexAttribArray!(9);
+            _glVertexAttribPointer!(9, 2, GL_FLOAT, 0, instStride, 20 * sizeof(float));
+            _glVertexAttribDivisor(9, 1);
+        }
+
         _glBindVertexArray!(0);
-        return new GpuMesh { Vao = vao, Vbo = vbo, Ebo = ebo, IndexCount = indices.Length };
+        _glBindBuffer!(GL_ARRAY_BUFFER, 0);
+        return new GpuMesh { Vao = vao, InstancedVao = instVao, Vbo = vbo, Ebo = ebo, IndexCount = indices.Length };
     }
 
     private GpuMesh UploadLineMesh(float[] vertices)
@@ -1163,16 +2205,24 @@ void main() {
             _glDrawArrays!(GL_LINES, 0, m.IndexCount);
         else
             _glDrawElements!(GL_TRIANGLES, m.IndexCount, GL_UNSIGNED_INT, 0);
+        _frameDrawCalls++;
     }
 
     private void DeleteMesh(GpuMesh? m)
     {
         if (m is null) return;
-        uint vao = m.Vao, vbo = m.Vbo, ebo = m.Ebo;
+        uint vao = m.Vao, instVao = m.InstancedVao, vbo = m.Vbo, ebo = m.Ebo;
         if (vao != 0) _glDeleteVertexArrays?.Invoke(1, &vao);
+        if (instVao != 0) _glDeleteVertexArrays?.Invoke(1, &instVao);
         if (vbo != 0) _glDeleteBuffers?.Invoke(1, &vbo);
         if (ebo != 0) _glDeleteBuffers?.Invoke(1, &ebo);
     }
+
+    // =========================================================================
+    // Procedural Mesh Builders (Vertex colors stored in linear space)
+    // =========================================================================
+
+    private static float SrgbToLinear(float c) => MathF.Pow(Math.Clamp(c, 0f, 1f), 2.2f);
 
     private static void AddVert(List<float> v, Vector3 p, Vector3 n, float r = 1f, float g = 1f, float b = 1f, float met = 0.4f, float rough = 0.5f)
     {
@@ -1182,8 +2232,12 @@ void main() {
         v.Add(met); v.Add(rough);
     }
 
-    private static void AppendBox(List<float> v, List<uint> idx, Matrix4x4 xform, float r, float g, float b, float met = 0.6f, float rough = 0.45f)
+    private static void AppendBox(List<float> v, List<uint> idx, Matrix4x4 xform, float r, float g, float b, float met = 0.6f, float rough = 0.45f, bool convertSrgbToLinear = false)
     {
+        float lr = convertSrgbToLinear ? SrgbToLinear(r) : r;
+        float lg = convertSrgbToLinear ? SrgbToLinear(g) : g;
+        float lb = convertSrgbToLinear ? SrgbToLinear(b) : b;
+
         void Quad(Vector3 a, Vector3 b0, Vector3 c, Vector3 d, Vector3 n)
         {
             var wa = Vector3.Transform(a, xform);
@@ -1192,10 +2246,10 @@ void main() {
             var wd = Vector3.Transform(d, xform);
             var wn = Vector3.Normalize(Vector3.TransformNormal(n, xform));
             uint s = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
-            AddVert(v, wa, wn, r, g, b, met, rough);
-            AddVert(v, wb, wn, r, g, b, met, rough);
-            AddVert(v, wc, wn, r, g, b, met, rough);
-            AddVert(v, wd, wn, r, g, b, met, rough);
+            AddVert(v, wa, wn, lr, lg, lb, met, rough);
+            AddVert(v, wb, wn, lr, lg, lb, met, rough);
+            AddVert(v, wc, wn, lr, lg, lb, met, rough);
+            AddVert(v, wd, wn, lr, lg, lb, met, rough);
             idx.AddRange(new uint[] { s, s + 1, s + 2, s, s + 2, s + 3 });
         }
         const float h = 0.5f;
@@ -1212,7 +2266,7 @@ void main() {
         var v = new List<float>();
         var idx = new List<uint>();
         AppendBox(v, idx, Matrix4x4.Identity, 1f, 1f, 1f);
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
 
     private GpuMesh BuildUnitCylinderMesh(int segs)
@@ -1238,7 +2292,7 @@ void main() {
             AddVert(v, new(c1, 0.5f, s1), Vector3.UnitY);
             idx.AddRange(new uint[] { t, t + 1, t + 2 });
         }
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
 
     private GpuMesh BuildUnitConeMesh(int segs)
@@ -1266,7 +2320,7 @@ void main() {
             AddVert(v, new(c0, -0.5f, s0), -Vector3.UnitY);
             idx.AddRange(new uint[] { bc, bc + 1, bc + 2 });
         }
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
 
     private GpuMesh BuildUnitRingMesh(int segs, float innerR, float outerR)
@@ -1286,7 +2340,7 @@ void main() {
             AddVert(v, new(c1 * innerR, 0, s1 * innerR), Vector3.UnitY);
             idx.AddRange(new uint[] { b, b + 1, b + 2, b, b + 2, b + 3 });
         }
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
     }
 
     private GpuMesh BuildGroundGridLines()
@@ -1314,9 +2368,9 @@ void main() {
         foreach (var route in Plant3DSceneData.PipeRoutes)
         {
             var col = Plant3DSceneData.GetMediumColor(route.Medium);
-            float cr = 0.50f + (col.R / 255f) * 0.35f;
-            float cg = 0.56f + (col.G / 255f) * 0.35f;
-            float cb = 0.64f + (col.B / 255f) * 0.35f;
+            float cr = SrgbToLinear(0.50f + (col.R / 255f) * 0.35f);
+            float cg = SrgbToLinear(0.56f + (col.G / 255f) * 0.35f);
+            float cb = SrgbToLinear(0.64f + (col.B / 255f) * 0.35f);
 
             for (int w = 0; w < route.Waypoints.Length - 1; w++)
             {
@@ -1324,7 +2378,7 @@ void main() {
             }
         }
 
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
     }
 
     private static void AppendSegmentTube(List<float> v, List<uint> idx, Vector3 a, Vector3 b, float radius, int sides, float cr, float cg, float cb)
@@ -1375,14 +2429,14 @@ void main() {
 
             // 1. Rubber belt bed
             var beltMat = Matrix4x4.CreateScale(len, 0.08f, c.Width * 0.90f) * beltRot * Matrix4x4.CreateTranslation(mid);
-            AppendBox(v, idx, beltMat, 0.11f, 0.13f, 0.16f, 0.15f, 0.85f);
+            AppendBox(v, idx, beltMat, 0.11f, 0.13f, 0.16f, 0.12f, 0.85f, convertSrgbToLinear: true);
 
             // 2. Left & right steel side stringer channels
             foreach (float side in new[] { -halfW, halfW })
             {
                 var sidePos = mid + Vector3.Transform(new Vector3(0f, -0.04f, side), beltRot);
                 var strMat = Matrix4x4.CreateScale(len + 0.35f, 0.22f, 0.08f) * beltRot * Matrix4x4.CreateTranslation(sidePos);
-                AppendBox(v, idx, strMat, 0.30f, 0.37f, 0.45f, 0.72f, 0.40f);
+                AppendBox(v, idx, strMat, 0.30f, 0.37f, 0.45f, 0.75f, 0.38f, convertSrgbToLinear: true);
             }
 
             // 3. Cross-bracing struts under belt every ~1.8m
@@ -1391,7 +2445,7 @@ void main() {
             {
                 var p = Vector3.Lerp(c.TailPos, c.HeadPos, (float)i / crossCount);
                 var crossMat = Matrix4x4.CreateScale(0.08f, 0.10f, c.Width + 0.06f) * beltRot * Matrix4x4.CreateTranslation(p.X, p.Y - 0.12f, p.Z);
-                AppendBox(v, idx, crossMat, 0.26f, 0.32f, 0.40f, 0.7f, 0.45f);
+                AppendBox(v, idx, crossMat, 0.26f, 0.32f, 0.40f, 0.72f, 0.42f, convertSrgbToLinear: true);
             }
 
             // 4. Vertical structural support bents / trestles extending down to Y=0 every ~3.5m
@@ -1409,16 +2463,15 @@ void main() {
                     var legMat = Matrix4x4.CreateScale(0.11f, h, 0.11f)
                                * flatRot
                                * Matrix4x4.CreateTranslation(bp.X + legOff.X, h * 0.5f, bp.Z + legOff.Z);
-                    AppendBox(v, idx, legMat, 0.25f, 0.31f, 0.39f, 0.72f, 0.45f);
+                    AppendBox(v, idx, legMat, 0.25f, 0.31f, 0.39f, 0.75f, 0.42f, convertSrgbToLinear: true);
                 }
 
-                // Trestle cross-beam at mid-height
                 if (h > 1.2f)
                 {
                     var braceMat = Matrix4x4.CreateScale(0.08f, 0.08f, c.Width + 0.18f)
                                  * flatRot
                                  * Matrix4x4.CreateTranslation(bp.X, h * 0.52f, bp.Z);
-                    AppendBox(v, idx, braceMat, 0.28f, 0.34f, 0.42f, 0.72f, 0.45f);
+                    AppendBox(v, idx, braceMat, 0.28f, 0.34f, 0.42f, 0.75f, 0.42f, convertSrgbToLinear: true);
                 }
             }
 
@@ -1428,13 +2481,12 @@ void main() {
                 float walkZ = halfW + 0.34f;
                 var walkMid = mid + Vector3.Transform(new Vector3(0f, -0.05f, walkZ), beltRot);
                 var walkMat = Matrix4x4.CreateScale(len * 0.92f, 0.05f, 0.52f) * beltRot * Matrix4x4.CreateTranslation(walkMid);
-                AppendBox(v, idx, walkMat, 0.20f, 0.24f, 0.30f, 0.6f, 0.5f);
+                AppendBox(v, idx, walkMat, 0.20f, 0.24f, 0.30f, 0.62f, 0.48f, convertSrgbToLinear: true);
 
-                // Safety yellow top handrail & vertical posts
                 float railZ = halfW + 0.58f;
                 var railMid = mid + Vector3.Transform(new Vector3(0f, 0.78f, railZ), beltRot);
                 var railMat = Matrix4x4.CreateScale(len * 0.92f, 0.05f, 0.05f) * beltRot * Matrix4x4.CreateTranslation(railMid);
-                AppendBox(v, idx, railMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f);
+                AppendBox(v, idx, railMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f, convertSrgbToLinear: true);
 
                 int posts = Math.Max(3, (int)(len / 2.0f));
                 for (int p = 0; p <= posts; p++)
@@ -1442,7 +2494,7 @@ void main() {
                     float pf = 0.04f + 0.92f * p / posts;
                     var pp = Vector3.Lerp(c.TailPos, c.HeadPos, pf) + Vector3.Transform(new Vector3(0f, 0.38f, railZ), beltRot);
                     var postMat = Matrix4x4.CreateScale(0.045f, 0.80f, 0.045f) * flatRot * Matrix4x4.CreateTranslation(pp);
-                    AppendBox(v, idx, postMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f);
+                    AppendBox(v, idx, postMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f, convertSrgbToLinear: true);
                 }
             }
 
@@ -1451,13 +2503,13 @@ void main() {
             {
                 var skPos = c.TailPos + Vector3.Transform(new Vector3(0.45f, 0.22f, side), beltRot);
                 var skMat = Matrix4x4.CreateScale(1.1f, 0.36f, 0.07f) * beltRot * Matrix4x4.CreateTranslation(skPos);
-                AppendBox(v, idx, skMat, 0.36f, 0.44f, 0.52f, 0.65f, 0.45f);
+                AppendBox(v, idx, skMat, 0.36f, 0.44f, 0.52f, 0.68f, 0.42f, convertSrgbToLinear: true);
             }
 
             // 7. Head Drive Motor & Gearbox block beside HeadPos
             var motorPos = c.HeadPos + Vector3.Transform(new Vector3(-0.25f, -0.05f, -halfW - 0.32f), flatRot);
             var motorMat = Matrix4x4.CreateScale(0.65f, 0.42f, 0.44f) * flatRot * Matrix4x4.CreateTranslation(motorPos);
-            AppendBox(v, idx, motorMat, 0.12f, 0.35f, 0.58f, 0.65f, 0.38f);
+            AppendBox(v, idx, motorMat, 0.12f, 0.35f, 0.58f, 0.68f, 0.36f, convertSrgbToLinear: true);
 
             // 8. Enclosed Transfer Chute from HeadPos down to HeadDropTargetY
             var chuteBot = c.GetChuteBottomPos();
@@ -1473,7 +2525,7 @@ void main() {
                 chuteRot = Matrix4x4.CreateRotationZ(-tilt) * Matrix4x4.CreateRotationY(cYaw);
             }
             var chuteMat = Matrix4x4.CreateScale(0.68f, chuteH, c.Width * 0.86f) * chuteRot * Matrix4x4.CreateTranslation(chuteMid);
-            AppendBox(v, idx, chuteMat, 0.24f, 0.30f, 0.38f, 0.68f, 0.48f);
+            AppendBox(v, idx, chuteMat, 0.24f, 0.30f, 0.38f, 0.72f, 0.45f, convertSrgbToLinear: true);
 
             // 9. Optional curved feed chute (e.g., SS-101 top deck -> CV-106 tail)
             if (c.FeedChuteWaypoints is { Length: >= 2 })
@@ -1493,11 +2545,11 @@ void main() {
                              * Matrix4x4.CreateRotationZ(sPitch)
                              * Matrix4x4.CreateRotationY(sYaw)
                              * Matrix4x4.CreateTranslation(sMid);
-                    AppendBox(v, idx, sMat, 0.32f, 0.40f, 0.48f, 0.68f, 0.45f);
+                    AppendBox(v, idx, sMat, 0.32f, 0.40f, 0.48f, 0.70f, 0.42f, convertSrgbToLinear: true);
                 }
             }
         }
 
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray());
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
     }
 }

@@ -133,7 +133,7 @@ public static class GlbMeshLoader
 
         foreach (var mat in matsEl.EnumerateArray())
         {
-            var color = new Vector3(0.55f, 0.62f, 0.70f);
+            var color = new Vector3(0.28f, 0.34f, 0.44f);
             float metallic = 0.5f;
             float roughness = 0.45f;
 
@@ -141,11 +141,11 @@ public static class GlbMeshLoader
             {
                 if (pbr.TryGetProperty("baseColorFactor", out var bcf) && bcf.GetArrayLength() >= 3)
                 {
-                    // glTF baseColorFactor is linear; apply light gamma lift for crisp display
+                    // glTF 2.0 baseColorFactor is linear-space RGB; store directly for physically based shading
                     color = new Vector3(
-                        MathF.Pow(Math.Clamp(bcf[0].GetSingle(), 0f, 1f), 1f / 2.2f),
-                        MathF.Pow(Math.Clamp(bcf[1].GetSingle(), 0f, 1f), 1f / 2.2f),
-                        MathF.Pow(Math.Clamp(bcf[2].GetSingle(), 0f, 1f), 1f / 2.2f));
+                        Math.Clamp(bcf[0].GetSingle(), 0f, 1f),
+                        Math.Clamp(bcf[1].GetSingle(), 0f, 1f),
+                        Math.Clamp(bcf[2].GetSingle(), 0f, 1f));
                 }
                 if (pbr.TryGetProperty("metallicFactor", out var mf))
                     metallic = Math.Clamp(mf.GetSingle(), 0f, 1f);
@@ -279,7 +279,7 @@ public static class GlbMeshLoader
             if (attrsEl.TryGetProperty("NORMAL", out var normAccEl))
                 normals = ReadVec3Accessor(normAccEl.GetInt32(), accessorsEl, bufferViewsEl, bin);
 
-            var matInfo = new MaterialInfo(new Vector3(0.55f, 0.62f, 0.70f), 0.5f, 0.45f);
+            var matInfo = new MaterialInfo(new Vector3(0.28f, 0.34f, 0.44f), 0.5f, 0.45f);
             if (prim.TryGetProperty("material", out var matIdxEl))
             {
                 int mi = matIdxEl.GetInt32();

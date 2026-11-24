@@ -169,6 +169,9 @@ public partial class Unity3DEffectSettings : ObservableObject
     public partial bool ShowGroundShadows { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool EnableAmbientOcclusion { get; set; } = true;
+
+    [ObservableProperty]
     public partial bool EnableVibrationPhysics { get; set; } = true;
 
     [ObservableProperty]

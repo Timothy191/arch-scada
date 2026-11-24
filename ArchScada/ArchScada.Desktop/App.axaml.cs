@@ -239,6 +239,7 @@ public partial class App : Application
             {
                 CapturedAtUtc = DateTimeOffset.UtcNow,
                 IsHardwareAccelerated = viewport?.IsHardwareAccelerated ?? false,
+                LastFrameDrawCalls = viewport?.LastFrameDrawCalls ?? 0,
                 metrics.TotalGlbCount,
                 metrics.TotalVertices,
                 metrics.TotalTriangles,
