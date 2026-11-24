@@ -1082,7 +1082,7 @@ public sealed class Plant3DViewportControl : Panel
         private void DrawHudFooter(DrawingContext context, double w, double h, Unity3DEffectSettings fx)
         {
             string mode = _owner._glCanvas.IsHardwareActive
-                ? $"GPU GGX-PBR · 4x MSAA · PCF · {_owner._glCanvas.LastFrameDrawCalls} draws"
+                ? $"GPU GGX-PBR · 16-Tap PCSS · Clearcoat · GTAO+CAS · {_owner._glCanvas.LastFrameDrawCalls} draws"
                 : $"Software 3D · {Plant3DSceneData.LoadAllGlbMeshes().Count} GLB · {Plant3DSceneData.AllNodes.Count} GA Nodes";
 
             var badgeTxt = new FormattedText(mode, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, LabelTypeface, 10, GetBrush(56, 189, 248));

@@ -401,4 +401,62 @@ public class Plant3DTests
             Assert.True(secondDiff < -1e-4f, $"{conv.Id} discharge arc must have downward acceleration d²y/du² < 0 (got {secondDiff})");
         }
     }
+
+    [Fact]
+    public void Plant3DSceneData_Tier1To3PhysicsAndPbrHelpers_DistinguishWetDryAndEmitPlumes()
+    {
+        // Wet vs dry stream classification and clearcoat PBR parameters
+        Assert.False(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.RawRom));
+        Assert.False(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.CrushedPrimary));
+        Assert.False(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.PlantFeed));
+        Assert.True(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.DeslimedCoal));
+        Assert.True(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.CleanProduct));
+        Assert.True(Plant3DSceneData.IsWetCoalStream(CoalMaterialClass.RefuseDiscard));
+
+        var dryPbr = Plant3DSceneData.GetMaterialPbrParams(CoalMaterialClass.RawRom);
+        var wetPbr = Plant3DSceneData.GetMaterialPbrParams(CoalMaterialClass.CleanProduct);
+        Assert.Equal(0f, dryPbr.Clearcoat);
+        Assert.True(dryPbr.Roughness > 0.7f);
+        Assert.True(wetPbr.Clearcoat > 0.7f);
+        Assert.True(wetPbr.Roughness < 0.4f);
+
+        // Continuous belt burden thickness scales monotonically and is 0 when stopped
+        Assert.Equal(0f, Plant3DSceneData.ComputeBeltBurdenThickness(CoalMaterialClass.RawRom, 0.0));
+        float burdenLow = Plant3DSceneData.ComputeBeltBurdenThickness(CoalMaterialClass.PlantFeed, 0.35);
+        float burdenHigh = Plant3DSceneData.ComputeBeltBurdenThickness(CoalMaterialClass.PlantFeed, 0.95);
+        Assert.True(burdenLow > 0f && burdenHigh > burdenLow);
+
+        // 3-axis elliptical screen vibration stays finite and handles NaN/Inf safely
+        foreach (string screenId in new[] { "VF-101", "SS-101", "DS-201" })
+        {
+            var vib = Plant3DSceneData.ComputeScreenVibrationOffset(screenId, 2.34, 80.0);
+            Assert.True(float.IsFinite(vib.X) && float.IsFinite(vib.Y) && float.IsFinite(vib.Z));
+            Assert.True(vib.Length() > 0f && vib.Length() < 0.06f);
+            Assert.Equal(Vector3.Zero, Plant3DSceneData.ComputeScreenVibrationOffset(screenId, double.NaN, 80.0));
+        }
+
+        // Fugitive dust + desliming water spray emission when plant is running vs stopped
+        var runningFlows = new Dictionary<string, ProcessFlowState>(StringComparer.OrdinalIgnoreCase);
+        var stoppedFlows = new Dictionary<string, ProcessFlowState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in Plant3DSceneData.AllNodes)
+        {
+            runningFlows[node.Id] = new ProcessFlowState(node.Id, 0.85, IsRunning: true, IsStarved: false, EstimatedTph: 500);
+            stoppedFlows[node.Id] = new ProcessFlowState(node.Id, 0.0, IsRunning: false, IsStarved: true, EstimatedTph: 0);
+        }
+
+        var dumpPose = Plant3DSceneData.ComputeLoaderPose(4.8, active: true);
+        var particles = Plant3DSceneData.ComputeDustAndSprayParticles(runningFlows, dumpPose, 4.8);
+        Assert.Contains(particles, p => !p.IsWaterSpray);
+        Assert.Contains(particles, p => p.IsWaterSpray);
+        Assert.All(particles, p => Assert.True(float.IsFinite(p.Position.X) && float.IsFinite(p.Position.Y) && p.Alpha > 0f));
+
+        var stoppedPose = Plant3DSceneData.ComputeLoaderPose(0.5, active: false);
+        Assert.Empty(Plant3DSceneData.ComputeDustAndSprayParticles(stoppedFlows, stoppedPose, 4.8));
+
+        // New effect toggles default to enabled
+        var fx = new Unity3DEffectSettings();
+        Assert.True(fx.ShowDustAndSprayPlumes);
+        Assert.True(fx.EnableWetCoalClearcoat);
+        Assert.True(fx.EnableContrastSharpening);
+    }
 }

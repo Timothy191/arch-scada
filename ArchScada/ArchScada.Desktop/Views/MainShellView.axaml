@@ -734,6 +734,9 @@
                                         <CheckBox Content="Vibration Physics (VF / SS / DS)" IsChecked="{Binding UnityEffects.EnableVibrationPhysics}" Foreground="#6B7280" />
                                         <CheckBox Content="Ground Cast Shadows" IsChecked="{Binding UnityEffects.ShowGroundShadows}" Foreground="#6B7280" />
                                         <CheckBox Content="Screen-Space Ambient Occlusion (SSAO)" IsChecked="{Binding UnityEffects.EnableAmbientOcclusion}" Foreground="#6B7280" />
+                                        <CheckBox Content="Fugitive Dust &amp; Desliming Water Sprays" IsChecked="{Binding UnityEffects.ShowDustAndSprayPlumes}" Foreground="#6B7280" />
+                                        <CheckBox Content="Wet-Coal Clearcoat &amp; Multi-Scatter PBR" IsChecked="{Binding UnityEffects.EnableWetCoalClearcoat}" Foreground="#6B7280" />
+                                        <CheckBox Content="FidelityFX CAS Edge Sharpening" IsChecked="{Binding UnityEffects.EnableContrastSharpening}" Foreground="#6B7280" />
                                         <CheckBox Content="Auto-Orbit Camera" IsChecked="{Binding UnityEffects.AutoOrbit}" Foreground="#6B7280" />
                                         <CheckBox Content="Orthographic Projection" IsChecked="{Binding UnityEffects.IsOrthographic}" Foreground="#6B7280" />
                                     </StackPanel>

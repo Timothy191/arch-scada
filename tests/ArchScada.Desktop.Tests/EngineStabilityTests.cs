@@ -225,6 +225,11 @@ public class EngineStabilityTests
                 {
                     Assert.Equal(expectedFlow, flows[nodeId]);
                 }
+
+                var vib = Plant3DSceneData.ComputeScreenVibrationOffset("SS-101", testSimTime, 75.0);
+                var expectedVib = Plant3DSceneData.ComputeScreenVibrationOffset("SS-101", testSimTime, 75.0);
+                Assert.Equal(expectedVib, vib);
+                Assert.True(float.IsFinite(vib.X) && float.IsFinite(vib.Y) && float.IsFinite(vib.Z));
             }
 
             return meshes.Count;

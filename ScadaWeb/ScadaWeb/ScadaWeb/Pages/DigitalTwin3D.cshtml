@@ -1184,10 +1184,26 @@ try {
         beltGrp.userData.nodeId = c.id;
         grp.add(beltGrp);
 
-        // Belt bed
+        // Belt bed + continuous troughed coal burden ribbon
         const bed = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, c.width * 0.90), beltMat);
         bed.castShadow = true; bed.receiveShadow = true; bed.userData.nodeId = c.id;
         beltGrp.add(bed);
+
+        const isWetBelt = c.id === "CV-203" || c.id === "CV-301" || c.id === "CV-302";
+        const bedCoal = new THREE.Mesh(
+            new THREE.BoxGeometry(len * 0.96, 1.0, c.width * 0.56),
+            new THREE.MeshPhysicalMaterial({
+                color: c.matCol,
+                roughness: isWetBelt ? 0.34 : 0.78,
+                metalness: 0.08,
+                clearcoat: isWetBelt ? 0.85 : 0.0,
+                clearcoatRoughness: 0.16
+            })
+        );
+        bedCoal.position.set(0, 0.08, 0);
+        bedCoal.scale.y = 0.08;
+        bedCoal.castShadow = true; bedCoal.receiveShadow = true; bedCoal.userData.nodeId = c.id;
+        beltGrp.add(bedCoal);
 
         // Side stringers
         for (const side of [-halfW, halfW]) {
@@ -1307,18 +1323,57 @@ try {
         selRing.visible = false;
         scene.add(selRing);
 
-        conveyorData.push({ spec: c, tail, head, dir, len, flowPts, parcelCount, pulleys, arrows, selRing });
+        const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+        conveyorData.push({ spec: c, tail, head, dir, right, len, chuteBot, flowPts, parcelCount, pulleys, arrows, selRing, bedCoal });
     }
 
     // GPU InstancedMesh for ALL coal lumps across all 11 conveyors + loader dump
     const lumpGeo = new THREE.DodecahedronGeometry(0.5, 0);
-    const lumpMat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.08 });
+    const lumpMat = new THREE.MeshPhysicalMaterial({ roughness: 0.55, metalness: 0.08, clearcoat: 0.45, clearcoatRoughness: 0.18 });
     const dumpLumps = 10;
     const coalInstanced = new THREE.InstancedMesh(lumpGeo, lumpMat, totalCoalInstances + dumpLumps);
     coalInstanced.castShadow = true;
     coalInstanced.receiveShadow = true;
     coalInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(coalInstanced);
+
+    // GPU InstancedMesh for fugitive coal dust plumes & desliming water spray curtains
+    const dustSprayCount = 61;
+    const dustSprayInstanced = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.32, depthWrite: false }),
+        dustSprayCount
+    );
+    dustSprayInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(dustSprayInstanced);
+
+    const sampleCoalTrajectory = (cd, u) => {
+        const beltEnd = 0.82;
+        if (u <= beltEnd) {
+            return new THREE.Vector3().lerpVectors(cd.tail, cd.head, u / beltEnd);
+        }
+        const tau = (u - beltEnd) / (1.0 - beltEnd);
+        const g = 9.81;
+        const vBelt = cd.dir.clone().multiplyScalar(2.6);
+        const v0y = Math.max(0.25, vBelt.y * 0.45);
+        const dropH = Math.max(0, cd.head.y - cd.chuteBot.y);
+        const fallTime = (v0y + Math.sqrt(v0y * v0y + 2 * g * dropH)) / g;
+        const ts = tau * fallTime;
+        const y = cd.head.y + v0y * ts - 0.5 * g * ts * ts;
+        let dx = (cd.head.x + vBelt.x * ts) - lerp(cd.head.x, cd.chuteBot.x, tau);
+        let dz = (cd.head.z + vBelt.z * ts) - lerp(cd.head.z, cd.chuteBot.z, tau);
+        if (tau > 0.58) {
+            const s = (tau - 0.58) / 0.42;
+            const bounce = Math.sin(s * Math.PI) * 0.18;
+            const isWet = cd.spec.id === "CV-203" || cd.spec.id === "CV-301" || cd.spec.id === "CV-302";
+            const damp = Math.exp(-(isWet ? 0.22 : 0.38) * 4.5 * s) * (1 - s) * (1 - bounce);
+            dx *= damp; dz *= damp;
+        }
+        const dev = Math.hypot(dx, dz);
+        const maxD = Math.min(0.26, cd.spec.width * 0.30) * (1 - tau);
+        if (dev > maxD && dev > 1e-5) { dx *= maxD / dev; dz *= maxD / dev; }
+        return new THREE.Vector3(lerp(cd.head.x, cd.chuteBot.x, tau) + dx, y, lerp(cd.head.z, cd.chuteBot.z, tau) + dz);
+    };
 
     // Tag per-instance color by conveyor CoalMaterialClass
     let instIdx = 0;
@@ -1621,10 +1676,16 @@ try {
                     entry.bucketPivot.rotation.z = THREE.MathUtils.degToRad(lp.boom + lp.dump * 0.45);
                 }
             } else if (m.vibrates && running && !state.paused) {
-                const load = eq ? eq.loadPct / 100 : 0.7;
-                entry.root.position.y = m.pos[1] + Math.sin(t * 28.0) * (0.018 + 0.024 * load);
+                const load = eq ? Math.max(0.15, Math.min(1.15, eq.loadPct / 100)) : 0.7;
+                if (m.id === "VF-101") {
+                    entry.root.position.set(m.pos[0] + Math.sin(t * 15.5) * 0.004 * load, m.pos[1] + Math.sin(t * 31.0) * (0.015 + 0.018 * load), m.pos[2] - Math.cos(t * 31.0) * (0.014 + 0.014 * load));
+                } else if (m.id === "DS-201") {
+                    entry.root.position.set(m.pos[0] - Math.cos(t * 34.0) * (0.012 + 0.015 * load), m.pos[1] + Math.sin(t * 34.0) * (0.016 + 0.022 * load), m.pos[2] + Math.sin(t * 17.0) * 0.004 * load);
+                } else {
+                    entry.root.position.set(m.pos[0] + Math.cos(t * 28.0) * (0.014 + 0.016 * load), m.pos[1] + Math.sin(t * 28.0) * (0.018 + 0.024 * load), m.pos[2] + Math.sin(t * 14.0) * 0.006 * load);
+                }
             } else {
-                entry.root.position.y = m.pos[1];
+                entry.root.position.set(m.pos[0], m.pos[1], m.pos[2]);
             }
 
             // Selection / Alarm Ring
@@ -1683,29 +1744,38 @@ try {
             }
         }
 
-        // Update 11 conveyors + InstancedMesh coal lumps
+        // Update 11 conveyors + continuous troughed belt burden + InstancedMesh coal lumps
         for (const cd of conveyorData) {
             const flow = state.flowMap[cd.spec.id];
             const spd = (!state.paused && flow) ? flow.rate : 0;
             cd.selRing.visible = state.selectedId === cd.spec.id;
+
+            const activeFlow = flow && flow.rate > 0.02;
+            cd.bedCoal.visible = !!activeFlow;
+            if (activeFlow) {
+                const bh = Math.min(0.16, Math.max(0.03, flow.rate * 0.14));
+                cd.bedCoal.scale.y = bh;
+                cd.bedCoal.position.y = 0.045 + bh * 0.5;
+            }
 
             for (const p of cd.pulleys) {
                 if (spd > 0) p.rotation.z -= dt * spd * 4.5;
             }
 
             const lumpSize = cd.spec.lump;
-            const right = new THREE.Vector3().crossVectors(cd.dir, new THREE.Vector3(0, 1, 0)).normalize();
+            const right = cd.right;
             for (let i = 0; i < cd.parcelCount; i++) {
-                if (!flow || flow.rate <= 0.02) {
+                if (!activeFlow) {
                     dummy.scale.set(0, 0, 0);
                     dummy.updateMatrix();
                     coalInstanced.setMatrixAt(cd.startIdx + i, dummy.matrix);
                     continue;
                 }
                 const ptFrac = ((t * 0.24 * Math.max(0.2, spd) + i / cd.parcelCount) % 1.0 + 1.0) % 1.0;
-                const pos = samplePolyline(cd.flowPts, ptFrac);
-                pos.addScaledVector(right, Math.sin(i * 3.1) * cd.spec.width * 0.16);
-                pos.y += 0.14;
+                const pos = sampleCoalTrajectory(cd, ptFrac);
+                const jitterScale = ptFrac <= 0.82 ? 1.0 : Math.max(0.15, 1.0 - (ptFrac - 0.82) / 0.18);
+                pos.addScaledVector(right, Math.sin(i * 3.1) * cd.spec.width * 0.16 * jitterScale);
+                if (ptFrac <= 0.82) pos.y += 0.14;
                 dummy.position.copy(pos);
                 dummy.rotation.set(i * 0.4, i * 0.9, 0);
                 dummy.scale.set(lumpSize * 1.35, lumpSize * 0.9, lumpSize * 1.15);
@@ -1745,6 +1815,41 @@ try {
             }
         }
         coalInstanced.instanceMatrix.needsUpdate = true;
+
+        // Fugitive dust plumes & pressurized desliming water spray curtains
+        let dsIdx = 0;
+        const emitSoft = (nodeId, ox, oy, oz, spread, riseH, baseS, isWater, count) => {
+            const f = state.flowMap[nodeId];
+            const active = (nodeId === "BN-101" && lp.dumping) || (f && f.running && f.rate > 0.04);
+            for (let i = 0; i < count; i++) {
+                if (!active) {
+                    dummy.scale.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    dustSprayInstanced.setMatrixAt(dsIdx++, dummy.matrix);
+                    continue;
+                }
+                const age = (t * (isWater ? 1.55 : 0.42) + i / count) % 1.0;
+                const ang = i * 2.39996 + t * (isWater ? 0.6 : 0.35);
+                const rad = spread * (0.25 + age * 0.85);
+                const py = isWater ? (oy - age * riseH + Math.sin(age * Math.PI) * 0.06) : (oy + age * riseH);
+                const s = baseS * (isWater ? (0.45 + age * 0.65) : (0.55 + age * 1.45)) * Math.sin(age * Math.PI);
+                dummy.position.set(ox + Math.cos(ang) * rad, py, oz + Math.sin(ang) * rad);
+                dummy.rotation.set(0, ang, 0);
+                dummy.scale.set(isWater ? s * 0.7 : s, isWater ? s * 1.35 : s * 0.72, isWater ? s * 0.7 : s);
+                dummy.updateMatrix();
+                dustSprayInstanced.setMatrixAt(dsIdx, dummy.matrix);
+                tmpColor.setRGB(isWater ? 0.72 : 0.34, isWater ? 0.90 : 0.29, isWater ? 1.0 : 0.24);
+                dustSprayInstanced.setColorAt(dsIdx++, tmpColor);
+            }
+        };
+        emitSoft("BN-101", -13.8, 2.35, 8.8, 0.85, 1.85, 0.48, false, 10);
+        emitSoft("JC-101", -13.8, 3.15, -0.6, 0.72, 1.95, 0.44, false, 10);
+        emitSoft("DRC-101", -7.2, 2.85, -0.6, 0.68, 1.75, 0.42, false, 9);
+        emitSoft("SS-101", 0.2, 3.30, 0.5, 0.95, 1.45, 0.40, false, 8);
+        emitSoft("DS-201", 8.8, 2.75, -9.8, 0.78, 1.05, 0.22, true, 14);
+        emitSoft("WP-301", -0.8, 3.25, -7.8, 0.75, 0.95, 0.20, true, 10);
+        dustSprayInstanced.instanceMatrix.needsUpdate = true;
+        if (dustSprayInstanced.instanceColor) dustSprayInstanced.instanceColor.needsUpdate = true;
 
         // Pipe flow spheres
         for (const ps of pipeFlowSpheres) {

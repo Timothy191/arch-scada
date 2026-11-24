@@ -200,6 +200,15 @@ public partial class Unity3DEffectSettings : ObservableObject
     public partial bool ShowFlowDirection { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool ShowDustAndSprayPlumes { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool EnableWetCoalClearcoat { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool EnableContrastSharpening { get; set; } = true;
+
+    [ObservableProperty]
     public partial string CameraPreset { get; set; } = "Plant Overview";
 }
 

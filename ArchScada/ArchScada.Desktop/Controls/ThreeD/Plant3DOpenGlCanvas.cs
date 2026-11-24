@@ -15,10 +15,10 @@ namespace ArchScada.Desktop.Controls.ThreeD;
 
 /// <summary>
 /// Hardware-accelerated OpenGL 3.2+ Core / OpenGL ES 3.0 viewport for the CHPP 3D Digital Twin.
-/// Implements a 3-pass PBR pipeline:
+/// Implements a 3-pass HDR PBR pipeline:
 ///   Pass 1: 2048x2048 directional shadow map with polygon offset
-///   Pass 2: 4x MSAA offscreen Cook-Torrance GGX PBR + procedural sky/ground IBL + 3x3 PCF shadows + dFdx/dFdy micro-bump + hardware instancing
-///   Pass 3: MSAA resolve + 8-tap depth SSAO + subtle highlight bloom + ACES Filmic tone mapping &amp; gamma 2.2 encoding
+///   Pass 2: 4x MSAA RGBA16F HDR offscreen multi-scatter GGX + wet-coal clearcoat PBR + sky IBL + 16-tap Vogel PCSS shadows + hardware instancing
+///   Pass 3: MSAA resolve + 12-tap bilateral GTAO-Lite + highlight bloom + ACES Filmic tone mapping + FidelityFX CAS sharpening
 /// </summary>
 public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 {
@@ -44,6 +44,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_LINK_STATUS = 0x8B82;
     private const int GL_RGBA = 0x1908;
     private const int GL_RGBA8 = 0x8058;
+    private const int GL_RGBA16F = 0x881A;
+    private const int GL_HALF_FLOAT = 0x140B;
     private const int GL_DEPTH_COMPONENT = 0x1902;
     private const int GL_DEPTH_COMPONENT24 = 0x81A6;
     private const int GL_DEPTH_STENCIL = 0x84F9;
@@ -248,6 +250,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private readonly List<InstanceItem> _unlitBoxes = new(64);
     private readonly List<InstanceItem> _unlitCones = new(64);
     private readonly List<InstanceItem> _fillCylinders = new(8);
+    private readonly List<InstanceItem> _softParticleBoxes = new(96);
 
     // Pass 1: Shadow Map
     private int _shadowProgram;
@@ -274,18 +277,22 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private int _uShadowsEnabled = -1;
     private int _uEncodeHdr = -1;
     private int _uApplyToneMap = -1;
+    private int _uEnableClearcoat = -1;
+    private int _uSimTime = -1;
 
     private uint _msaaFbo;
     private uint _msaaColorRbo;
     private uint _msaaDepthRbo;
     private bool _msaaReady;
 
-    // Pass 3: Post-FX (SSAO + Bloom + ACES + Gamma)
+    // Pass 3: Post-FX (Bilateral GTAO + Bloom + ACES + CAS Sharpening + Gamma)
     private int _postProgram;
     private int _uPostColorTex = -1;
     private int _uPostDepthTex = -1;
     private int _uPostTexelSize = -1;
     private int _uPostEnableAo = -1;
+    private int _uPostEnableCas = -1;
+    private int _uPostDecodeHdr = -1;
     private int _uPostIsOrtho = -1;
     private int _uPostNear = -1;
     private int _uPostFar = -1;
@@ -294,6 +301,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private uint _postColorTex;
     private uint _postDepthTex;
     private bool _postReady;
+    private bool _useFloatHdrFbo;
 
     private int _offscreenW;
     private int _offscreenH;
@@ -452,6 +460,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _uShadowsEnabled = GetUniformLoc(_program, "uShadowsEnabled");
             _uEncodeHdr = GetUniformLoc(_program, "uEncodeHdr");
             _uApplyToneMap = GetUniformLoc(_program, "uApplyToneMap");
+            _uEnableClearcoat = GetUniformLoc(_program, "uEnableClearcoat");
+            _uSimTime = GetUniformLoc(_program, "uSimTime");
 
             _shadowProgram = BuildShadowProgram(isEs);
             if (_shadowProgram != 0)
@@ -468,6 +478,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 _uPostDepthTex = GetUniformLoc(_postProgram, "uDepthTex");
                 _uPostTexelSize = GetUniformLoc(_postProgram, "uTexelSize");
                 _uPostEnableAo = GetUniformLoc(_postProgram, "uEnableAo");
+                _uPostEnableCas = GetUniformLoc(_postProgram, "uEnableCas");
+                _uPostDecodeHdr = GetUniformLoc(_postProgram, "uDecodeHdr");
                 _uPostIsOrtho = GetUniformLoc(_postProgram, "uIsOrtho");
                 _uPostNear = GetUniformLoc(_postProgram, "uNear");
                 _uPostFar = GetUniformLoc(_postProgram, "uFar");
@@ -661,9 +673,30 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         DeleteOffscreenFbos();
         _offscreenW = pw;
         _offscreenH = ph;
+        _useFloatHdrFbo = false;
 
         if (!HasFboSupport())
             return;
+
+        if (_postProgram != 0 && _postVao != 0 && TryCreateOffscreenFbos(pw, ph, useFloatHdr: true))
+        {
+            _useFloatHdrFbo = true;
+        }
+        else
+        {
+            DeleteOffscreenFbos();
+            _offscreenW = pw;
+            _offscreenH = ph;
+            TryCreateOffscreenFbos(pw, ph, useFloatHdr: false);
+        }
+
+        _glBindFramebuffer!(GL_FRAMEBUFFER, returnFb);
+    }
+
+    private bool TryCreateOffscreenFbos(int pw, int ph, bool useFloatHdr)
+    {
+        int colorInternalFmt = useFloatHdr ? GL_RGBA16F : GL_RGBA8;
+        int colorPixelType = useFloatHdr ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE;
 
         // 1. 4x MSAA FBO
         uint msaaFbo = 0, msaaColor = 0, msaaDepth = 0;
@@ -672,7 +705,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _glGenRenderbuffers!(1, &msaaDepth);
 
         _glBindRenderbuffer!(GL_RENDERBUFFER, msaaColor);
-        _glRenderbufferStorageMultisample!(GL_RENDERBUFFER, 4, GL_RGBA8, pw, ph);
+        _glRenderbufferStorageMultisample!(GL_RENDERBUFFER, 4, colorInternalFmt, pw, ph);
         _glBindRenderbuffer!(GL_RENDERBUFFER, msaaDepth);
         _glRenderbufferStorageMultisample!(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, pw, ph);
         _glBindRenderbuffer!(GL_RENDERBUFFER, 0);
@@ -689,17 +722,17 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
         if (!_msaaReady)
         {
-            System.Diagnostics.Debug.WriteLine($"[Plant3D] 4x MSAA FBO incomplete (status=0x{msaaStatus:X}); falling back.");
             DeleteMsaaFboOnly();
+            return false;
         }
 
-        // 2. Single-sample post-processing FBO (color + depth textures)
-        if (_msaaReady && _postProgram != 0 && _postVao != 0)
+        // 2. Single-sample post-processing FBO (matching internal format for glBlitFramebuffer)
+        if (_postProgram != 0 && _postVao != 0)
         {
             uint postFbo = 0, postColor = 0, postDepth = 0;
             _glGenTextures!(1, &postColor);
             _glBindTexture!(GL_TEXTURE_2D, postColor);
-            _glTexImage2D!(GL_TEXTURE_2D, 0, GL_RGBA8, pw, ph, 0, GL_RGBA, GL_UNSIGNED_BYTE, null);
+            _glTexImage2D!(GL_TEXTURE_2D, 0, colorInternalFmt, pw, ph, 0, GL_RGBA, colorPixelType, null);
             _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -727,12 +760,12 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
             if (!_postReady)
             {
-                System.Diagnostics.Debug.WriteLine($"[Plant3D] Post FBO incomplete (status=0x{postStatus:X}); falling back to direct blit.");
                 DeletePostFboOnly();
+                return false;
             }
         }
 
-        _glBindFramebuffer!(GL_FRAMEBUFFER, returnFb);
+        return true;
     }
 
     private void DeleteMsaaFboOnly()
@@ -865,8 +898,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)fb);
 
         _glViewport!(0, 0, pw, ph);
+        bool encodeSqrtHdr = runPostPass && !_useFloatHdrFbo;
         if (runPostPass)
-            _glClearColor!(0.0346f, 0.0490f, 0.0775f, 1.0f); // sqrt(linear(0.003,0.006,0.015) * 0.4)
+        {
+            if (encodeSqrtHdr)
+                _glClearColor!(0.0346f, 0.0490f, 0.0775f, 1.0f); // sqrt(linear(0.003,0.006,0.015) * 0.4)
+            else
+                _glClearColor!(0.003f, 0.006f, 0.015f, 1.0f); // linear HDR for RGBA16F
+        }
         else
             _glClearColor!(0.031f, 0.055f, 0.106f, 1.0f);
 
@@ -890,8 +929,10 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         SetMatrix(_uLightViewProj, lightViewProj);
         _glUniform3f!(_uCamPos, camPos.X, camPos.Y, camPos.Z);
         _glUniform1f!(_uShadowsEnabled, useShadows ? 1f : 0f);
-        _glUniform1f!(_uEncodeHdr, runPostPass ? 1f : 0f);
+        _glUniform1f!(_uEncodeHdr, encodeSqrtHdr ? 1f : 0f);
         _glUniform1f!(_uApplyToneMap, runPostPass ? 0f : 1f);
+        _glUniform1f?.Invoke(_uEnableClearcoat, fx.EnableWetCoalClearcoat ? 1f : 0f);
+        _glUniform1f?.Invoke(_uSimTime, (float)SimTime);
         _glUniform1f!(_uIsInstanced, 0f);
 
         // 1. Ground Grid
@@ -962,13 +1003,19 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             DrawInstancedBatch(_unitCone, _unlitCones, isShadowPass: false);
         }
 
-        // 8. Transparent Overlays: Live 3D Fill-Level Indicators & Alarm / Selection Rings
+        // 8. Transparent Overlays: Live 3D Fill-Level Indicators, Dust/Spray Plumes & Alarm / Selection Rings
         _glDepthMask!(0);
         if (_unitCylinder is not null && _fillCylinders.Count > 0)
         {
             _glUniform1f!(_uUnlit, 0.25f);
             _glUniform1f!(_uTintMix, 1.0f);
             DrawInstancedBatch(_unitCylinder, _fillCylinders, isShadowPass: false);
+        }
+        if (_unitBox is not null && _softParticleBoxes.Count > 0)
+        {
+            _glUniform1f!(_uUnlit, 1.0f);
+            _glUniform1f!(_uTintMix, 1.0f);
+            DrawInstancedBatch(_unitBox, _softParticleBoxes, isShadowPass: false);
         }
 
         _glUniform1f!(_uIsInstanced, 0f);
@@ -1037,6 +1084,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
             _glUniform2f?.Invoke(_uPostTexelSize, 1f / pw, 1f / ph);
             _glUniform1f!(_uPostEnableAo, fx.EnableAmbientOcclusion ? 1f : 0f);
+            _glUniform1f?.Invoke(_uPostEnableCas, fx.EnableContrastSharpening ? 1f : 0f);
+            _glUniform1f?.Invoke(_uPostDecodeHdr, encodeSqrtHdr ? 1f : 0f);
             _glUniform1f!(_uPostIsOrtho, fx.IsOrthographic ? 1f : 0f);
             _glUniform1f!(_uPostNear, fx.IsOrthographic ? 0.1f : 0.2f);
             _glUniform1f!(_uPostFar, 140.0f);
@@ -1106,6 +1155,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _unlitBoxes.Clear();
         _unlitCones.Clear();
         _fillCylinders.Clear();
+        _softParticleBoxes.Clear();
 
         // 1. Concrete Foundation Pads + Circuit Accent Trim (rough non-metal concrete + painted trim)
         foreach (var pad in Plant3DSceneData.FoundationPads)
@@ -1242,11 +1292,22 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 _casterBoxes.Add(new InstanceItem(cm, 0.20f, 0.24f, 0.30f, 1.0f, 0.15f, 0.82f));
             }
 
-            // Ballistic Coal Stream + Flow Chevrons
+            // Continuous Troughed Coal Burden Ribbon + Ballistic Coal Stream + Flow Chevrons
             if (flow is not null && flow.NormalizedRate > 0.02)
             {
                 var matCol = Plant3DSceneData.GetMaterialColor(c.MaterialClass);
+                var pbr = Plant3DSceneData.GetMaterialPbrParams(c.MaterialClass);
                 float lumpSize = Plant3DSceneData.GetMaterialLumpSize(c.MaterialClass);
+                float burdenH = Plant3DSceneData.ComputeBeltBurdenThickness(c.MaterialClass, flow.NormalizedRate);
+                if (burdenH > 0.005f)
+                {
+                    var mid = (c.TailPos + c.HeadPos) * 0.5f;
+                    var burdenMat = Matrix4x4.CreateScale(length * 0.96f, burdenH, c.Width * 0.56f)
+                                  * beltRot
+                                  * Matrix4x4.CreateTranslation(mid.X, mid.Y + 0.045f + burdenH * 0.5f, mid.Z);
+                    _casterBoxes.Add(new InstanceItem(burdenMat, matCol.R / 255f * 0.85f, matCol.G / 255f * 0.85f, matCol.B / 255f * 0.85f, 1.0f, pbr.Metallic, pbr.Roughness));
+                }
+
                 float dropLen = Vector3.Distance(c.HeadPos, c.GetChuteBottomPos());
                 float totalLen = length + dropLen;
                 int parcelCount = Math.Max(8, (int)(totalLen / 0.55f));
@@ -1265,7 +1326,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                     var pm = Matrix4x4.CreateScale(lumpSize * 1.25f, lumpSize * 0.85f, lumpSize * 1.1f)
                            * Matrix4x4.CreateRotationY(i * 0.9f)
                            * Matrix4x4.CreateTranslation(pos);
-                    _casterBoxes.Add(new InstanceItem(pm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, 0.05f, 0.88f));
+                    _casterBoxes.Add(new InstanceItem(pm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, pbr.Metallic, pbr.Roughness));
                 }
 
                 // Curved feed chute coal parcels (e.g. CV-106)
@@ -1278,7 +1339,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                         var fpm = Matrix4x4.CreateScale(lumpSize * 1.15f, lumpSize * 0.80f, lumpSize * 1.05f)
                                 * Matrix4x4.CreateRotationY(fc * 1.1f)
                                 * Matrix4x4.CreateTranslation(fp);
-                        _casterBoxes.Add(new InstanceItem(fpm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, 0.05f, 0.88f));
+                        _casterBoxes.Add(new InstanceItem(fpm, matCol.R / 255f, matCol.G / 255f, matCol.B / 255f, 1.0f, pbr.Metallic, pbr.Roughness));
                     }
                 }
 
@@ -1318,6 +1379,16 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                     var pm = Matrix4x4.CreateScale(0.16f) * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.06f, pos.Z);
                     _unlitBoxes.Add(new InstanceItem(pm, c.R / 255f, c.G / 255f, c.B / 255f, 0.95f, 0f, 0.4f));
                 }
+            }
+        }
+
+        // 6. Fugitive Dust & Desliming Water Spray Soft Particles
+        if (fx.ShowDustAndSprayPlumes)
+        {
+            foreach (var sp in Plant3DSceneData.ComputeDustAndSprayParticles(flowMap, loaderPose, SimTime))
+            {
+                var sm = Matrix4x4.CreateScale(sp.Scale) * Matrix4x4.CreateTranslation(sp.Position);
+                _softParticleBoxes.Add(new InstanceItem(sm, sp.R, sp.G, sp.B, sp.Alpha, 0f, sp.IsWaterSpray ? 0.25f : 0.95f));
             }
         }
     }
@@ -1411,16 +1482,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             eqMap.TryGetValue(p.LinkedScadaId, out var eq);
             var flow = flowMap.GetValueOrDefault(p.Id);
             bool running = flow is not null ? flow.IsRunning : (eq is null || eq.Status != EquipmentStatus.Stopped);
-            float vibY = 0f;
-            if (p.Vibrates && fx.EnableVibrationPhysics && running)
-            {
-                float load = eq is not null ? (float)(eq.LoadPercent / 100.0) : 0.7f;
-                vibY = MathF.Sin((float)(SimTime * 28.0)) * (0.018f + 0.024f * load);
-            }
+            var vib = (p.Vibrates && fx.EnableVibrationPhysics && running)
+                ? Plant3DSceneData.ComputeScreenVibrationOffset(p.Id, SimTime, eq?.LoadPercent ?? 70.0)
+                : Vector3.Zero;
 
             var model = Matrix4x4.CreateScale(p.Scale)
                       * Matrix4x4.CreateRotationY(p.YawDegrees * deg)
-                      * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + vibY, p.Position.Z);
+                      * Matrix4x4.CreateTranslation(p.Position.X + vib.X, p.Position.Y + vib.Y, p.Position.Z + vib.Z);
 
             if (_glbGpuMeshes.TryGetValue(p.GlbFileName, out var gpuMesh))
             {
@@ -1436,7 +1504,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             else if (_unitBox is not null)
             {
                 SetMatrix(_uShadowModel, Matrix4x4.CreateScale(p.HalfExtents.X * 2f, p.HalfExtents.Y * 2f, p.HalfExtents.Z * 2f)
-                                       * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y + vibY, p.Position.Z));
+                                       * Matrix4x4.CreateTranslation(p.Position.X + vib.X, p.Position.Y + p.HalfExtents.Y + vib.Y, p.Position.Z + vib.Z));
                 DrawMesh(_unitBox);
             }
         }
@@ -1471,16 +1539,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 continue;
             }
 
-            float vibY = 0f;
-            if (p.Vibrates && fx.EnableVibrationPhysics && running)
-            {
-                float load = eq is not null ? (float)(eq.LoadPercent / 100.0) : 0.7f;
-                vibY = MathF.Sin((float)(SimTime * 28.0)) * (0.018f + 0.024f * load);
-            }
+            var vib = (p.Vibrates && fx.EnableVibrationPhysics && running)
+                ? Plant3DSceneData.ComputeScreenVibrationOffset(p.Id, SimTime, eq?.LoadPercent ?? 70.0)
+                : Vector3.Zero;
 
             var model = Matrix4x4.CreateScale(p.Scale)
                       * Matrix4x4.CreateRotationY(p.YawDegrees * (MathF.PI / 180f))
-                      * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + vibY, p.Position.Z);
+                      * Matrix4x4.CreateTranslation(p.Position.X + vib.X, p.Position.Y + vib.Y, p.Position.Z + vib.Z);
             SetModelAndNormalMatrix(model);
 
             _glUniform3f!(_uTint, tint.R / 255f, tint.G / 255f, tint.B / 255f);
@@ -1503,7 +1568,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             else if (_unitBox is not null)
             {
                 var fbMat = Matrix4x4.CreateScale(p.HalfExtents.X * 2f, p.HalfExtents.Y * 2f, p.HalfExtents.Z * 2f)
-                          * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.HalfExtents.Y + vibY, p.Position.Z);
+                          * Matrix4x4.CreateTranslation(p.Position.X + vib.X, p.Position.Y + p.HalfExtents.Y + vib.Y, p.Position.Z + vib.Z);
                 SetModelAndNormalMatrix(fbMat);
                 _glUniform1f!(_uTintMix, 0.75f);
                 DrawMesh(_unitBox);
@@ -1738,6 +1803,8 @@ uniform sampler2D uShadowMap;
 uniform float uShadowsEnabled;
 uniform float uEncodeHdr;
 uniform float uApplyToneMap;
+uniform float uEnableClearcoat;
+uniform float uSimTime;
 
 out vec4 FragColor;
 
@@ -1770,7 +1837,7 @@ float fbm3(vec3 p) {
     return v;
 }
 
-vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float metallic, float roughness, vec3 F0) {
+vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float metallic, float roughness, vec3 F0, float clearcoatWeight) {
     vec3 H = normalize(L + V);
     float NdotL = max(dot(N, L), 0.0);
     if (NdotL <= 0.0) return vec3(0.0);
@@ -1788,9 +1855,26 @@ vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float 
     float G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
     vec3 F = F0 + (1.0 - F0) * pow(clamp(1.0 - HdotV, 0.0, 1.0), 5.0);
 
-    vec3 spec = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+    // Kulla-Conty multi-scatter energy compensation
+    vec3 Favg = F0 + (vec3(1.0) - F0) / 21.0;
+    vec3 Ems = vec3(1.0) / max(vec3(0.32), vec3(1.0) - Favg * (roughness * 0.58));
+
+    vec3 spec = ((D * G * F) / (4.0 * NdotV * NdotL + 0.001)) * mix(vec3(1.0), Ems, metallic * 0.85 + 0.15);
     vec3 kD = (1.0 - F) * (1.0 - metallic);
-    return (kD * albedo / 3.14159265 + spec) * lightCol * NdotL;
+    vec3 contrib = kD * albedo / 3.14159265 + spec;
+
+    if (clearcoatWeight > 0.01) {
+        float aCoat = 0.10 * 0.10;
+        float aCoat2 = aCoat * aCoat;
+        float denomC = NdotH * NdotH * (aCoat2 - 1.0) + 1.0;
+        float Dc = aCoat2 / (3.14159265 * denomC * denomC + 1e-5);
+        float Fc = 0.04 + 0.96 * pow(clamp(1.0 - HdotV, 0.0, 1.0), 5.0);
+        float Gc = 0.25 / max(NdotL * NdotV, 0.05);
+        float coatSpec = Dc * Gc * Fc * clearcoatWeight;
+        contrib = contrib * (1.0 - Fc * clearcoatWeight * 0.65) + vec3(coatSpec);
+    }
+
+    return contrib * lightCol * NdotL;
 }
 
 vec3 ACESFilm(vec3 x) {
@@ -1816,6 +1900,14 @@ void main() {
         hdrCol = albedo * (alpha > 0.5 ? 1.32 : 1.0);
     } else {
         vec3 N = normalize(vNormal);
+
+        // Animated slurry vortex & Clarified Water ripples on thickener / medium tanks
+        if (uUnlit > 0.1 && alpha > 0.30 && alpha < 0.75) {
+            float wave = sin(vWorldPos.x * 4.5 + uSimTime * 2.2) * cos(vWorldPos.z * 4.5 - uSimTime * 1.9);
+            float swirl = sin((vWorldPos.x + vWorldPos.z) * 3.0 + uSimTime * 1.4);
+            N = normalize(N + vec3(wave * 0.14, 0.0, swirl * 0.14));
+            albedo *= mix(0.85, 1.18, 0.5 + 0.5 * wave);
+        }
 
         // Micro-surface dFdx/dFdy procedural bump: granular on coal/concrete, brushed on metallic steel
         bool isGranular = (roughness > 0.65 && metallic < 0.25);
@@ -1845,34 +1937,41 @@ void main() {
         vec3 V = normalize(uCamPos - vWorldPos);
         float NdotV = max(dot(N, V), 0.001);
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
+        float clearcoatWeight = (uEnableClearcoat > 0.5 && roughness < 0.44 && metallic < 0.25)
+            ? clamp((0.46 - roughness) * 3.0, 0.25, 0.90)
+            : 0.0;
 
-        // Primary directional light + 3x3 PCF soft shadows
+        // Primary directional light + 16-tap Rotated Vogel-Disk Poisson PCSS soft shadows
         vec3 L = normalize(vec3(0.48, 0.82, 0.34));
         float shadow = 1.0;
         if (uShadowsEnabled > 0.5 && vShadowCoord.w > 0.001) {
             vec3 projCoords = vShadowCoord.xyz / vShadowCoord.w;
             vec3 suv = projCoords * 0.5 + 0.5;
             if (suv.x > 0.01 && suv.x < 0.99 && suv.y > 0.01 && suv.y < 0.99 && suv.z >= 0.0 && suv.z <= 1.0) {
-                float bias = max(0.0026 * (1.0 - max(dot(N, L), 0.0)), 0.0008);
+                float bias = max(0.0022 * (1.0 - max(dot(N, L), 0.0)), 0.0006);
+                float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+                float rotAngle = ign * 6.2831853;
                 vec2 texelSize = vec2(1.0 / 2048.0);
                 float litSum = 0.0;
-                for (int x = -1; x <= 1; x++) {
-                    for (int y = -1; y <= 1; y++) {
-                        float pcfDepth = texture(uShadowMap, suv.xy + vec2(float(x), float(y)) * texelSize).r;
-                        litSum += (suv.z - bias > pcfDepth) ? 0.0 : 1.0;
-                    }
+                const float spread = 2.6;
+                for (int i = 0; i < 16; i++) {
+                    float r = sqrt((float(i) + 0.5) / 16.0);
+                    float theta = float(i) * 2.3999632 + rotAngle;
+                    vec2 offset = vec2(cos(theta), sin(theta)) * (r * spread) * texelSize;
+                    float pcfDepth = texture(uShadowMap, suv.xy + offset).r;
+                    litSum += (suv.z - bias > pcfDepth) ? 0.0 : 1.0;
                 }
-                shadow = litSum / 9.0;
+                shadow = litSum / 16.0;
             }
         }
 
-        vec3 direct = evalCookTorrance(N, V, L, vec3(2.45, 2.38, 2.25), albedo, metallic, roughness, F0) * shadow;
+        vec3 direct = evalCookTorrance(N, V, L, vec3(2.45, 2.38, 2.25), albedo, metallic, roughness, F0, clearcoatWeight) * shadow;
 
         // Secondary cool/warm industrial fill light
         vec3 L2 = normalize(vec3(-0.55, 0.38, -0.62));
-        vec3 fill = evalCookTorrance(N, V, L2, vec3(0.46, 0.62, 0.84), albedo, metallic, roughness, F0);
+        vec3 fill = evalCookTorrance(N, V, L2, vec3(0.46, 0.62, 0.84), albedo, metallic, roughness, F0, clearcoatWeight * 0.5);
 
-        // Procedural industrial sky / horizon / ground IBL
+        // Procedural industrial sky / horizon / ground IBL + wet clearcoat reflection
         vec3 R = reflect(-V, N);
         vec3 skyTop = vec3(0.24, 0.42, 0.68);
         vec3 horizon = vec3(0.48, 0.58, 0.70);
@@ -1881,15 +1980,19 @@ void main() {
         vec3 envDiff = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.7, N.y)), smoothstep(-0.35, 0.25, N.y));
         vec3 envSpec = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.65, R.y)), smoothstep(-0.20, 0.20, R.y));
         float bayHighlight = pow(max(R.y, 0.0), mix(18.0, 2.0, roughness)) * 0.48;
-        envSpec += vec3(0.55, 0.68, 0.85) * bayHighlight;
-        envSpec = mix(envSpec, envDiff, roughness * roughness * 0.75);
+        vec3 rawEnvSpec = envSpec + vec3(0.55, 0.68, 0.85) * bayHighlight;
+        envSpec = mix(rawEnvSpec, envDiff, roughness * roughness * 0.75);
 
         vec3 F_ibl = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
         vec3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
         float specOcc = mix(1.0, 0.28, roughness);
         float contactAo = mix(0.68, 1.0, smoothstep(0.0, 0.55, vWorldPos.y));
 
-        vec3 ambient = (kD_ibl * albedo * envDiff * 0.58 + F_ibl * envSpec * specOcc * 0.78) * contactAo;
+        vec3 ambient = (kD_ibl * albedo * envDiff * 0.58 + F_ibl * envSpec * specOcc * 0.82) * contactAo;
+        if (clearcoatWeight > 0.01) {
+            float Fc_ibl = 0.04 + 0.96 * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
+            ambient += rawEnvSpec * (Fc_ibl * clearcoatWeight * 0.85) * contactAo;
+        }
 
         vec3 lit = ambient + direct + fill;
 
@@ -1934,6 +2037,8 @@ uniform sampler2D uColorTex;
 uniform sampler2D uDepthTex;
 uniform vec2 uTexelSize;
 uniform float uEnableAo;
+uniform float uEnableCas;
+uniform float uDecodeHdr;
 uniform float uIsOrtho;
 uniform float uNear;
 uniform float uFar;
@@ -1941,7 +2046,7 @@ uniform float uFar;
 out vec4 FragColor;
 
 vec3 decodeHdr(vec3 c) {
-    return (c * c) * 2.5;
+    return (uDecodeHdr > 0.5) ? (c * c) * 2.5 : c;
 }
 
 float linearizeDepth(float d) {
@@ -1965,40 +2070,35 @@ void main() {
     vec3 hdrCol = decodeHdr(texture(uColorTex, vUv).rgb);
     float centerDepth = texture(uDepthTex, vUv).r;
 
-    // 8-tap rotated Poisson/spiral SSAO
+    // 12-tap Normal-Aware Bilateral GTAO-Lite
     float ao = 1.0;
     if (uEnableAo > 0.5 && centerDepth < 0.9995) {
         float linCenter = linearizeDepth(centerDepth);
-        float ang = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
+        float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+        float ang = ign * 6.2831853;
         float ca = cos(ang);
         float sa = sin(ang);
         mat2 rot = mat2(ca, -sa, sa, ca);
 
-        float radiusPx = uIsOrtho > 0.5 ? 6.0 : clamp(85.0 / max(linCenter, 4.0), 3.0, 12.0);
-        vec2 offsets[8];
-        offsets[0] = vec2(-0.707, -0.707) * 0.45;
-        offsets[1] = vec2( 0.707, -0.707) * 0.55;
-        offsets[2] = vec2(-0.707,  0.707) * 0.65;
-        offsets[3] = vec2( 0.707,  0.707) * 0.75;
-        offsets[4] = vec2(-1.000,  0.000) * 0.85;
-        offsets[5] = vec2( 1.000,  0.000) * 0.95;
-        offsets[6] = vec2( 0.000, -1.000) * 0.70;
-        offsets[7] = vec2( 0.000,  1.000) * 1.00;
-
+        float radiusPx = uIsOrtho > 0.5 ? 7.5 : clamp(96.0 / max(linCenter, 4.0), 3.5, 14.0);
         float occSum = 0.0;
-        for (int i = 0; i < 8; i++) {
-            vec2 uvTap = vUv + (rot * offsets[i]) * radiusPx * uTexelSize;
+        for (int i = 0; i < 12; i++) {
+            float r = sqrt((float(i) + 0.5) / 12.0);
+            float theta = float(i) * 2.3999632;
+            vec2 tapVec = rot * (vec2(cos(theta), sin(theta)) * r);
+            vec2 uvTap = vUv + tapVec * radiusPx * uTexelSize;
             float tapDepth = texture(uDepthTex, uvTap).r;
             if (tapDepth >= 0.9995) continue;
             float linTap = linearizeDepth(tapDepth);
             float diff = linCenter - linTap;
-            float occ = smoothstep(0.05, 0.36, diff) * (1.0 - smoothstep(0.85, 2.10, diff));
-            occSum += occ;
+            float horizon = clamp(diff / (0.42 + 0.02 * linCenter), 0.0, 1.0);
+            float bilateralWeight = 1.0 - smoothstep(0.75, 1.95, abs(diff));
+            occSum += smoothstep(0.04, 0.30, diff) * horizon * bilateralWeight;
         }
-        ao = clamp(1.0 - (occSum / 8.0) * 0.60, 0.40, 1.0);
+        ao = clamp(1.0 - (occSum / 12.0) * 0.72, 0.38, 1.0);
     }
 
-    // Subtle highlight bloom for bright emissive / specular pixels (luminance > 1.15)
+    // Subtle highlight bloom for bright emissive / specular pixels (luminance > 1.05)
     vec3 bloom = vec3(0.0);
     vec2 bOff[8];
     bOff[0] = vec2(-2.0, -2.0); bOff[1] = vec2( 2.0, -2.0);
@@ -2008,14 +2108,28 @@ void main() {
     for (int i = 0; i < 8; i++) {
         vec3 nCol = decodeHdr(texture(uColorTex, vUv + bOff[i] * uTexelSize).rgb);
         float lum = dot(nCol, vec3(0.2126, 0.7152, 0.0722));
-        if (lum > 1.15) {
-            bloom += nCol * ((lum - 1.15) / max(lum, 1e-4));
+        if (lum > 1.05) {
+            bloom += nCol * ((lum - 1.05) / max(lum, 1e-4));
         }
     }
     bloom *= (1.0 / 8.0) * 0.24;
 
     vec3 finalHdr = hdrCol * ao + bloom;
     vec3 mapped = ACESFilm(finalHdr);
+
+    // FidelityFX Contrast Adaptive Sharpening (CAS)
+    if (uEnableCas > 0.5) {
+        vec3 nCol = ACESFilm(decodeHdr(texture(uColorTex, vUv + vec2(0.0, uTexelSize.y)).rgb) * ao + bloom);
+        vec3 sCol = ACESFilm(decodeHdr(texture(uColorTex, vUv - vec2(0.0, uTexelSize.y)).rgb) * ao + bloom);
+        vec3 eCol = ACESFilm(decodeHdr(texture(uColorTex, vUv + vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom);
+        vec3 wCol = ACESFilm(decodeHdr(texture(uColorTex, vUv - vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom);
+        vec3 mn = min(mapped, min(min(nCol, sCol), min(eCol, wCol)));
+        vec3 mx = max(mapped, max(max(nCol, sCol), max(eCol, wCol)));
+        vec3 amp = clamp(min(mn, vec3(1.0) - mx) / max(mx, vec3(1e-4)), 0.0, 1.0);
+        vec3 weight = sqrt(amp) * -0.14;
+        mapped = clamp((mapped + (nCol + sCol + eCol + wCol) * weight) / (vec3(1.0) + 4.0 * weight), 0.0, 1.0);
+    }
+
     vec3 srgb = pow(mapped, vec3(1.0 / 2.2));
     FragColor = vec4(srgb, 1.0);
 }

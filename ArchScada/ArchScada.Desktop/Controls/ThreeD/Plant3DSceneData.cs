@@ -137,6 +137,15 @@ public sealed record ProcessFlowState(
     bool IsStarved,
     double EstimatedTph);
 
+public readonly record struct SoftParticleInstance(
+    Vector3 Position,
+    Vector3 Scale,
+    float R,
+    float G,
+    float B,
+    float Alpha,
+    bool IsWaterSpray);
+
 public sealed record Plant3DGlbMeshMetric(
     string FileName,
     long FileSizeBytes,
@@ -1500,8 +1509,142 @@ public static class Plant3DSceneData
     }
 
     /// <summary>
+    /// Returns true for washed/deslimed wet coal streams that exhibit water-film clearcoat sheen.
+    /// </summary>
+    public static bool IsWetCoalStream(CoalMaterialClass mat) =>
+        mat is CoalMaterialClass.DeslimedCoal or CoalMaterialClass.CleanProduct or CoalMaterialClass.RefuseDiscard;
+
+    /// <summary>
+    /// Returns physically calibrated (Metallic, Roughness, Clearcoat) parameters for each CHPP coal stream.
+    /// Wet streams carry a thin water-film clearcoat (low base roughness + high clearcoat weight);
+    /// dry crushed streams exhibit matte dusty roughness.
+    /// </summary>
+    public static (float Metallic, float Roughness, float Clearcoat) GetMaterialPbrParams(CoalMaterialClass mat)
+    {
+        if (IsWetCoalStream(mat))
+            return (Metallic: 0.08f, Roughness: 0.34f, Clearcoat: 0.85f);
+
+        return mat switch
+        {
+            CoalMaterialClass.CrushedRoll or CoalMaterialClass.PlantFeed => (0.06f, 0.72f, 0.0f),
+            _ => (0.05f, 0.86f, 0.0f)
+        };
+    }
+
+    /// <summary>
+    /// Computes normalized continuous troughed coal burden ribbon thickness [0..0.16] m for an active belt.
+    /// </summary>
+    public static float ComputeBeltBurdenThickness(CoalMaterialClass mat, double normalizedFlowRate)
+    {
+        if (!double.IsFinite(normalizedFlowRate) || normalizedFlowRate <= 0.02)
+            return 0f;
+
+        float lumpScale = mat is CoalMaterialClass.RawRom or CoalMaterialClass.ScreenOversize ? 1.08f : 0.96f;
+        return Math.Clamp((float)normalizedFlowRate * 0.14f * lumpScale, 0.03f, 0.16f);
+    }
+
+    /// <summary>
+    /// Computes 3-axis elliptical vibrating screen/feeder displacement driven by machine type and load.
+    /// </summary>
+    public static Vector3 ComputeScreenVibrationOffset(string nodeId, double simTime, double loadPercent)
+    {
+        if (!double.IsFinite(simTime) || !double.IsFinite(loadPercent))
+            return Vector3.Zero;
+
+        float load = Math.Clamp((float)(loadPercent / 100.0), 0.15f, 1.15f);
+        float t = (float)simTime;
+
+        return nodeId.ToUpperInvariant() switch
+        {
+            // Linear grizzly feeder: 45 deg throw along Z/Y at 31 rad/s
+            "VF-101" => new Vector3(
+                MathF.Sin(t * 15.5f) * 0.004f * load,
+                MathF.Sin(t * 31.0f) * (0.015f + 0.018f * load),
+                -MathF.Cos(t * 31.0f) * (0.014f + 0.014f * load)),
+            // Desliming screen: high-frequency dewatering elliptical throw in (-X, Y)
+            "DS-201" => new Vector3(
+                -MathF.Cos(t * 34.0f) * (0.012f + 0.015f * load),
+                MathF.Sin(t * 34.0f) * (0.016f + 0.022f * load),
+                MathF.Sin(t * 17.0f) * 0.004f * load),
+            // Central multi-deck sizing screen: dual-shaft circular/elliptical motion
+            _ => new Vector3(
+                MathF.Cos(t * 28.0f) * (0.014f + 0.016f * load),
+                MathF.Sin(t * 28.0f) * (0.018f + 0.024f * load),
+                MathF.Sin(t * 14.0f) * 0.006f * load)
+        };
+    }
+
+    /// <summary>
+    /// Emits fugitive coal dust plumes at dry comminution transfer points (BN-101, JC-101, DRC-101)
+    /// and pressurized desliming water spray curtains (DS-201, WP-301) for soft-particle rendering.
+    /// </summary>
+    public static List<SoftParticleInstance> ComputeDustAndSprayParticles(
+        IReadOnlyDictionary<string, ProcessFlowState> flowMap,
+        LoaderPose loaderPose,
+        double simTime)
+    {
+        var list = new List<SoftParticleInstance>(64);
+        if (!double.IsFinite(simTime))
+            return list;
+
+        float t = (float)simTime;
+
+        void EmitPlume(string nodeId, Vector3 origin, float spreadX, float riseH, float baseScale, bool isWater, int count)
+        {
+            if (!flowMap.TryGetValue(nodeId, out var flow) || !flow.IsRunning || flow.NormalizedRate <= 0.04)
+                return;
+
+            float intensity = Math.Clamp((float)flow.NormalizedRate, 0.25f, 1.25f);
+            for (int i = 0; i < count; i++)
+            {
+                float age = (t * (isWater ? 1.55f : 0.42f) + i / (float)count) % 1.0f;
+                float angle = i * 2.39996f + t * (isWater ? 0.6f : 0.35f);
+                float r = spreadX * (0.25f + age * 0.85f);
+                Vector3 pos = isWater
+                    ? new Vector3(
+                        origin.X + MathF.Cos(angle) * r,
+                        origin.Y - age * riseH + MathF.Sin(age * MathF.PI) * 0.06f,
+                        origin.Z + MathF.Sin(angle) * r * 1.35f)
+                    : new Vector3(
+                        origin.X + MathF.Cos(angle) * r,
+                        origin.Y + age * riseH,
+                        origin.Z + MathF.Sin(angle) * r);
+
+                float s = baseScale * (isWater ? (0.45f + age * 0.65f) : (0.55f + age * 1.45f));
+                float alpha = MathF.Sin(age * MathF.PI) * (isWater ? 0.38f : 0.30f) * MathF.Min(intensity, 1.0f);
+                if (alpha <= 0.01f) continue;
+
+                if (isWater)
+                {
+                    list.Add(new SoftParticleInstance(pos, new Vector3(s * 0.7f, s * 1.35f, s * 0.7f), 0.72f, 0.90f, 1.00f, alpha, true));
+                }
+                else
+                {
+                    list.Add(new SoftParticleInstance(pos, new Vector3(s, s * 0.72f, s), 0.34f, 0.29f, 0.24f, alpha, false));
+                }
+            }
+        }
+
+        // Fugitive coal dust plumes at dry comminution transfer/crushing throats
+        if (loaderPose.IsDumpingCoal || (flowMap.TryGetValue("BN-101", out var bnFlow) && bnFlow.IsRunning && bnFlow.NormalizedRate > 0.05))
+        {
+            EmitPlume("BN-101", new Vector3(-13.8f, 2.35f, 8.8f), 0.85f, 1.85f, 0.48f, isWater: false, count: 10);
+        }
+        EmitPlume("JC-101", new Vector3(-13.8f, 3.15f, -0.6f), 0.72f, 1.95f, 0.44f, isWater: false, count: 10);
+        EmitPlume("DRC-101", new Vector3(-7.2f, 2.85f, -0.6f), 0.68f, 1.75f, 0.42f, isWater: false, count: 9);
+        EmitPlume("SS-101", new Vector3(0.2f, 3.30f, 0.5f), 0.95f, 1.45f, 0.40f, isWater: false, count: 8);
+
+        // Pressurized desliming & dense-medium rinse water spray curtains
+        EmitPlume("DS-201", new Vector3(8.8f, 2.75f, -9.8f), 0.78f, 1.05f, 0.22f, isWater: true, count: 14);
+        EmitPlume("WP-301", new Vector3(-0.8f, 3.25f, -7.8f), 0.75f, 0.95f, 0.20f, isWater: true, count: 10);
+
+        return list;
+    }
+
+    /// <summary>
     /// Samples a coal parcel along a conveyor: linear belt travel from TailPos to HeadPos for u in [0, 0.82],
-    /// followed by a Newtonian parabolic projectile discharge arc into the enclosed transfer chute for u in (0.82, 1.0].
+    /// followed by a Newtonian parabolic trajectory with inelastic chute wall bounce (e = 0.18) and
+    /// kinetic friction slide (mu_k = 0.22 wet / 0.38 dry) into the enclosed transfer chute for u in (0.82, 1.0].
     /// </summary>
     public static Vector3 SampleConveyorCoalTrajectory(ConveyorSpec conv, float u)
     {
@@ -1535,10 +1678,25 @@ public static class Plant3DSceneData
         float cx = conv.HeadPos.X + (chuteBot.X - conv.HeadPos.X) * tauNorm;
         float cz = conv.HeadPos.Z + (chuteBot.Z - conv.HeadPos.Z) * tauNorm;
 
+        // Inelastic chute-hood impact at tauNorm = 0.58 with restitution e = 0.18 and sliding friction
+        const float impactTau = 0.58f;
+        const float restitution = 0.18f;
+        float muKinetic = IsWetCoalStream(conv.MaterialClass) ? 0.22f : 0.38f;
+
         float dx = freeX - cx;
         float dz = freeZ - cz;
+        if (tauNorm > impactTau)
+        {
+            float postS = (tauNorm - impactTau) / (1f - impactTau);
+            float bounceSign = MathF.Sin(postS * MathF.PI) * restitution;
+            float frictionDamp = MathF.Exp(-muKinetic * 4.5f * postS);
+            float factor = frictionDamp * (1f - postS) * (1f - bounceSign);
+            dx *= factor;
+            dz *= factor;
+        }
+
         float dev = MathF.Sqrt(dx * dx + dz * dz);
-        float maxDev = MathF.Min(0.24f, conv.Width * 0.30f) * (1f - tauNorm);
+        float maxDev = MathF.Min(0.26f, conv.Width * 0.30f) * (1f - tauNorm);
         if (dev > maxDev && dev > 1e-5f)
         {
             float scale = maxDev / dev;
