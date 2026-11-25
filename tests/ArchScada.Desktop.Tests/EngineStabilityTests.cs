@@ -207,10 +207,10 @@ public class EngineStabilityTests
         var expectedPose = Plant3DSceneData.ComputeLoaderPose(testSimTime, active: true);
         var expectedFlows = Plant3DSceneData.EvaluateProcessFlows(eqMap, testSimTime);
 
-        var tasks = Enumerable.Range(0, 16).Select(_ => Task.Run(() =>
+        var tasks = Enumerable.Range(0, 24).Select(_ => Task.Run(() =>
         {
             var meshes = Plant3DSceneData.LoadAllGlbMeshes();
-            Assert.Equal(16, meshes.Count);
+            Assert.Equal(24, meshes.Count);
 
             for (int iter = 0; iter < 10; iter++)
             {
@@ -236,6 +236,6 @@ public class EngineStabilityTests
         })).ToArray();
 
         int[] counts = await Task.WhenAll(tasks);
-        Assert.All(counts, c => Assert.Equal(16, c));
+        Assert.All(counts, c => Assert.Equal(24, c));
     }
 }
