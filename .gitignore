@@ -1,6 +1,10 @@
 # .NET build outputs
 /bin/
 /obj/
+
+# Build outputs (nested - subdirectories)
+**/bin/
+**/obj/
 # Python cache
 __pycache__/
 # Node modules
