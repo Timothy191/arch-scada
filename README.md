@@ -27,3 +27,48 @@ We welcome contributions! Many people all over the world have helped make this p
 ## License
 
 Rapid SCADA Standard (including this repo) is licensed under the [Apache License 2.0](LICENSE.txt). Additional software modules for Rapid SCADA can be released under various types of licenses, open or proprietary.
+
+## .gitignore
+
+The root `.gitignore` file excludes the following from version control:
+
+- Build outputs: `bin/`, `obj/`
+- Python cache: `__pycache__/`
+- Node modules: `node_modules/`
+- Exported GLB models: `ArchScada/Assets/3D/Exported/*.glb`
+- Agentsroom and agents: `.agents/`, `.agentsroom/`
+- Commandcode and MCP config: `.commandcode/`, `.mcp.json`
+- OpenModules: `.omp/`
+- IDE specific: `*.suo`, `*.user`, `*.sln.code-merge`, `*.sln.external`
+- Visual Studio Code: `.vscode/`
+- Windows: `Thumbs.db`
+- Log files: `*.log`
+- Temporary files: `*.tmp`
+- Backup files: `*.bak`
+- Environment variables: `.env`
+- Generated packages: `packages/`
+- NuGet cache: `NuGet/`
+- Unity project cache: `Library/`
+- .NET IDE user settings: `*.csproj.user`
+
+## Workflow: task_start.sh
+
+The `task_start.sh` script is a wrapper that delivers pre‑context to a specialist. It is invoked from the project root:
+
+```bash
+bash task_start.sh <specialist-name>
+```
+
+Available specialist names are listed in `specialists_registry.yaml` (e.g., `Web`, `Desktop`, `3D`, `Documentation`, `Testing`). The script:
+
+1. Validates the specialist name.
+2. Runs `deliver_precontext.sh` to gather repository state (current branch, latest commit, commit message, recent commits, config summary).
+3. Extracts and prints the relevant pre‑context for the chosen specialist.
+
+Example usage:
+
+```bash
+bash task_start.sh Documentation
+```
+
+This will output the current branch and latest commit information relevant to documentation work.

@@ -1224,12 +1224,242 @@ def build_magnetic_separator(output_dir):
     export_glb(output_dir, "magnetic_separator_ms301.glb")
 
 
+def build_dmc_cyclone_dmc301(output_dir):
+    """DMC-301: Twin Dense-Medium Cyclone Battery on steel support frame with involute feed & vortex finder."""
+    clear_scene()
+    p = make_palette()
+    ceramic_amber = make_material("CycloneCeramicAmber", "#D97706", metallic=0.58, roughness=0.34)
+
+    # Support frame columns & bracing
+    for sx in (-1.15, 1.15):
+        for sy in (-0.85, 0.85):
+            add_h_column(f"DMC_Col_{sx}_{sy}", sx, sy, 0.0, 2.65, 0.16, p["dark_steel"])
+    add_walkway_deck("DMC_TopDeck", 0.0, 0.0, 2.75, 2.05, 2.68, p["walkway_steel"], p["safety_yellow"], rails="NESW")
+    add_caged_ladder("DMC_Ladder", 1.42, 0.0, 0.0, 2.68, (1, 0), p["dark_steel"], p["safety_yellow"])
+
+    # Central feed distributor manifold & pressure gauge header
+    add_cyl("DMC_FeedDistributor", (-0.55, 0.0, 1.85), 0.36, 1.15, p["motor_blue"], verts=24, bevel=0.015)
+    add_cyl("DMC_FeedRiser", (-0.55, 0.0, 0.72), 0.18, 1.35, p["dark_steel"], verts=18)
+
+    # Twin inclined dense-medium cyclones (A & B)
+    for tag, cy in [("A", -0.46), ("B", 0.46)]:
+        add_cyl(f"DMC_Barrel_{tag}", (0.18, cy, 2.15), 0.34, 0.88, ceramic_amber, verts=26, rot=(0, 0.35, 0), bevel=0.015)
+        add_cone(f"DMC_Cone_{tag}", (0.58, cy, 1.35), 0.34, 0.11, 1.12, p["manganese"], verts=26, rot=(0, 0.35, 0), bevel=0.01)
+        add_cyl(f"DMC_VortexFinder_{tag}", (-0.12, cy, 2.62), 0.18, 0.52, p["safety_yellow"], verts=20, rot=(0, 0.35, 0))
+        add_box(f"DMC_OverflowBox_{tag}", (-0.25, cy, 2.95), (0.54, 0.48, 0.38), p["dark_steel"], bevel=0.02)
+        add_cyl(f"DMC_ApexSpigot_{tag}", (0.84, cy, 0.78), 0.13, 0.36, p["safety_yellow"], verts=18, rot=(0, 0.35, 0))
+        add_pipe_between(f"DMC_Involute_{tag}", (-0.55, 0.0, 2.10), (0.05, cy, 2.28), 0.13, p["safety_yellow"], verts=16, flange=True, mat_flange=p["dark_steel"])
+
+    export_glb(output_dir, "dmc_cyclone_dmc301.glb")
+
+
+def build_pgnaa_analyzer_an601(output_dir):
+    """AN-601: Cross-Belt PGNAA Online Elemental Coal Quality Analyzer Bridge & Radiation Shield."""
+    clear_scene()
+    p = make_palette()
+    shield_gold = make_material("PgnaaShieldGold", "#D97706", metallic=0.48, roughness=0.32)
+
+    # Straddle portal legs & base pads
+    for sx in (-0.95, 0.95):
+        for sy in (-0.98, 0.98):
+            add_h_column(f"AN_Leg_{sx}_{sy}", sx, sy, 0.0, 2.35, 0.15, p["dark_steel"])
+    add_walkway_deck("AN_ServiceDeck", 0.0, 0.0, 2.35, 2.35, 2.38, p["walkway_steel"], p["safety_yellow"], rails="NSW")
+    add_caged_ladder("AN_Ladder", 1.22, 0.0, 0.0, 2.38, (1, 0), p["dark_steel"], p["safety_yellow"])
+
+    # Upper & lower radiation shield chambers straddling belt conveyor centerline
+    add_box("AN_LowerSourceVault", (0.0, 0.0, 0.78), (1.35, 1.45, 0.56), p["dark_steel"], bevel=0.03)
+    add_box("AN_UpperDetectorHood", (0.0, 0.0, 1.72), (1.42, 1.52, 0.72), shield_gold, bevel=0.035)
+    add_box("AN_AnalyzerCabinet", (-0.65, 0.78, 1.72), (0.58, 0.42, 0.85), p["cladding"], bevel=0.02)
+    add_cyl("AN_StrobeBeacon", (0.0, 0.0, 2.24), 0.11, 0.28, p["safety_yellow"], verts=18, bevel=0.01)
+
+    # Belt passage tunnel ribs & calibration reference bars
+    for i in range(-2, 3):
+        add_box(f"AN_ShieldRib_{i}", (i * 0.28, 0.0, 1.72), (0.06, 1.58, 0.76), p["dark_steel"], bevel=0.008)
+
+    export_glb(output_dir, "pgnaa_analyzer_an601.glb")
+
+
+def build_centrifuge_dryer_cf501(output_dir):
+    """CF-501: Vibratory Screen-Bowl Coal Dewatering Centrifuge with Twin Drive Motors & Effluent Housing."""
+    clear_scene()
+    p = make_palette()
+
+    # Heavy concrete/steel inertia skid base on 6 isolation coil springs
+    add_box("CF_BaseSkid", (0.0, 0.0, 0.16), (2.75, 1.85, 0.32), p["dark_steel"], bevel=0.025)
+    for sx in (-1.05, 0.0, 1.05):
+        for sy in (-0.72, 0.72):
+            add_coil_spring(f"CF_Spring_{sx}_{sy}", sx, sy, 0.32, 0.32, 0.12, p["safety_yellow"], p["manganese"])
+    add_box("CF_SubFrame", (0.0, 0.0, 0.72), (2.65, 1.75, 0.18), p["manganese"], bevel=0.02)
+
+    # Conical/cylindrical centrifuge basket casing & inspection hatch
+    add_cyl("CF_RearGearCase", (-0.72, 0.0, 1.48), 0.68, 0.86, p["dark_steel"], verts=28, rot=(0, math.pi / 2, 0), bevel=0.02)
+    add_cone("CF_BowlHousing", (0.28, 0.0, 1.48), 0.82, 0.62, 1.24, p["motor_blue"], verts=28, rot=(0, math.pi / 2, 0), bevel=0.02)
+    add_cyl("CF_FrontFeedDoor", (1.02, 0.0, 1.48), 0.58, 0.26, p["safety_yellow"], verts=24, rot=(0, math.pi / 2, 0), bevel=0.015)
+    add_pipe_between("CF_SlurryFeedPipe", (1.42, 0.0, 2.25), (1.08, 0.0, 1.55), 0.15, p["dark_steel"], verts=16, flange=True, mat_flange=p["safety_yellow"])
+
+    # Main 195 kW bowl drive motor & planetary differential gearbox
+    add_electric_motor("CF_MainMotor", (-0.75, 0.78, 1.32), 0.34, 0.92, "X", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+    add_box("CF_VBeltsGuard", (-0.98, 0.38, 1.40), (0.36, 0.96, 0.62), p["safety_yellow"], bevel=0.02)
+    add_box("CF_CakeChute", (0.32, 0.0, 0.42), (0.95, 1.15, 0.58), p["dark_steel"], bevel=0.015)
+
+    export_glb(output_dir, "centrifuge_dryer_cf501.glb")
+
+
+def build_filter_press_fp501(output_dir):
+    """FP-501: Recessed-Plate Tailings Filter Press with Hydraulic Ram, Plate Pack & Overhead Beam."""
+    clear_scene()
+    p = make_palette()
+
+    # 6 Heavy support legs & elevated plate-drop frame
+    for sx in (-1.85, 0.0, 1.85):
+        for sy in (-0.82, 0.82):
+            add_h_column(f"FP_Col_{sx}_{sy}", sx, sy, 0.0, 1.35, 0.16, p["dark_steel"])
+
+    # Fixed headstock (+X), tailstock (-X), twin side tension bars & overhead shifter beam
+    add_box("FP_HeadStock", (1.82, 0.0, 1.72), (0.38, 1.55, 1.42), p["dark_steel"], bevel=0.025)
+    add_box("FP_TailStock", (-1.82, 0.0, 1.72), (0.38, 1.55, 1.42), p["dark_steel"], bevel=0.025)
+    add_box("FP_OverheadBeam", (0.0, 0.0, 2.62), (4.10, 0.36, 0.32), p["safety_yellow"], bevel=0.02)
+    for sy in (-0.76, 0.76):
+        add_box(f"FP_SideBar_{sy}", (0.0, sy, 1.56), (3.65, 0.12, 0.22), p["manganese"], bevel=0.01)
+
+    # 18 Recessed filter plates packed along X
+    plate_mat = make_material("FilterPlatePoly", "#38BDF8", metallic=0.18, roughness=0.45)
+    for i in range(18):
+        px = -1.25 + i * 0.155
+        add_box(f"FP_Plate_{i}", (px, 0.0, 1.72), (0.095, 1.28, 1.22), plate_mat if i % 2 == 0 else p["cladding"], bevel=0.008)
+
+    # Hydraulic closing cylinder & HPU power pack at -X end
+    add_cyl("FP_HydraulicCylinder", (-2.28, 0.0, 1.72), 0.26, 0.85, p["safety_yellow"], verts=22, rot=(0, math.pi / 2, 0), bevel=0.015)
+    add_cyl("FP_ChromeRam", (-1.62, 0.0, 1.72), 0.16, 0.55, p["chrome"], verts=18, rot=(0, math.pi / 2, 0))
+    add_walkway_deck("FP_SideWalkway", 0.0, -1.28, 3.85, 0.78, 1.32, p["walkway_steel"], p["safety_yellow"], rails="SEW")
+
+    export_glb(output_dir, "filter_press_fp501.glb")
+
+
+def build_overband_magnet_om101(output_dir):
+    """OM-101: Self-Cleaning Cross-Belt Tramp Iron Overband Magnet & Gantry Hoist Frame."""
+    clear_scene()
+    p = make_palette()
+    mag_red = make_material("MagnetCoreRed", "#DC2626", metallic=0.45, roughness=0.35)
+
+    # 4-Column A-Frame straddle gantry with I-beam hoist trolley
+    for sx in (-1.05, 1.05):
+        for sy in (-1.15, 1.15):
+            add_h_column(f"OM_Col_{sx}_{sy}", sx, sy, 0.0, 2.75, 0.15, p["dark_steel"])
+    add_box("OM_TopBeamN", (0.0, 1.15, 2.82), (2.35, 0.22, 0.24), p["safety_yellow"], bevel=0.015)
+    add_box("OM_TopBeamS", (0.0, -1.15, 2.82), (2.35, 0.22, 0.24), p["safety_yellow"], bevel=0.015)
+    add_box("OM_CrossHoistBeam", (0.0, 0.0, 2.82), (0.35, 2.55, 0.26), p["safety_yellow"], bevel=0.015)
+
+    # Suspended permanent/electromagnet box + cleated self-cleaning rubber cross-belt & twin pulleys
+    add_box("OM_MagnetCore", (0.0, 0.0, 1.85), (1.18, 1.55, 0.62), mag_red, bevel=0.03)
+    add_box("OM_CleatedBelt", (0.0, 0.0, 1.85), (1.28, 1.98, 0.74), p["rubber"], bevel=0.025)
+    for py in (-0.96, 0.96):
+        add_cyl(f"OM_Pulley_{py}", (0.0, py, 1.85), 0.34, 1.24, p["manganese"], verts=22, rot=(0, math.pi / 2, 0), bevel=0.01)
+    add_electric_motor("OM_DriveMotor", (0.72, 0.96, 1.85), 0.20, 0.48, "X", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+
+    # 4 Suspension turnbuckle rods & tramp-iron discard bin at +Y side
+    for sx in (-0.52, 0.52):
+        for sy in (-0.65, 0.65):
+            add_cyl(f"OM_Hanger_{sx}_{sy}", (sx, sy, 2.38), 0.035, 0.88, p["chrome"], verts=12)
+    add_frustum_box("OM_TrampBin", -0.55, 0.55, 1.18, 1.88, 0.05, 0.85, 0.14, 0.14, p["dark_steel"], bevel=0.02)
+
+    export_glb(output_dir, "overband_magnet_om101.glb")
+
+
+def build_dust_collector_dc101(output_dir):
+    """DC-101: Pulse-Jet Baghouse Dust Collector with Hoppers, Exhaust Fan, Stack & Ductwork."""
+    clear_scene()
+    p = make_palette()
+
+    # 6 Structural legs supporting twin pyramidal dust hoppers
+    for sx in (-1.25, 0.0, 1.25):
+        for sy in (-0.85, 0.85):
+            add_h_column(f"DC_Col_{sx}_{sy}", sx, sy, 0.0, 1.55, 0.15, p["dark_steel"])
+
+    for tag, cx in [("W", -0.62), ("E", 0.62)]:
+        add_frustum_box(f"DC_Hopper_{tag}", cx - 0.18, cx + 0.18, -0.18, 0.18, 0.48, 1.55, 0.44, 0.65, p["manganese"], bevel=0.02)
+        add_cyl(f"DC_RotaryAirlock_{tag}", (cx, 0.0, 0.32), 0.18, 0.32, p["safety_yellow"], verts=18, rot=(math.pi / 2, 0, 0))
+
+    # Main baghouse filter chamber, pulse-jet compressed air manifolds & explosion vent panels
+    add_box("DC_FilterBody", (0.0, 0.0, 2.55), (2.56, 1.74, 1.98), p["cladding"], bevel=0.03)
+    add_box("DC_CleanPlenum", (0.0, 0.0, 3.72), (2.62, 1.80, 0.42), p["dark_steel"], bevel=0.02)
+    add_cyl("DC_PulseAirHeader", (0.0, -0.96, 3.35), 0.11, 2.35, p["safety_yellow"], verts=18, rot=(0, math.pi / 2, 0))
+    for i in range(4):
+        px = -0.95 + i * 0.63
+        add_box(f"DC_ExplosionPanel_{i}", (px, -0.89, 2.55), (0.46, 0.06, 0.72), p["safety_yellow"], bevel=0.01)
+
+    # Centrifugal ID exhaust fan, motor & clean-air vertical discharge stack
+    add_cyl("DC_ExhaustFanScroll", (1.58, 0.0, 0.78), 0.62, 0.48, p["motor_blue"], verts=24, rot=(math.pi / 2, 0, 0), bevel=0.02)
+    add_electric_motor("DC_FanMotor", (1.58, -0.68, 0.62), 0.28, 0.68, "Y", p["motor_blue"], p["dark_steel"], p["safety_yellow"])
+    add_cyl("DC_CleanStack", (1.92, 0.0, 2.35), 0.24, 3.85, p["dark_steel"], verts=22, bevel=0.01)
+    add_cone("DC_StackWeatherCap", (1.92, 0.0, 4.42), 0.36, 0.04, 0.24, p["safety_yellow"], verts=20)
+    add_walkway_deck("DC_TopWalkway", 0.0, -1.22, 2.65, 0.72, 3.55, p["walkway_steel"], p["safety_yellow"], rails="SEW")
+    add_caged_ladder("DC_Ladder", -1.42, -1.22, 0.0, 3.55, (-1, 0), p["dark_steel"], p["safety_yellow"])
+
+    export_glb(output_dir, "dust_collector_dc101.glb")
+
+
+def build_train_loadout_silo_tls401(output_dir):
+    """TLS-401 / LD-601: Rapid Rail/Truck Flood-Loading Loadout Tower, Surge Silo & Telescopic Chute."""
+    clear_scene()
+    p = make_palette()
+
+    # 4 Heavy drive-through portal columns allowing haul trucks / rail cars underneath
+    for sx in (-1.35, 1.35):
+        for sy in (-1.35, 1.35):
+            add_h_column(f"TLS_Col_{sx}_{sy}", sx, sy, 0.0, 2.45, 0.22, p["dark_steel"])
+    add_walkway_deck("TLS_LoadDeck", 0.0, 0.0, 3.10, 3.10, 2.48, p["walkway_steel"], p["safety_yellow"], rails="NESW")
+
+    # Conical mass-flow hopper, cylindrical concrete/steel surge bin & penthouse headhouse
+    add_cone("TLS_DischargeCone", (0.0, 0.0, 2.15), 0.42, 1.38, 1.15, p["manganese"], verts=28, bevel=0.015)
+    add_cyl("TLS_SiloCylinder", (0.0, 0.0, 3.72), 1.38, 2.05, p["cladding"], verts=32, bevel=0.02)
+    add_cyl("TLS_SiloRoofRim", (0.0, 0.0, 4.78), 1.44, 0.14, p["safety_yellow"], verts=32)
+    add_box("TLS_Penthouse", (0.0, 0.0, 5.22), (1.85, 1.65, 0.78), p["dark_steel"], bevel=0.025)
+
+    # Telescopic flood-loading chute + hydraulic radial clam-shell gate & batch weigh-bin load cells
+    add_cyl("TLS_TelescopicChute", (0.0, 0.0, 1.18), 0.36, 1.10, p["safety_yellow"], verts=22, bevel=0.01)
+    add_box("TLS_GateActuatorFrame", (0.0, 0.0, 1.58), (1.12, 1.12, 0.28), p["dark_steel"], bevel=0.015)
+    add_caged_ladder("TLS_Ladder", 1.58, 0.0, 0.0, 4.82, (1, 0), p["dark_steel"], p["safety_yellow"])
+
+    export_glb(output_dir, "train_loadout_silo_tls401.glb")
+
+
+def build_mcc_substation_mcc101(output_dir):
+    """MCC-101: Containerized E-House Substation, VFD Switchgear Room, HVAC & Step-Down Transformer Yard."""
+    clear_scene()
+    p = make_palette()
+
+    # Elevated structural steel skid & concrete transformer bund wall
+    add_box("MCC_SkidBase", (-0.55, 0.0, 0.22), (3.45, 2.15, 0.44), p["dark_steel"], bevel=0.025)
+    add_box("MCC_EHouseBody", (-0.55, 0.0, 1.52), (3.35, 2.05, 2.18), p["cladding"], bevel=0.03)
+    add_box("MCC_RoofOverhang", (-0.55, 0.0, 2.66), (3.52, 2.22, 0.14), p["dark_steel"], bevel=0.02)
+
+    # Double personnel doors, warning placards, twin HVAC cooling units & cable tray bridge
+    for dx in (-1.35, 0.25):
+        add_box(f"MCC_Door_{dx}", (dx, -1.04, 1.42), (0.78, 0.06, 1.76), p["dark_steel"], bevel=0.01)
+        add_box(f"MCC_DoorSign_{dx}", (dx, -1.08, 1.72), (0.38, 0.03, 0.24), p["safety_yellow"], bevel=0.005)
+    for hy in (-0.45, 0.45):
+        add_box(f"MCC_HvacUnit_{hy}", (-2.42, hy, 1.55), (0.48, 0.72, 0.96), p["walkway_steel"], bevel=0.02)
+    add_walkway_deck("MCC_FrontPlatform", -0.55, -1.48, 3.35, 0.82, 0.44, p["walkway_steel"], p["safety_yellow"], rails="SEW")
+
+    # 3.3 MVA Oil-Filled Step-Down Transformer with cooling radiator fins, conservator tank & HV bushings
+    add_box("MCC_TrafoBund", (1.88, 0.0, 0.12), (1.55, 1.95, 0.24), p["concrete"], bevel=0.02)
+    add_box("MCC_TrafoTank", (1.88, 0.0, 0.98), (1.08, 1.32, 1.48), p["motor_blue"], bevel=0.025)
+    for i in range(-2, 3):
+        add_box(f"MCC_RadiatorFin_{i}", (1.88, i * 0.24, 0.98), (1.36, 0.06, 1.18), p["dark_steel"], bevel=0.008)
+    add_cyl("MCC_Conservator", (1.88, 0.0, 2.02), 0.24, 1.18, p["walkway_steel"], verts=20, rot=(math.pi / 2, 0, 0), bevel=0.01)
+    for bi, by in enumerate((-0.38, 0.0, 0.38)):
+        add_cyl(f"MCC_HvBushing_{bi}", (2.12, by, 1.96), 0.08, 0.56, p["safety_yellow"], verts=14, rot=(0, 0.18, 0))
+
+    export_glb(output_dir, "mcc_substation_mcc101.glb")
+
+
 def main():
     argv = sys.argv
     output_dir = argv[argv.index("--") + 1] if "--" in argv and len(argv) > argv.index("--") + 1 else "./Exported"
     os.makedirs(output_dir, exist_ok=True)
 
-    # New 11 CHPP assets (all directional models face +X)
+    # Primary 11 CHPP assets (all directional models face +X)
     build_wheel_loader_chassis(output_dir)
     build_wheel_loader_bucket(output_dir)
     build_feeder_bin_bn101(output_dir)
@@ -1242,12 +1472,22 @@ def main():
     build_wash_plant_module_wp301(output_dir)
     build_stockpile_cone(output_dir)
 
-    # Preserved & enhanced 5 CHPP assets (16 active GA models total)
+    # Preserved & enhanced 5 CHPP assets
     build_conveyor(output_dir)
     build_thickener(output_dir)
     build_pump(output_dir)
     build_magnetite_tank(output_dir)
     build_magnetic_separator(output_dir)
+
+    # New 8 CHPP specialized 3D models (24 total industrial GLB models)
+    build_dmc_cyclone_dmc301(output_dir)
+    build_pgnaa_analyzer_an601(output_dir)
+    build_centrifuge_dryer_cf501(output_dir)
+    build_filter_press_fp501(output_dir)
+    build_overband_magnet_om101(output_dir)
+    build_dust_collector_dc101(output_dir)
+    build_train_loadout_silo_tls401(output_dir)
+    build_mcc_substation_mcc101(output_dir)
 
 
 if __name__ == "__main__":
