@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using ArchScada.Desktop.Controls;
 using Xunit;
 
 namespace ArchScada.Desktop.Tests;
@@ -48,6 +49,8 @@ public sealed class SplashAnimationTests
             "Ellipse.splash-core-dot",
             "Arc.splash-processing-arc",
             "Arc.splash-brand-ring",
+            "Ellipse.splash-status-dot",
+            "Button.splash-launch-ready",
         };
 
         foreach (var selector in animatedSelectors)
@@ -109,6 +112,10 @@ public sealed class SplashAnimationTests
                         s.Contains("splash-reduced-motion", StringComparison.Ordinal))
             .ToList();
         Assert.NotEmpty(reducedMotion);
+
+        // The looping launch pulse and shimmer must be neutralized under reduced motion.
+        Assert.Contains("splash-launch-ready", xaml);
+        Assert.Contains("splash-status-dot", xaml);
     }
 
     [Fact]
@@ -123,9 +130,14 @@ public sealed class SplashAnimationTests
         Assert.Contains("splash-processing-arc", xaml);
         Assert.Contains("splash-progress-fill", xaml);
         Assert.Contains("splash-check-row", xaml);
+        Assert.Contains("splash-status-dot", xaml);
+        Assert.Contains("splash-launch-ready", xaml);
 
         // Processing arc is gated on the running state.
         Assert.Contains("IsVisible=\"{Binding IsRunning}\"", xaml);
+
+        // Launch attention pulse is gated on completion.
+        Assert.Contains("Classes.splash-launch-ready=\"{Binding IsComplete}\"", xaml);
 
         // View must be well-formed XAML.
         XDocument.Parse(xaml);
@@ -140,5 +152,53 @@ public sealed class SplashAnimationTests
         Assert.Contains("IsAutomatedCaptureMode", code);
         Assert.Contains("splash-reduced-motion", code);
         Assert.Contains("PlayFadeIn", code);
+    }
+
+    [Fact]
+    public void SplashViewHostsProceduralIntro()
+    {
+        var xaml = ReadDesktopFile(Path.Combine("Views", "SplashView.axaml"));
+
+        // The procedural motion-graphics intro must be hosted and namespaced.
+        Assert.Contains("xmlns:controls=\"using:ArchScada.Desktop.Controls\"", xaml);
+        Assert.Contains("controls:IntroAnimationControl", xaml);
+        Assert.Contains("x:Name=\"IntroAnimation\"", xaml);
+
+        // View must remain well-formed XAML.
+        XDocument.Parse(xaml);
+    }
+
+    [Fact]
+    public void IntroControl_Seek_ClampsAndHoldsDeterministicFrame()
+    {
+        var intro = new IntroAnimationControl();
+
+        intro.Seek(0.5);
+        Assert.Equal(0.5, intro.Progress, 3);
+        Assert.False(intro.IsPlaying);
+
+        // Out-of-range seeks clamp to [0,1].
+        intro.Seek(-1.0);
+        Assert.Equal(0.0, intro.Progress, 3);
+        intro.Seek(2.0);
+        Assert.Equal(1.0, intro.Progress, 3);
+    }
+
+    [Fact]
+    public void IntroControl_ReducedMotion_JumpsToFinalFrame()
+    {
+        var intro = new IntroAnimationControl
+        {
+            ReducedMotion = true
+        };
+
+        // Reduced motion holds the composed final frame without animating.
+        Assert.Equal(1.0, intro.Progress, 3);
+        Assert.False(intro.IsPlaying);
+
+        // Play() under reduced motion stays on the final frame (no timer start).
+        intro.Play();
+        Assert.Equal(1.0, intro.Progress, 3);
+        Assert.False(intro.IsPlaying);
     }
 }

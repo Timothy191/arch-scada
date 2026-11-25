@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ArchScada.Desktop.ViewModels"
              xmlns:models="using:ArchScada.Desktop.Models"
+             xmlns:controls="using:ArchScada.Desktop.Controls"
              xmlns:conv="using:ArchScada.Desktop.Converters"
              x:Class="ArchScada.Desktop.Views.SplashView"
              x:DataType="vm:SplashViewModel">
@@ -13,6 +14,11 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
             <StackPanel Spacing="11" HorizontalAlignment="Stretch">
+
+                <!-- Procedural motion-graphics intro (plays once on open) -->
+                <controls:IntroAnimationControl x:Name="IntroAnimation"
+                                                Height="132"
+                                                HorizontalAlignment="Stretch" />
 
                 <!-- Header: Brand Badge + Title + Version -->
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
@@ -68,7 +74,8 @@
                         CornerRadius="12"
                         Padding="14,10">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                        <Ellipse Width="12" Height="12"
+                        <Ellipse Classes="splash-status-dot"
+                                 Width="12" Height="12"
                                  VerticalAlignment="Center"
                                  Fill="{Binding ReadinessState, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
                         <StackPanel Grid.Column="1" Spacing="2">
@@ -214,6 +221,7 @@
                             Content="{Binding LaunchButtonText}"
                             Command="{Binding ContinueToAppCommand}"
                             Classes="primary-action"
+                            Classes.splash-launch-ready="{Binding IsComplete}"
                             Padding="16,8"
                             FontSize="12" />
                 </Grid>

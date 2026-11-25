@@ -124,24 +124,29 @@ public partial class App : Application
             return;
         }
 
-        // Smooth cross-fade handoff: fade the splash out, then reveal the main HMI.
-        // Reduced-motion / automated contexts fall back to an immediate swap.
+        // Reveal the main window FIRST, while the splash is still open. Avalonia's
+        // default ShutdownMode is OnLastWindowClose: if we close the splash while it
+        // is the only open window, the whole application tears down (silent exit,
+        // code 0, no managed exception) before the main HMI is ever shown. By showing
+        // main first there is never a zero-window gap.
+        desktop.MainWindow = _mainWindow;
+        _mainWindow?.Show();
+
+        // Then fade out and close the splash.
+        _ = FadeOutSplashAsync(desktop, splash);
+    }
+
+    private async System.Threading.Tasks.Task FadeOutSplashAsync(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        SplashWindow splash)
+    {
         if (splash is null || splash.IsAutomatedCaptureMode ||
             splash.Classes.Contains("splash-reduced-motion"))
         {
             splash?.Close();
-            desktop.MainWindow = _mainWindow;
-            _mainWindow?.Show();
             return;
         }
 
-        _ = CrossFadeToMainAsync(desktop, splash);
-    }
-
-    private async System.Threading.Tasks.Task CrossFadeToMainAsync(
-        IClassicDesktopStyleApplicationLifetime desktop,
-        SplashWindow splash)
-    {
         var fadeOut = new Avalonia.Animation.Animation
         {
             Duration = TimeSpan.FromMilliseconds(300),
@@ -172,8 +177,6 @@ public partial class App : Application
         }
 
         splash.Close();
-        desktop.MainWindow = _mainWindow;
-        _mainWindow?.Show();
     }
 
     private static string? ParseArgValue(string[]? args, string optionName)
