@@ -1,1 +1,26 @@
+# .NET build outputs
+/bin/
+/obj/
+# Python cache
+__pycache__/
+# Node modules
+node_modules/
+# Exported GLB models (already covered)
 ArchScada/Assets/3D/Exported/*.glb
+# Agentsroom and agents
+.agents/
+.agentsroom/
+# Commandcode and mcp config
+.commandcode/
+.mcp.json
+# OpenModules
+.omp/
+# IDE specific
+*.suo
+*.user
+*.sln.code-merge
+*.sln.external
+# VS Code
+.vscode/
+# Windows
+Thumbs.db
