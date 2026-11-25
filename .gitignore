@@ -24,3 +24,19 @@ ArchScada/Assets/3D/Exported/*.glb
 .vscode/
 # Windows
 Thumbs.db
+# Log files
+*.log
+# Temporary files
+*.tmp
+# Backup files
+*.bak
+# Environment variables file (if present)
+.env
+# Generated packages
+packages/
+# NuGet cache (personal)
+NuGet/
+# Unity project cache
+Library/
+# .NET IDE user settings
+*.csproj.user
