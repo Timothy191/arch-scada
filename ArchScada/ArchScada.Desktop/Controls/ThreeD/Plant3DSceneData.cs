@@ -58,7 +58,9 @@ public sealed record Plant3DNode(
     bool HasRotatingTop = false,
     float RotatingTopY = 0f,
     float RotatingTopLength = 0f,
-    bool IsConveyor = false)
+    bool IsConveyor = false,
+    bool IsSubComponent = false,
+    bool IsPipe = false)
 {
     public string UpstreamDisplay => UpstreamIds.Length == 0 ? "ROM Source" : string.Join(", ", UpstreamIds);
     public string DownstreamDisplay => DownstreamIds.Length == 0 ? "Final Stockpile / Product" : string.Join(", ", DownstreamIds);
@@ -115,7 +117,15 @@ public sealed record PipeRoute(
     string SourceEquipmentId,
     FlowMedium Medium,
     float Radius,
-    Vector3[] Waypoints);
+    Vector3[] Waypoints,
+    string Id = "",
+    string GaLabel = "",
+    string StageLabel = "Wash Plant & Medium Recovery",
+    string DimensionsSpec = "",
+    string MechanicalPrinciple = "",
+    string ComponentDescription = "",
+    string[]? UpstreamIds = null,
+    string[]? DownstreamIds = null);
 
 public readonly record struct Ray3D(Vector3 Origin, Vector3 Direction);
 
@@ -794,7 +804,7 @@ public static class Plant3DSceneData
     public static Plant3DNode? FindNode(string? id)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
-        foreach (var n in AllNodes)
+        foreach (var n in InteractiveNodes)
         {
             if (string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase))
                 return n;
@@ -829,44 +839,73 @@ public static class Plant3DSceneData
     /// </summary>
     public static readonly IReadOnlyList<PipeRoute> PipeRoutes = new PipeRoute[]
     {
-        // WP-301 Ground-Floor Drip Bucket -> MS-301 (Magnetite Reclaim Pipe)
         new("MS-301", FlowMedium.Magnetite, 0.075f, new Vector3[]
         {
             new(-1.9f, 0.55f, -8.6f),
             new(-1.9f, 1.35f, -9.2f),
             new(-1.6f, 1.35f, -11.4f)
-        }),
-        // MS-301 -> TK-301 (Recovered Magnetite Concentrate)
+        },
+            Id: "PIPE-301",
+            GaLabel: "Drip Bucket to Macsep Magnetite Reclaim Pipe",
+            DimensionsSpec: "DN150 rubber-lined steel · 3.0 m run · 1.8 m/s",
+            MechanicalPrinciple: "PP-302 pumps dilute magnetite rinse collected in the BK-301 drip bucket to the MS-301 wet-drum magnetic separator.",
+            ComponentDescription: "Magnetite reclaim line from the ground-floor drip bucket to the Macsep.",
+            UpstreamIds: new[] { "PP-302" },
+            DownstreamIds: new[] { "MS-301" }),
         new("MS-301", FlowMedium.Magnetite, 0.07f, new Vector3[]
         {
             new(-2.3f, 1.10f, -11.4f),
             new(-5.4f, 1.10f, -11.4f),
             new(-5.4f, 1.10f, -12.0f)
-        }),
-        // TK-301 -> WP-301 Massive Mixing Box (Magnetite Dense-Medium Feed)
+        },
+            Id: "PIPE-302",
+            GaLabel: "Macsep to Magnetite Tank Concentrate Return Pipe",
+            DimensionsSpec: "DN125 rubber-lined steel · 3.7 m run",
+            MechanicalPrinciple: "Gravity/pumped return of recovered magnetite concentrate from MS-301 into the TK-301 correct-medium sump.",
+            ComponentDescription: "Recovered magnetite concentrate return line.",
+            UpstreamIds: new[] { "MS-301" },
+            DownstreamIds: new[] { "TK-301" }),
         new("DM-301", FlowMedium.Magnetite, 0.08f, new Vector3[]
         {
             new(-5.4f, 1.45f, -12.0f),
             new(-5.4f, 1.45f, -10.2f),
             new(2.30f, 1.45f, -10.2f),
             new(2.30f, 1.45f, -8.30f)
-        }),
-        // WP-301 Massive Mixing Box -> Top-Mounted Cyclone Riser (Coal + Magnetite Mix)
+        },
+            Id: "PIPE-303",
+            GaLabel: "Magnetite Tank to Mixing Box Dense-Medium Feed Pipe",
+            DimensionsSpec: "DN150 rubber-lined steel · 11.4 m run · SG 1.52 medium",
+            MechanicalPrinciple: "Delivers correct dense medium (magnetite + water, SG 1.52) from TK-301 into the MX-301 mixing box.",
+            ComponentDescription: "Dense-medium feed line into the massive mixing box.",
+            UpstreamIds: new[] { "TK-301" },
+            DownstreamIds: new[] { "MX-301" }),
         new("DM-301", FlowMedium.Coal, 0.095f, new Vector3[]
         {
             new(2.30f, 1.85f, -8.30f),
             new(2.30f, 4.35f, -8.30f),
             new(0.25f, 4.35f, -7.60f),
             new(-0.15f, 4.15f, -7.60f)
-        }),
-        // WP-301 -> TK-201 (Slimes Effluent to Thickener Feedwell)
+        },
+            Id: "PIPE-304",
+            GaLabel: "Mixing Box to Top Cyclone Riser Feed Pipe (Coal-Magnetite Mix)",
+            DimensionsSpec: "DN250 ceramic-lined riser · 4.9 m run · 2.5 m vertical lift",
+            MechanicalPrinciple: "PP-301 pumps the coal-magnetite slurry from MX-301 up above the wash screens into the tangential inlet of DMC-301.",
+            ComponentDescription: "Cyclone feed riser from the mixing box to the top-mounted cyclone.",
+            UpstreamIds: new[] { "PP-301" },
+            DownstreamIds: new[] { "DMC-301" }),
         new("WP-301", FlowMedium.Slurry, 0.08f, new Vector3[]
         {
             new(-0.8f, 0.90f, -9.4f),
             new(-0.8f, 0.90f, -13.5f),
             new(-1.2f, 1.85f, -15.8f)
-        }),
-        // TK-201 -> PP-201 -> TK-301 (Thickener Underflow)
+        },
+            Id: "PIPE-305",
+            GaLabel: "Wash Plant Slimes Effluent to Thickener Feedwell Pipe",
+            DimensionsSpec: "DN200 HDPE · 6.5 m run",
+            MechanicalPrinciple: "Carries non-magnetic slimes effluent from the wash plant to the TK-201 thickener feedwell.",
+            ComponentDescription: "Slimes effluent line to the high-rate thickener.",
+            UpstreamIds: new[] { "WP-301" },
+            DownstreamIds: new[] { "TK-201" }),
         new("PP-201", FlowMedium.Slurry, 0.075f, new Vector3[]
         {
             new(-1.2f, 0.45f, -15.8f),
@@ -874,8 +913,14 @@ public static class Plant3DSceneData
             new(-4.6f, 0.45f, -15.0f),
             new(-5.4f, 0.95f, -15.0f),
             new(-5.4f, 0.95f, -12.0f)
-        }),
-        // TK-201 -> PP-203 -> Massive Mixing Box & Screen Wash Sprayers (Process Water Return)
+        },
+            Id: "PIPE-306",
+            GaLabel: "Thickener Underflow to Duty Pump & Medium Sump Pipe",
+            DimensionsSpec: "DN150 rubber-lined steel · 8.1 m run · 4.2 bar",
+            MechanicalPrinciple: "Thickened underflow from the TK-201 cone is pumped by PP-201 to the TK-301 medium sump.",
+            ComponentDescription: "Thickener underflow discharge line.",
+            UpstreamIds: new[] { "TK-201", "PP-201" },
+            DownstreamIds: new[] { "TK-301" }),
         new("PP-203", FlowMedium.Froth, 0.075f, new Vector3[]
         {
             new(1.4f, 1.45f, -15.8f),
@@ -884,8 +929,141 @@ public static class Plant3DSceneData
             new(2.30f, 1.15f, -8.30f),
             new(2.30f, 3.10f, -8.30f),
             new(-2.2f, 3.10f, -7.60f)
-        })
+        },
+            Id: "PIPE-307",
+            GaLabel: "Clarified Water Return Pipe to Mixing Box & Screen Sprayers",
+            DimensionsSpec: "DN100 galvanised steel · 14.6 m run",
+            MechanicalPrinciple: "PP-203 returns clarified process water from TK-201 to the MX-301 mixing box and the SPRAY-301 magnetite-reclaim spray bars.",
+            ComponentDescription: "Clarified process water return line.",
+            UpstreamIds: new[] { "PP-203" },
+            DownstreamIds: new[] { "MX-301", "SPRAY-301" })
     };
+
+    /// <summary>
+    /// Individually selectable smaller equipment inside the WP-301 open-top dense-medium wash plant.
+    /// These are not part of the 29-node primary GA topology; they are rendered inside wash_plant_module_wp301.glb.
+    /// </summary>
+    public static readonly IReadOnlyList<Plant3DNode> SubEquipmentNodes = new Plant3DNode[]
+    {
+        SubNode("MX-301", "Massive Dense-Medium Mixing Box", "Mixing Box (Agitated)", new(2.30f, 0.0f, -8.30f), new(1.12f, 1.15f, 1.12f), 2.75f,
+            "#1A5C96", "2.1 m × 2.1 m × 2.15 m · agitated · open top",
+            "Receives deslimed coal from CV-203, magnetite medium (PIPE-303) and process water (PIPE-307) and blends them into a homogeneous dense-medium slurry.",
+            "East massive mixing box with agitator bridge, water and magnetite inlets.",
+            new[] { "CV-203", "PIPE-303", "PIPE-307" }, new[] { "PP-301" }, "DM-301"),
+        SubNode("PP-301", "Cyclone Feed Slurry Pump", "Centrifugal Slurry Pump", new(2.30f, 0.0f, -7.05f), new(0.60f, 0.55f, 0.60f), 1.35f,
+            "#1A5C96", "DN250 · 450 m³/h @ 2.8 bar · 160 kW",
+            "Centrifugal pump at the mixing box base that lifts the coal-magnetite slurry up the PIPE-304 riser into DMC-301.",
+            "Cyclone feed pump below the mixing box.",
+            new[] { "MX-301" }, new[] { "PIPE-304" }, "DM-301"),
+        SubNode("DMC-301", "Top-Mounted Dense-Medium Cyclone", "Dense-Medium Cyclone", new(-0.35f, 3.65f, -7.60f), new(1.35f, 0.65f, 0.75f), 1.35f,
+            "#3A4048", "Ø 1080 mm barrel · 14° lay angle · SG 1.52",
+            "Centrifugal separation at SG 1.52: low-density clean coal exits the vortex finder (overflow) to SC-301; high-density discard exits the apex (underflow) to SC-302.",
+            "Open-top cyclone laying on the cradle above the wash screens.",
+            new[] { "PIPE-304" }, new[] { "SC-301", "SC-302" }, "DM-301"),
+        SubNode("SC-301", "Clean Coal Product Drain & Rinse Screen", "Product Wash Screen", new(-1.95f, 1.95f, -6.80f), new(2.15f, 0.55f, 0.62f), 1.25f,
+            "#1A5C96", "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW",
+            "Drains and rinses magnetite off cyclone overflow clean coal before discharge onto CV-301.",
+            "Product wash screen fed by DMC-301 overflow.",
+            new[] { "DMC-301", "SPRAY-301" }, new[] { "CV-301", "BK-301" }, "DM-301"),
+        SubNode("SC-302", "Discard / Refuse Drain & Rinse Screen", "Discard Wash Screen", new(-1.95f, 1.95f, -8.40f), new(2.15f, 0.55f, 0.62f), 1.25f,
+            "#1A5C96", "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW",
+            "Drains and rinses magnetite off cyclone underflow discard before discharge onto CV-302.",
+            "Discard wash screen fed by DMC-301 underflow.",
+            new[] { "DMC-301", "SPRAY-301" }, new[] { "CV-302", "BK-301" }, "CV-501"),
+        SubNode("SPRAY-301", "Overhead Magnetite-Reclaim Water Sprayer Manifold", "Spray Bar Manifold", new(-2.15f, 2.85f, -7.60f), new(1.45f, 0.30f, 1.55f), 0.75f,
+            "#B8C0C8", "5 spray bars · 30 nozzles · 3.5 bar",
+            "Clarified water sprays wash adhering magnetite off product and discard so it drips into BK-301 for reclaim.",
+            "Overhead spray bars spanning both wash screens.",
+            new[] { "PIPE-307" }, new[] { "SC-301", "SC-302", "BK-301" }, "PP-203"),
+        SubNode("BK-301", "Ground-Floor Under-Screen Tank & Magnetite Drip Bucket", "Drip Bucket / Sump", new(-1.90f, 0.15f, -7.65f), new(1.80f, 0.85f, 1.45f), 1.85f,
+            "#3A4048", "3.6 m × 2.8 m under-screen tanks · conical sump",
+            "Collects magnetite-laden rinse water dripping off both wash screens for pumping back to medium recovery.",
+            "Ground-floor tanks and conical magnetite drip bucket.",
+            new[] { "SC-301", "SC-302", "SPRAY-301" }, new[] { "PP-302" }, "MS-301"),
+        SubNode("PP-302", "Magnetite Drip-Bucket Reclaim Pump", "Centrifugal Slurry Pump", new(-1.90f, 0.10f, -9.45f), new(0.65f, 0.50f, 0.55f), 1.15f,
+            "#1A5C96", "DN150 · 180 m³/h @ 2.2 bar · 45 kW",
+            "Pumps reclaimed magnetite rinse from BK-301 through PIPE-301 to MS-301.",
+            "Reclaim pump beside the drip bucket.",
+            new[] { "BK-301" }, new[] { "PIPE-301" }, "MS-301")
+    };
+
+    public static readonly IReadOnlyList<Plant3DNode> PipeNodes = BuildPipeNodes();
+
+    /// <summary>All individually interactive 3D items: 29 GA nodes + 8 wash-plant sub-equipment + 7 process pipes.</summary>
+    public static readonly IReadOnlyList<Plant3DNode> InteractiveNodes = AllNodes.Concat(SubEquipmentNodes).Concat(PipeNodes).ToArray();
+
+    private static Plant3DNode SubNode(
+        string id, string ga, string type, Vector3 pos, Vector3 half, float labelH, string color,
+        string spec, string principle, string desc, string[] up, string[] down, string scada) =>
+        new(
+            Id: id,
+            GaLabel: ga,
+            StageLabel: "Wash Plant & Medium Recovery (WP-301)",
+            EquipmentType: type,
+            GlbFileName: string.Empty,
+            Position: pos,
+            YawDegrees: 0f,
+            Scale: Vector3.One,
+            HalfExtents: half,
+            LabelHeight: labelH,
+            DefaultColor: Color.Parse(color),
+            DimensionsSpec: spec,
+            MechanicalPrinciple: principle,
+            ComponentDescription: desc,
+            UpstreamIds: up,
+            DownstreamIds: down,
+            LinkedScadaId: scada,
+            IsSubComponent: true);
+
+    private static IReadOnlyList<Plant3DNode> BuildPipeNodes()
+    {
+        var list = new List<Plant3DNode>(PipeRoutes.Count);
+        foreach (var r in PipeRoutes)
+        {
+            if (string.IsNullOrWhiteSpace(r.Id)) continue;
+            var mid = SamplePolyline(r.Waypoints, 0.5f);
+            var minV = r.Waypoints.Aggregate(Vector3.Min);
+            var maxV = r.Waypoints.Aggregate(Vector3.Max);
+            var half = Vector3.Max((maxV - minV) * 0.5f, new Vector3(0.2f));
+            string scada = r.Id switch
+            {
+                "PIPE-303" => "TK-301",
+                "PIPE-305" => "TK-201",
+                _ => r.SourceEquipmentId
+            };
+            list.Add(new Plant3DNode(
+                Id: r.Id,
+                GaLabel: r.GaLabel,
+                StageLabel: r.StageLabel,
+                EquipmentType: $"Process Pipe ({r.Medium})",
+                GlbFileName: string.Empty,
+                Position: mid,
+                YawDegrees: 0f,
+                Scale: Vector3.One,
+                HalfExtents: half,
+                LabelHeight: 0.45f,
+                DefaultColor: GetMediumColor(r.Medium),
+                DimensionsSpec: r.DimensionsSpec,
+                MechanicalPrinciple: r.MechanicalPrinciple,
+                ComponentDescription: r.ComponentDescription,
+                UpstreamIds: r.UpstreamIds ?? Array.Empty<string>(),
+                DownstreamIds: r.DownstreamIds ?? Array.Empty<string>(),
+                LinkedScadaId: scada,
+                IsPipe: true));
+        }
+        return list;
+    }
+
+    public static PipeRoute? FindPipeRoute(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        foreach (var r in PipeRoutes)
+        {
+            if (string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+        return null;
+    }
 
     private static readonly object CacheLock = new();
     private static Dictionary<string, GlbMeshData>? _meshCache;
@@ -1117,6 +1295,14 @@ public static class Plant3DSceneData
         "PP-202" => "Direct PLC: PP202 (Modbus 10.10.2.23:502 · Cnl 221)",
         "PP-203" => "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)",
         "TK-301" or "MS-301" or "WP-301" => "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–305)",
+        "MX-301" or "PP-301" or "DMC-301" => "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)",
+        "SC-301" or "SC-302" => "Direct PLC: DS_WASH (Modbus 10.10.3.32:502 · Cnl 315–316)",
+        "SPRAY-301" => "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)",
+        "BK-301" or "PP-302" or "PIPE-301" or "PIPE-302" => "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)",
+        "PIPE-303" or "PIPE-304" => "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–302)",
+        "PIPE-305" => "Direct PLC: TK201 (Modbus 10.10.2.21:502 · Cnl 201–203)",
+        "PIPE-306" => "Direct PLC: PP201 (Modbus 10.10.2.22:502 · Cnl 211–212)",
+        "PIPE-307" => "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)",
         _ => $"Derived Process Model (coupled to {linkedScadaId})"
     };
 
@@ -1882,6 +2068,37 @@ public static class Plant3DSceneData
                 bestId = c.Id;
             }
         }
+
+        // Individually selectable wash-plant sub-equipment & process pipes take priority over the
+        // enclosing WP-301 structural frame (whose AABB wraps them).
+        string? fineId = null;
+        float fineT = float.PositiveInfinity;
+        foreach (var s in SubEquipmentNodes)
+        {
+            var min = new Vector3(s.Position.X - s.HalfExtents.X, s.Position.Y, s.Position.Z - s.HalfExtents.Z);
+            var max = new Vector3(s.Position.X + s.HalfExtents.X, s.Position.Y + s.HalfExtents.Y * 2f, s.Position.Z + s.HalfExtents.Z);
+            if (RayIntersectsAabb(ray, min, max, out float t) && t < fineT)
+            {
+                fineT = t;
+                fineId = s.Id;
+            }
+        }
+        foreach (var r in PipeRoutes)
+        {
+            if (string.IsNullOrWhiteSpace(r.Id)) continue;
+            float rad = r.Radius + 0.16f;
+            for (int i = 0; i < r.Waypoints.Length - 1; i++)
+            {
+                if (RayIntersectsSegmentCapsule(ray, r.Waypoints[i], r.Waypoints[i + 1], rad, out float t) && t <= fineT + 0.05f)
+                {
+                    fineT = MathF.Min(fineT, t);
+                    fineId = r.Id;
+                }
+            }
+        }
+
+        if (fineId is not null && (fineT < bestT || string.Equals(bestId, "WP-301", StringComparison.OrdinalIgnoreCase)))
+            return fineId;
 
         return bestId;
     }

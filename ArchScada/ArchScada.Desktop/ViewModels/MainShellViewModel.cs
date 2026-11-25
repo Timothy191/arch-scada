@@ -52,7 +52,7 @@ public partial class MainShellViewModel : ViewModelBase
 
     public Unity3DEffectSettings UnityEffects { get; } = new();
 
-    public IReadOnlyList<Plant3DNode> All3DNodes => Plant3DSceneData.AllNodes;
+    public IReadOnlyList<Plant3DNode> All3DNodes => Plant3DSceneData.InteractiveNodes;
 
     public IReadOnlyList<string> CameraPresets { get; } = new[]
     {
@@ -385,7 +385,7 @@ public partial class MainShellViewModel : ViewModelBase
     [RelayCommand]
     private void SelectNext3DNode()
     {
-        var nodes = Plant3DSceneData.AllNodes;
+        var nodes = Plant3DSceneData.InteractiveNodes;
         if (nodes.Count == 0) return;
         int idx = -1;
         if (Selected3DNode is not null)
@@ -408,7 +408,7 @@ public partial class MainShellViewModel : ViewModelBase
     [RelayCommand]
     private void SelectPrev3DNode()
     {
-        var nodes = Plant3DSceneData.AllNodes;
+        var nodes = Plant3DSceneData.InteractiveNodes;
         if (nodes.Count == 0) return;
         int idx = 0;
         if (Selected3DNode is not null)

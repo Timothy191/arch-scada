@@ -242,7 +242,7 @@ public sealed class Plant3DViewportControl : Panel
 
         _goalTargetX = pos.X;
         _goalTargetZ = pos.Z;
-        _goalZoom = node.IsConveyor ? 1.28 : 1.56;
+        _goalZoom = (node.IsSubComponent || node.IsPipe) ? 1.65 : node.IsConveyor ? 1.28 : 1.56;
         _goalPitch = 0.48;
         SyncCanvasState();
         _glCanvas.RequestNextFrameRendering();
@@ -301,7 +301,7 @@ public sealed class Plant3DViewportControl : Panel
                 _goalYaw = -0.48; _goalPitch = 0.48; _goalZoom = 1.48; _goalTargetX = 0.0; _goalTargetZ = 0.5;
                 break;
             case "Wash Plant & Thickener":
-                _goalYaw = -0.45; _goalPitch = 0.58; _goalZoom = 0.78; _goalTargetX = -0.8; _goalTargetZ = -11.8;
+                _goalYaw = -0.45; _goalPitch = 0.58; _goalZoom = 0.86; _goalTargetX = -0.8; _goalTargetZ = -11.8;
                 break;
             default: // "Plant Overview"
                 _goalYaw = -0.58; _goalPitch = 0.56; _goalZoom = 0.52; _goalTargetX = -1.8; _goalTargetZ = -1.2;
@@ -608,10 +608,16 @@ public sealed class Plant3DViewportControl : Panel
             }
 
             // Orthogonal 3D Slurry / Magnetite / Water Pipes
+            string? pipeSel = _owner.Selected3DNode?.Id ?? _owner.SelectedEquipment?.Id;
             foreach (var route in Plant3DSceneData.PipeRoutes)
             {
                 var c = Plant3DSceneData.GetMediumColor(route.Medium);
-                var pipePen = new Pen(GetBrush(c.R, c.G, c.B, 175), 2.5);
+                bool pipeActive = !string.IsNullOrWhiteSpace(route.Id) &&
+                    (string.Equals(pipeSel, route.Id, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(_owner._hoveredId, route.Id, StringComparison.OrdinalIgnoreCase));
+                var pipePen = pipeActive
+                    ? new Pen(GetBrush(56, 189, 248, 240), 5.0)
+                    : new Pen(GetBrush(c.R, c.G, c.B, 175), 2.5);
                 for (int i = 0; i < route.Waypoints.Length - 1; i++)
                 {
                     if (Plant3DSceneData.TryProjectToScreen(route.Waypoints[i], viewProj, w, h, out var p0, out _) &&
@@ -817,12 +823,12 @@ public sealed class Plant3DViewportControl : Panel
 
             // Alarm Halos & Selection Ring
             double pulse = 0.55 + 0.45 * Math.Sin(_owner._time * 4.5);
-            foreach (var p in Plant3DSceneData.AllNodes)
+            foreach (var p in Plant3DSceneData.InteractiveNodes)
             {
                 eqMap.TryGetValue(p.LinkedScadaId, out var eq);
                 var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
-                float rad = p.IsConveyor ? 1.15f : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.3f;
-                if (!p.IsConveyor && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
+                float rad = p.IsConveyor ? 1.15f : p.IsPipe ? 0.55f : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.3f;
+                if (!p.IsConveyor && !p.IsSubComponent && !p.IsPipe && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
                 {
                     var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
                     DrawProjectedRing(context, viewProj, w, h, pos with { Y = 0.12f }, rad + (float)(0.2 * pulse),
@@ -830,7 +836,7 @@ public sealed class Plant3DViewportControl : Panel
                 }
                 if (string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase))
                 {
-                    DrawProjectedRing(context, viewProj, w, h, pos with { Y = p.IsConveyor ? pos.Y : 0.14f }, rad + 0.18f, SelectedLabelPen);
+                    DrawProjectedRing(context, viewProj, w, h, pos with { Y = (p.IsConveyor || p.IsPipe || p.IsSubComponent) ? pos.Y + 0.10f : 0.14f }, rad + 0.18f, SelectedLabelPen);
                 }
             }
         }
@@ -963,7 +969,7 @@ public sealed class Plant3DViewportControl : Panel
             Matrix4x4 viewProj, Dictionary<string, EquipmentItem> eqMap, LoaderPose loaderPose)
         {
             _owner._hitRects.Clear();
-            var placed = new List<Rect>(Plant3DSceneData.AllNodes.Count + 3)
+            var placed = new List<Rect>(Plant3DSceneData.InteractiveNodes.Count + 3)
             {
                 // Reserve top HUD bar, top-right axis gizmo, and bottom hint bar from label clutter
                 new Rect(0, 0, w, 40),
@@ -972,10 +978,11 @@ public sealed class Plant3DViewportControl : Panel
             };
             string? activeSelected = _owner.Selected3DNode?.Id ?? _owner.SelectedEquipment?.Id;
 
-            var ordered = Plant3DSceneData.AllNodes
-                .OrderByDescending(p => string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase) ? 4
-                    : string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase) ? 3
-                    : (!p.IsConveyor ? 2 : 0) + (eqMap.TryGetValue(p.LinkedScadaId, out var e) && e.Status is EquipmentStatus.Fault or EquipmentStatus.Warning ? 1 : 0));
+            var ordered = Plant3DSceneData.InteractiveNodes
+                .OrderByDescending(p => string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase) ? 6
+                    : string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase) ? 5
+                    : (!p.IsConveyor && !p.IsSubComponent && !p.IsPipe ? 3 : p.IsSubComponent ? 2 : 0)
+                      + (!p.IsSubComponent && !p.IsPipe && eqMap.TryGetValue(p.LinkedScadaId, out var e) && e.Status is EquipmentStatus.Fault or EquipmentStatus.Warning ? 1 : 0));
 
             foreach (var p in ordered)
             {
@@ -989,6 +996,10 @@ public sealed class Plant3DViewportControl : Panel
 
                 // When zoomed out, only show conveyor labels if hovered/selected or zoomed in >= 0.85
                 if (p.IsConveyor && !isSelected && !isHovered && _owner._zoom < 0.78)
+                    continue;
+                if (p.IsSubComponent && !isSelected && !isHovered && _owner._zoom < 0.76)
+                    continue;
+                if (p.IsPipe && !isSelected && !isHovered && _owner._zoom < 0.84)
                     continue;
 
                 bool showDetail = isSelected || isHovered || _owner._zoom >= 1.28;
@@ -1035,7 +1046,12 @@ public sealed class Plant3DViewportControl : Panel
             if (node is null) return;
 
             eqMap.TryGetValue(node.LinkedScadaId, out var eq);
-            flowMap.TryGetValue(node.Id, out var flow);
+            if (!flowMap.TryGetValue(node.Id, out var flow) &&
+                !flowMap.TryGetValue(node.LinkedScadaId, out flow) &&
+                (node.IsSubComponent || node.IsPipe))
+            {
+                flowMap.TryGetValue("WP-301", out flow);
+            }
 
             string line1 = $"{node.Id} — {node.GaLabel}";
             string line2 = $"{node.StageLabel}  |  {node.FlowSummary}";

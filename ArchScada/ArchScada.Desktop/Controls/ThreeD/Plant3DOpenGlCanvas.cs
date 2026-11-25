@@ -1037,13 +1037,16 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glUniform1f!(_uTintMix, 1.0f);
 
             float pulse = 0.55f + 0.45f * MathF.Sin((float)(SimTime * 4.5));
-            foreach (var p in Plant3DSceneData.AllNodes)
+            foreach (var p in Plant3DSceneData.InteractiveNodes)
             {
                 eqMap.TryGetValue(p.LinkedScadaId, out var eq);
                 var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
-                float baseR = p.IsConveyor ? 1.15f : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
+                bool isPrimaryMachine = !p.IsConveyor && !p.IsSubComponent && !p.IsPipe;
+                float baseR = p.IsConveyor ? 1.15f
+                    : p.IsPipe ? 0.55f
+                    : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
 
-                if (!p.IsConveyor && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
+                if (isPrimaryMachine && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
                 {
                     var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
                     var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
@@ -1496,6 +1499,59 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                     var pm = Matrix4x4.CreateScale(0.16f) * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.06f, pos.Z);
                     _unlitBoxes.Add(new InstanceItem(pm, c.R / 255f, c.G / 255f, c.B / 255f, 0.95f, 0f, 0.4f));
                 }
+            }
+        }
+
+        // 5b. Individual Sub-Equipment & Pipe Hover/Selection Highlights
+        foreach (var sub in Plant3DSceneData.SubEquipmentNodes)
+        {
+            bool isSel = string.Equals(activeSelected, sub.Id, StringComparison.OrdinalIgnoreCase);
+            bool isHov = string.Equals(hoveredId, sub.Id, StringComparison.OrdinalIgnoreCase);
+            if (!isSel && !isHov) continue;
+
+            var hc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
+            float r = hc.R / 255f, g = hc.G / 255f, b = hc.B / 255f;
+            var size = new Vector3(sub.HalfExtents.X * 2f + 0.10f, sub.HalfExtents.Y * 2f + 0.10f, sub.HalfExtents.Z * 2f + 0.10f);
+            var center = new Vector3(sub.Position.X, sub.Position.Y + sub.HalfExtents.Y, sub.Position.Z);
+            _softParticleBoxes.Add(new InstanceItem(
+                Matrix4x4.CreateScale(size) * Matrix4x4.CreateTranslation(center),
+                r, g, b, isSel ? 0.30f : 0.20f, 0f, 0.5f));
+
+            // Bright rim bars on top & bottom edges
+            foreach (float yEdge in new[] { center.Y - size.Y * 0.5f, center.Y + size.Y * 0.5f })
+            {
+                foreach (float zEdge in new[] { center.Z - size.Z * 0.5f, center.Z + size.Z * 0.5f })
+                    _unlitBoxes.Add(new InstanceItem(Matrix4x4.CreateScale(size.X, 0.035f, 0.035f) * Matrix4x4.CreateTranslation(center.X, yEdge, zEdge), r, g, b, 0.95f, 0f, 0.5f));
+                foreach (float xEdge in new[] { center.X - size.X * 0.5f, center.X + size.X * 0.5f })
+                    _unlitBoxes.Add(new InstanceItem(Matrix4x4.CreateScale(0.035f, 0.035f, size.Z) * Matrix4x4.CreateTranslation(xEdge, yEdge, center.Z), r, g, b, 0.95f, 0f, 0.5f));
+            }
+        }
+
+        foreach (var route in Plant3DSceneData.PipeRoutes)
+        {
+            bool isSel = string.Equals(activeSelected, route.Id, StringComparison.OrdinalIgnoreCase);
+            bool isHov = string.Equals(hoveredId, route.Id, StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(route.Id) || (!isSel && !isHov)) continue;
+
+            var hc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
+            float sleeve = route.Radius * 2f + 0.12f;
+            for (int w = 0; w < route.Waypoints.Length - 1; w++)
+            {
+                var a = route.Waypoints[w];
+                var bPt = route.Waypoints[w + 1];
+                var d = bPt - a;
+                float len = d.Length();
+                if (len < 1e-3f) continue;
+                var dirN = d / len;
+                var axis = Vector3.Cross(Vector3.UnitX, dirN);
+                float dot = Math.Clamp(Vector3.Dot(Vector3.UnitX, dirN), -1f, 1f);
+                Quaternion q = axis.LengthSquared() < 1e-8f
+                    ? (dot > 0f ? Quaternion.Identity : Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI))
+                    : Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(dot));
+                var m = Matrix4x4.CreateScale(len + sleeve, sleeve, sleeve)
+                      * Matrix4x4.CreateFromQuaternion(q)
+                      * Matrix4x4.CreateTranslation((a + bPt) * 0.5f);
+                _softParticleBoxes.Add(new InstanceItem(m, hc.R / 255f, hc.G / 255f, hc.B / 255f, isSel ? 0.55f : 0.38f, 0f, 0.5f));
             }
         }
 

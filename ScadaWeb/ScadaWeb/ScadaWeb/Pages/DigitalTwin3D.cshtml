@@ -472,7 +472,7 @@
             <span class="brand-title">ARCH SCADA · CHPP 3D DIGITAL TWIN</span>
             <span class="badge badge-ro" title="Zero PLC Write Path · HTTP GET Only">READ-ONLY · NO PLC WRITE</span>
             <span id="provenance-badge" class="badge badge-demo">SIMULATED DEMO TELEMETRY · READ-ONLY</span>
-            <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES</span>
+            <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES + 15 SUB-ITEMS</span>
         </div>
 
         <div class="kpi-strip">
@@ -552,7 +552,7 @@
             </div>
 
             <div class="insp-card">
-                <h4>All 29 GA Plant Nodes (18 Machines + 11 Conveyors)</h4>
+                <h4>All 44 Interactive Items (18 Machines · 11 Conveyors · 8 Sub-Equipment · 7 Pipes)</h4>
                 <div class="node-directory" id="node-directory"></div>
             </div>
         </div>
@@ -598,6 +598,46 @@ const CONVEYORS = [
     { id: "CV-302", ga: "discard conv", stage: "Wash Plant & Medium Recovery", tail: [-4.4, 2.05, -8.4], head: [-9.6, 2.55, -8.2], width: 0.80, dropY: 1.45, dropOff: [-0.75, 0, 0], matCol: "#23272F", lump: 0.090, scada: "CV-501", up: ["WP-301"], down: ["SP-302"], nomTph: 100, spec: "5.2 m WSW · 900 mm belt · 74.5 kW", principle: "Conveys high-ash shale sinks from WP-301 refuse screen onto Discard Stockpile SP-302.", desc: "Plant reject / shale discard stacker conveyor.", plc: "Derived Process Model (coupled to CV-501)" }
 ];
 
+// Individually interactive process pipes (PIPE-301..307) & WP-301 sub-equipment (synced with Desktop Plant3DSceneData.cs)
+const PIPE_ROUTES = [
+    { id: "PIPE-301", src: "MS-301", scada: "MS-301", color: "#14B8A6", r: 0.075, pts: [[-1.9, 0.55, -8.6], [-1.9, 1.35, -9.2], [-1.6, 1.35, -11.4]], ga: "Drip Bucket to Macsep Magnetite Reclaim Pipe", spec: "DN150 rubber-lined steel · 3.0 m run · 1.8 m/s", principle: "PP-302 pumps dilute magnetite rinse collected in the BK-301 drip bucket to the MS-301 wet-drum magnetic separator.", desc: "Magnetite reclaim line from the ground-floor drip bucket to the Macsep.", up: ["PP-302"], down: ["MS-301"], nomTph: 180, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" },
+    { id: "PIPE-302", src: "MS-301", scada: "MS-301", color: "#14B8A6", r: 0.07, pts: [[-2.3, 1.10, -11.4], [-5.4, 1.10, -11.4], [-5.4, 1.10, -12.0]], ga: "Macsep to Magnetite Tank Concentrate Return Pipe", spec: "DN125 rubber-lined steel · 3.7 m run", principle: "Return of recovered magnetite concentrate from MS-301 into the TK-301 correct-medium sump.", desc: "Recovered magnetite concentrate return line.", up: ["MS-301"], down: ["TK-301"], nomTph: 120, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" },
+    { id: "PIPE-303", src: "DM-301", scada: "TK-301", color: "#14B8A6", r: 0.08, pts: [[-5.4, 1.45, -12.0], [-5.4, 1.45, -10.2], [2.30, 1.45, -10.2], [2.30, 1.45, -8.30]], ga: "Magnetite Tank to Mixing Box Dense-Medium Feed Pipe", spec: "DN150 rubber-lined steel · 11.4 m run · SG 1.52 medium", principle: "Delivers correct dense medium (magnetite + water, SG 1.52) from TK-301 into the MX-301 mixing box.", desc: "Dense-medium feed line into the massive mixing box.", up: ["TK-301"], down: ["MX-301"], nomTph: 320, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–302)" },
+    { id: "PIPE-304", src: "DM-301", scada: "DM-301", color: "#181C22", r: 0.095, pts: [[2.30, 1.85, -8.30], [2.30, 4.35, -8.30], [0.25, 4.35, -7.60], [-0.15, 4.15, -7.60]], ga: "Mixing Box to Top Cyclone Riser Feed Pipe (Coal-Magnetite Mix)", spec: "DN250 ceramic-lined riser · 4.9 m run · 2.5 m vertical lift", principle: "PP-301 pumps the coal-magnetite slurry from MX-301 up above the wash screens into the tangential inlet of DMC-301.", desc: "Cyclone feed riser from the mixing box to the top-mounted cyclone.", up: ["PP-301"], down: ["DMC-301"], nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 301–302)" },
+    { id: "PIPE-305", src: "WP-301", scada: "TK-201", color: "#38BDF8", r: 0.08, pts: [[-0.8, 0.90, -9.4], [-0.8, 0.90, -13.5], [-1.2, 1.85, -15.8]], ga: "Wash Plant Slimes Effluent to Thickener Feedwell Pipe", spec: "DN200 HDPE · 6.5 m run", principle: "Carries non-magnetic slimes effluent from the wash plant to the TK-201 thickener feedwell.", desc: "Slimes effluent line to the high-rate thickener.", up: ["WP-301"], down: ["TK-201"], nomTph: 320, plc: "Direct PLC: TK201 (Modbus 10.10.2.21:502 · Cnl 201–203)" },
+    { id: "PIPE-306", src: "PP-201", scada: "PP-201", color: "#38BDF8", r: 0.075, pts: [[-1.2, 0.45, -15.8], [-4.6, 0.45, -15.8], [-4.6, 0.45, -15.0], [-5.4, 0.95, -15.0], [-5.4, 0.95, -12.0]], ga: "Thickener Underflow to Duty Pump & Medium Sump Pipe", spec: "DN150 rubber-lined steel · 8.1 m run · 4.2 bar", principle: "Thickened underflow from the TK-201 cone is pumped by PP-201 to the TK-301 medium sump.", desc: "Thickener underflow discharge line.", up: ["TK-201", "PP-201"], down: ["TK-301"], nomTph: 320, plc: "Direct PLC: PP201 (Modbus 10.10.2.22:502 · Cnl 211–212)" },
+    { id: "PIPE-307", src: "PP-203", scada: "PP-203", color: "#22C55E", r: 0.075, pts: [[1.4, 1.45, -15.8], [2.2, 1.45, -15.8], [2.2, 0.65, -15.0], [2.30, 1.15, -8.30], [2.30, 3.10, -8.30], [-2.2, 3.10, -7.60]], ga: "Clarified Water Return Pipe to Mixing Box & Screen Sprayers", spec: "DN100 galvanised steel · 14.6 m run", principle: "PP-203 returns clarified process water from TK-201 to the MX-301 mixing box and the SPRAY-301 magnetite-reclaim spray bars.", desc: "Clarified process water return line.", up: ["PP-203"], down: ["MX-301", "SPRAY-301"], nomTph: 320, plc: "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)" }
+];
+
+const SUB_EQUIPMENT_NODES = [
+    { id: "MX-301", ga: "Massive Dense-Medium Mixing Box", type: "Mixing Box (Agitated)", pos: [2.30, 0.0, -8.30], half: [1.12, 1.15, 1.12], labelH: 2.75, color: "#1A5C96", spec: "2.1 m × 2.1 m × 2.15 m · agitated · open top", principle: "Receives deslimed coal from CV-203, magnetite medium (PIPE-303) and process water (PIPE-307) and blends them into a homogeneous dense-medium slurry.", desc: "East massive mixing box with agitator bridge, water and magnetite inlets.", up: ["CV-203", "PIPE-303", "PIPE-307"], down: ["PP-301"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
+    { id: "PP-301", ga: "Cyclone Feed Slurry Pump", type: "Centrifugal Slurry Pump", pos: [2.30, 0.0, -7.05], half: [0.60, 0.55, 0.60], labelH: 1.35, color: "#1A5C96", spec: "DN250 · 450 m³/h @@ 2.8 bar · 160 kW", principle: "Centrifugal pump at the mixing box base that lifts the coal-magnetite slurry up the PIPE-304 riser into DMC-301.", desc: "Cyclone feed pump below the mixing box.", up: ["MX-301"], down: ["PIPE-304"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
+    { id: "DMC-301", ga: "Top-Mounted Dense-Medium Cyclone", type: "Dense-Medium Cyclone", pos: [-0.35, 3.65, -7.60], half: [1.35, 0.65, 0.75], labelH: 1.35, color: "#3A4048", spec: "Ø 1080 mm barrel · 14° lay angle · SG 1.52", principle: "Centrifugal separation at SG 1.52: clean coal overflow to SC-301; high-density discard underflow to SC-302.", desc: "Open-top cyclone laying on the cradle above the wash screens.", up: ["PIPE-304"], down: ["SC-301", "SC-302"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
+    { id: "SC-301", ga: "Clean Coal Product Drain & Rinse Screen", type: "Product Wash Screen", pos: [-1.95, 1.95, -6.80], half: [2.15, 0.55, 0.62], labelH: 1.25, color: "#1A5C96", spec: "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW", principle: "Drains and rinses magnetite off cyclone overflow clean coal before discharge onto CV-301.", desc: "Product wash screen fed by DMC-301 overflow.", up: ["DMC-301", "SPRAY-301"], down: ["CV-301", "BK-301"], scada: "DM-301", nomTph: 410, plc: "Direct PLC: DS_WASH (Modbus 10.10.3.32:502 · Cnl 315–316)" },
+    { id: "SC-302", ga: "Discard / Refuse Drain & Rinse Screen", type: "Discard Wash Screen", pos: [-1.95, 1.95, -8.40], half: [2.15, 0.55, 0.62], labelH: 1.25, color: "#1A5C96", spec: "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW", principle: "Drains and rinses magnetite off cyclone underflow discard before discharge onto CV-302.", desc: "Discard wash screen fed by DMC-301 underflow.", up: ["DMC-301", "SPRAY-301"], down: ["CV-302", "BK-301"], scada: "CV-501", nomTph: 100, plc: "Direct PLC: DS_WASH (Modbus 10.10.3.32:502 · Cnl 315–316)" },
+    { id: "SPRAY-301", ga: "Overhead Magnetite-Reclaim Water Sprayer Manifold", type: "Spray Bar Manifold", pos: [-2.15, 2.85, -7.60], half: [1.45, 0.30, 1.55], labelH: 0.75, color: "#B8C0C8", spec: "5 spray bars · 30 nozzles · 3.5 bar", principle: "Clarified water sprays wash adhering magnetite off product and discard so it drips into BK-301 for reclaim.", desc: "Overhead spray bars spanning both wash screens.", up: ["PIPE-307"], down: ["SC-301", "SC-302", "BK-301"], scada: "PP-203", nomTph: 320, plc: "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)" },
+    { id: "BK-301", ga: "Ground-Floor Under-Screen Tank & Magnetite Drip Bucket", type: "Drip Bucket / Sump", pos: [-1.90, 0.15, -7.65], half: [1.80, 0.85, 1.45], labelH: 1.85, color: "#3A4048", spec: "3.6 m × 2.8 m under-screen tanks · conical sump", principle: "Collects magnetite-laden rinse water dripping off both wash screens for pumping back to medium recovery.", desc: "Ground-floor tanks and conical magnetite drip bucket.", up: ["SC-301", "SC-302", "SPRAY-301"], down: ["PP-302"], scada: "MS-301", nomTph: 180, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" },
+    { id: "PP-302", ga: "Magnetite Drip-Bucket Reclaim Pump", type: "Centrifugal Slurry Pump", pos: [-1.90, 0.10, -9.45], half: [0.65, 0.50, 0.55], labelH: 1.15, color: "#1A5C96", spec: "DN150 · 180 m³/h @@ 2.2 bar · 45 kW", principle: "Pumps reclaimed magnetite rinse from BK-301 through PIPE-301 to MS-301.", desc: "Reclaim pump beside the drip bucket.", up: ["BK-301"], down: ["PIPE-301"], scada: "MS-301", nomTph: 180, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" }
+];
+
+function polylineMid(pts) {
+    let total = 0;
+    const segs = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+        const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1], pts[i + 1][2] - pts[i][2]);
+        segs.push(d); total += d;
+    }
+    let target = total * 0.5;
+    for (let i = 0; i < segs.length; i++) {
+        if (target <= segs[i] || i === segs.length - 1) {
+            const f = segs[i] > 1e-5 ? target / segs[i] : 0;
+            return [0, 1, 2].map(k => pts[i][k] + (pts[i + 1][k] - pts[i][k]) * f);
+        }
+        target -= segs[i];
+    }
+    return pts[pts.length - 1];
+}
+
 const ALL_NODES = [
     ...MACHINE_NODES.map(m => ({ ...m, isConveyor: false })),
     ...CONVEYORS.map(c => ({
@@ -617,6 +657,12 @@ const ALL_NODES = [
         nomTph: c.nomTph,
         plc: c.plc,
         isConveyor: true
+    })),
+    ...SUB_EQUIPMENT_NODES.map(sn => ({ ...sn, stage: "Wash Plant & Medium Recovery (WP-301)", isSub: true })),
+    ...PIPE_ROUTES.map(r => ({
+        id: r.id, ga: r.ga, stage: "Wash Plant & Medium Recovery", type: "Process Pipe",
+        pos: polylineMid(r.pts), labelH: 0.45, color: r.color, spec: r.spec, principle: r.principle, desc: r.desc,
+        up: r.up, down: r.down, scada: r.scada, nomTph: r.nomTph, plc: r.plc, isPipe: true
     }))
 ];
 
@@ -629,16 +675,6 @@ const FOUNDATION_PADS = [
     { name: "SURGE & DESLIMING", center: [10.4, -0.06, -5.2], size: [6.2, 0.12, 12.0], accent: "#0EA5E9" },
     { name: "WASH PLANT & PILES", center: [-5.0, -0.06, -7.2], size: [14.5, 0.12, 6.2], accent: "#22C55E" },
     { name: "MEDIUM & THICKENER", center: [-1.6, -0.06, -13.9], size: [11.6, 0.12, 7.6], accent: "#14B8A6" }
-];
-
-const PIPE_ROUTES = [
-    { src: "MS-301", color: "#14B8A6", r: 0.075, pts: [[-1.9, 0.55, -8.6], [-1.9, 1.35, -9.2], [-1.6, 1.35, -11.4]] },
-    { src: "MS-301", color: "#14B8A6", r: 0.07, pts: [[-2.3, 1.10, -11.4], [-5.4, 1.10, -11.4], [-5.4, 1.10, -12.0]] },
-    { src: "DM-301", color: "#14B8A6", r: 0.08, pts: [[-5.4, 1.45, -12.0], [-5.4, 1.45, -10.2], [2.30, 1.45, -10.2], [2.30, 1.45, -8.30]] },
-    { src: "DM-301", color: "#181C22", r: 0.095, pts: [[2.30, 1.85, -8.30], [2.30, 4.35, -8.30], [0.25, 4.35, -7.60], [-0.15, 4.15, -7.60]] },
-    { src: "WP-301", color: "#38BDF8", r: 0.08, pts: [[-0.8, 0.90, -9.4], [-0.8, 0.90, -13.5], [-1.2, 1.85, -15.8]] },
-    { src: "PP-201", color: "#38BDF8", r: 0.075, pts: [[-1.2, 0.45, -15.8], [-4.6, 0.45, -15.8], [-4.6, 0.45, -15.0], [-5.4, 0.95, -15.0], [-5.4, 0.95, -12.0]] },
-    { src: "PP-203", color: "#22C55E", r: 0.075, pts: [[1.4, 1.45, -15.8], [2.2, 1.45, -15.8], [2.2, 0.65, -15.0], [2.30, 1.15, -8.30], [2.30, 3.10, -8.30], [-2.2, 3.10, -7.60]] }
 ];
 
 // 9 GA Camera Presets matching Desktop & Unity
@@ -1140,6 +1176,7 @@ try {
     const sphereGeo = new THREE.SphereGeometry(0.11, 10, 10);
     for (const route of PIPE_ROUTES) {
         const pipeMat = new THREE.MeshStandardMaterial({ color: route.color, roughness: 0.34, metalness: 0.72 });
+        route.mat = pipeMat;
         for (let i = 0; i < route.pts.length - 1; i++) {
             const a = new THREE.Vector3(...route.pts[i]);
             const b = new THREE.Vector3(...route.pts[i + 1]);
@@ -1151,7 +1188,15 @@ try {
             cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
             cyl.castShadow = true;
             cyl.receiveShadow = true;
+            cyl.userData.nodeId = route.id;
             scene.add(cyl);
+            // Wider invisible pick sleeve so thin pipes are easy to click individually
+            const pick = new THREE.Mesh(new THREE.CylinderGeometry(route.r + 0.16, route.r + 0.16, len, 8),
+                new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false }));
+            pick.position.copy(cyl.position);
+            pick.quaternion.copy(cyl.quaternion);
+            pick.userData.nodeId = route.id;
+            scene.add(pick);
         }
         const pMat = new THREE.MeshBasicMaterial({ color: route.color });
         for (let k = 0; k < 5; k++) {
@@ -1503,6 +1548,39 @@ try {
         lbl.addEventListener("click", () => selectNode(c.id, false));
         overlay.appendChild(lbl);
         labelElems[c.id] = lbl;
+    }
+
+    // WP-301 sub-equipment: individually selectable highlight volumes + labels
+    const subHighlights = {};
+    for (const sn of SUB_EQUIPMENT_NODES) {
+        const box = new THREE.Mesh(
+            new THREE.BoxGeometry(sn.half[0] * 2 + 0.1, sn.half[1] * 2 + 0.1, sn.half[2] * 2 + 0.1),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0, depthWrite: false })
+        );
+        box.position.set(sn.pos[0], sn.pos[1] + sn.half[1], sn.pos[2]);
+        box.userData.nodeId = sn.id;
+        box.renderOrder = 2;
+        scene.add(box);
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), new THREE.LineBasicMaterial({ color: 0x38bdf8 }));
+        edges.position.copy(box.position);
+        edges.visible = false;
+        scene.add(edges);
+        subHighlights[sn.id] = { box, edges };
+
+        const lbl = document.createElement("div");
+        lbl.className = "node-label";
+        lbl.innerHTML = `<span class="dot" style="background:${sn.color}"></span>${sn.id}`;
+        lbl.addEventListener("click", () => selectNode(sn.id, false));
+        overlay.appendChild(lbl);
+        labelElems[sn.id] = lbl;
+    }
+    for (const r of PIPE_ROUTES) {
+        const lbl = document.createElement("div");
+        lbl.className = "node-label";
+        lbl.innerHTML = `<span class="dot" style="background:${r.color}"></span>${r.id}`;
+        lbl.addEventListener("click", () => selectNode(r.id, false));
+        overlay.appendChild(lbl);
+        labelElems[r.id] = lbl;
     }
 
     // JC-101 dual flywheels + reciprocating swing jaw
@@ -1883,6 +1961,18 @@ try {
         emitSoft("WP-301", -2.3, 3.05, -8.4, 0.95, 0.75, 0.20, true, 10);
         dustSprayInstanced.instanceMatrix.needsUpdate = true;
         if (dustSprayInstanced.instanceColor) dustSprayInstanced.instanceColor.needsUpdate = true;
+
+        // Individual sub-equipment & pipe selection highlights
+        for (const [id, hl] of Object.entries(subHighlights)) {
+            const sel = state.selectedId === id;
+            hl.box.material.opacity = sel ? 0.22 + 0.08 * Math.sin(t * 4.5) : 0.0;
+            hl.edges.visible = sel;
+        }
+        for (const r of PIPE_ROUTES) {
+            const sel = state.selectedId === r.id;
+            r.mat.emissive.setHex(sel ? 0x38bdf8 : 0x000000);
+            r.mat.emissiveIntensity = sel ? 0.85 : 0.0;
+        }
 
         // Pipe flow spheres
         for (const ps of pipeFlowSpheres) {

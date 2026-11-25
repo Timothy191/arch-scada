@@ -494,6 +494,73 @@ public class Plant3DTests
     }
 
     [Fact]
+    public void Plant3DSceneData_SubEquipmentAndPipes_HaveIndividualIdsAndCanBePickedSeparately()
+    {
+        string[] subIds = { "MX-301", "PP-301", "DMC-301", "SC-301", "SC-302", "SPRAY-301", "BK-301", "PP-302" };
+        string[] pipeIds = { "PIPE-301", "PIPE-302", "PIPE-303", "PIPE-304", "PIPE-305", "PIPE-306", "PIPE-307" };
+
+        Assert.Equal(29, Plant3DSceneData.AllNodes.Count);
+        Assert.Equal(8, Plant3DSceneData.SubEquipmentNodes.Count);
+        Assert.Equal(7, Plant3DSceneData.PipeNodes.Count);
+        Assert.Equal(44, Plant3DSceneData.InteractiveNodes.Count);
+        Assert.Equal(44, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "archscada-sub-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var telemetry = new SimulatedTelemetryService(tempDir);
+            var validScadaIds = telemetry.Equipment.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var id in subIds.Concat(pipeIds))
+            {
+                var node = Plant3DSceneData.FindNode(id);
+                Assert.NotNull(node);
+                Assert.False(string.IsNullOrWhiteSpace(node!.GaLabel), $"{id} missing GaLabel");
+                Assert.False(string.IsNullOrWhiteSpace(node.DimensionsSpec), $"{id} missing DimensionsSpec");
+                Assert.False(string.IsNullOrWhiteSpace(node.MechanicalPrinciple), $"{id} missing MechanicalPrinciple");
+                Assert.Contains(node.LinkedScadaId, validScadaIds);
+                Assert.StartsWith("Direct PLC", node.PlcChannelMapping);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+
+        Assert.All(subIds, id => Assert.True(Plant3DSceneData.FindNode(id)!.IsSubComponent));
+        Assert.All(pipeIds, id => Assert.True(Plant3DSceneData.FindNode(id)!.IsPipe));
+        Assert.NotNull(Plant3DSceneData.FindPipeRoute("PIPE-304"));
+
+        var meshes = Plant3DSceneData.LoadAllGlbMeshes();
+        string? PickTopDown(Vector3 world)
+        {
+            var origin = world + new Vector3(0.001f, 30f, 0.001f);
+            var ray = new Ray3D(origin, Vector3.Normalize(world - origin));
+            return Plant3DSceneData.PickEquipment(ray, meshes);
+        }
+        string? PickSide(Vector3 world, Vector3 dir)
+        {
+            var ray = new Ray3D(world - dir * 25f, dir);
+            return Plant3DSceneData.PickEquipment(ray, meshes);
+        }
+
+        // Elevated pipe riser above everything at (2.30, 4.35) -> picks the riser pipe individually
+        Assert.Equal("PIPE-304", PickTopDown(new Vector3(1.3f, 4.35f, -7.95f)));
+        // Top-mounted cyclone, picked from above (instead of WP-301 frame)
+        Assert.Equal("DMC-301", PickTopDown(new Vector3(-0.9f, 4.0f, -7.6f)));
+        // Mixing box picked from the East side (not WP-301)
+        Assert.Equal("MX-301", PickSide(new Vector3(2.30f, 0.7f, -8.30f), -Vector3.UnitX));
+        // Product & discard screens picked from the West side at screen height
+        Assert.Equal("SC-301", PickSide(new Vector3(-3.6f, 2.3f, -6.80f), Vector3.UnitX));
+        Assert.Equal("SC-302", PickTopDown(new Vector3(-3.85f, 3.0f, -8.70f)));
+        // Ground-floor drip bucket picked from the West side at ground level
+        Assert.Equal("BK-301", PickSide(new Vector3(-3.4f, 0.6f, -7.65f), -Vector3.UnitZ));
+        // Magnetite feed pipe on its open run between TK-301 and the wash plant
+        Assert.Equal("PIPE-303", PickTopDown(new Vector3(-4.0f, 1.45f, -10.2f)));
+    }
+
+    [Fact]
     public void Plant3DSceneData_CoalMaterialColorAndGranulometry_IsBlackAndDecreasesAcrossComminutionStages()
     {
         foreach (var mat in Enum.GetValues<CoalMaterialClass>())
