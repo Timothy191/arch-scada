@@ -826,4 +826,84 @@ public class Plant3DTests
         vm.SwitchOperatorCommand.Execute("operator1:1234");
         Assert.Equal(ArchScada.Desktop.Services.OperatorRole.Operator, vm.OperatorAuth.CurrentRole);
     }
+
+    [Fact]
+    public void ProcessCircuitIllustrations_ConveyorStatusAnimation_And_3DModelPreviews_FollowRealTelemetryData()
+    {
+        var telemetry = new ArchScada.Desktop.Services.SimulatedTelemetryService();
+        var bridge = new ArchScada.Desktop.Services.UnityBridgeService();
+        var vm = new ArchScada.Desktop.ViewModels.MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
+
+        // 1. Crushing & Conveyors panel includes all 18 Stage 1-6 machines & conveyors while core Equipment remains 23
+        Assert.Equal(23, telemetry.Equipment.Count);
+        Assert.Equal(18, vm.CrushingEquipment.Count);
+        string[] expectedCrushingIds =
+        {
+            "CR-101", "SC-102", "CV-101", "CV-102",
+            "BN-101", "VF-101", "DRC-101", "BN-201", "DS-201",
+            "CV-103", "CV-104", "CV-105", "CV-106",
+            "CV-201", "CV-202", "CV-203", "CV-301", "CV-302"
+        };
+        foreach (string id in expectedCrushingIds)
+        {
+            Assert.Contains(vm.CrushingEquipment, e => e.Id == id);
+        }
+
+        // 2. ProcessCircuitIllustrationControl follows real telemetry rates and halts when Stopped/Fault
+        foreach (var kind in Enum.GetValues<ArchScada.Desktop.Controls.ProcessCircuitKind>())
+        {
+            var ctrl = new ArchScada.Desktop.Controls.ProcessCircuitIllustrationControl
+            {
+                CircuitKind = kind,
+                PrimaryValue = 650.0,
+                SecondaryValue = 185.0,
+                TertiaryValue = 385.0,
+                CircuitStatus = ArchScada.Desktop.Models.EquipmentStatus.Running
+            };
+            Assert.True(ctrl.ComputeSpeedMultiplier() > 0.0);
+            ctrl.AdvancePhase(0.1);
+            double runningPhase = ctrl.Phase;
+            Assert.True(runningPhase > 0.0);
+
+            ctrl.CircuitStatus = ArchScada.Desktop.Models.EquipmentStatus.Fault;
+            Assert.Equal(0.0, ctrl.ComputeSpeedMultiplier());
+            ctrl.AdvancePhase(0.1);
+            Assert.Equal(runningPhase, ctrl.Phase);
+        }
+
+        // 3. ConveyorStatusAnimationControl responds to live status, belt speed & pull-cord trip
+        var convCtrl = new ArchScada.Desktop.Controls.ConveyorStatusAnimationControl
+        {
+            EquipmentId = "CV-101",
+            Status = ArchScada.Desktop.Models.EquipmentStatus.Running,
+            LoadPercent = 82.0,
+            BeltSpeed = 2.85,
+            PullCordOk = true
+        };
+        convCtrl.AdvancePhase(0.1);
+        double convPhase = convCtrl.Phase;
+        Assert.True(convPhase > 0.0);
+
+        convCtrl.PullCordOk = false;
+        convCtrl.AdvancePhase(0.1);
+        Assert.Equal(convPhase, convCtrl.Phase);
+
+        // 4. Equipment3DPreviewControl resolves valid GLB meshes for every Crushing & Conveyor asset
+        var glbMap = Plant3DSceneData.LoadAllGlbMeshes();
+        foreach (var eq in vm.CrushingEquipment)
+        {
+            string glb = ArchScada.Desktop.Controls.Equipment3DPreviewControl.ResolveGlbForEquipment(eq.Id);
+            Assert.True(glbMap.ContainsKey(glb), $"Missing GLB {glb} for {eq.Id}");
+        }
+
+        var previewCtrl = new ArchScada.Desktop.Controls.Equipment3DPreviewControl
+        {
+            EquipmentId = "DRC-101",
+            Status = ArchScada.Desktop.Models.EquipmentStatus.Running,
+            LoadPercent = 76.0
+        };
+        float yaw0 = previewCtrl.YawRadians;
+        previewCtrl.AdvanceTurntable(0.1f);
+        Assert.NotEqual(yaw0, previewCtrl.YawRadians);
+    }
 }

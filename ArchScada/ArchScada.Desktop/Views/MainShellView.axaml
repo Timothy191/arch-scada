@@ -155,52 +155,124 @@
                             </Border>
                         </Grid>
 
-                        <TextBlock Text="Process Circuits" Classes="section-title" />
+                        <TextBlock Text="Process Circuits (Live Telemetry-Driven Animated Schematics)" Classes="section-title" />
                         <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="14">
                             <Border Grid.Row="0" Grid.Column="0" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Crushing &amp; Conveyors" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="CR-101, SC-102, CV-101, CV-102" FontSize="12" Foreground="#94A3B8" />
-                                    <Button Content="Open Circuit View" Classes="secondary-action"
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="Crushing &amp; Conveyors" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="BN-101, VF-101, CR-101, DRC-101, SC-102, DS-201, CV-101..302" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="JC-101" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.CrushingConveyors}"
+                                        PrimaryValue="{Binding TotalFeedTonnageTph}"
+                                        SecondaryValue="{Binding CrushingBeltSpeedMs}"
+                                        TertiaryValue="{Binding CrushingLoadPercent}"
+                                        CircuitStatus="{Binding CrushingCircuitStatus}"
+                                        Height="116" />
+                                    <Button Content="Open Circuit View (18 Assets &amp; 3D Previews)" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.CrushingConveyors}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="0" Grid.Column="1" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Thickener Circuit" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="TK-201, PP-201, PP-202, PP-203" FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="Thickener Circuit" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="TK-201, PP-201, PP-202, PP-203, PIPE-305..311" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="TK-201" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.ThickenerCircuit}"
+                                        PrimaryValue="{Binding ThickenerBedLevelPercent}"
+                                        SecondaryValue="{Binding WaterRecoveryPercent}"
+                                        TertiaryValue="{Binding ThickenerUnderflowM3h}"
+                                        CircuitStatus="{Binding ThickenerCircuitStatus}"
+                                        Height="116" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.ThickenerCircuit}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="0" Grid.Column="2" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Magnetite Preparation" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="TK-301, MS-301, DM-301" FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="Magnetite Preparation &amp; DMC-301" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="TK-301, MS-301, DM-301, DMC-301, PT-301, SC-301/302" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="DMC-301" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.MagnetitePrep}"
+                                        PrimaryValue="{Binding MediumSpecificGravity}"
+                                        SecondaryValue="{Binding DmcInletPressureKpa}"
+                                        TertiaryValue="{Binding MacsepRecoveryPercent}"
+                                        CircuitStatus="{Binding MagnetiteCircuitStatus}"
+                                        Height="116" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.MagnetitePrep}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="1" Grid.Column="0" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Fine Coal &amp; Flotation" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="SP-401, FC-401, AB-401, PP-401, PP-402" FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="Fine Coal &amp; Flotation" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="SP-401, FC-401, AB-401, PP-401, PP-402" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="WP-301" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.FineCoalFlotation}"
+                                        PrimaryValue="{Binding FlotationPulpLevelPercent}"
+                                        SecondaryValue="{Binding FlotationAirflowNm3h}"
+                                        TertiaryValue="{Binding FlotationRecoveryPercent}"
+                                        CircuitStatus="{Binding FlotationCircuitStatus}"
+                                        Height="116" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.FineCoalFlotation}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="1" Grid.Column="1" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Dewatering &amp; Tailings" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="CF-501, FP-501, CV-501" FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="Dewatering &amp; Tailings" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="CF-501, FP-501, CV-501, SC-302, SP-302" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="SC-302" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.DewateringTailings}"
+                                        PrimaryValue="{Binding CentrifugeMoisturePercent}"
+                                        SecondaryValue="{Binding FilterPressPressureBar}"
+                                        TertiaryValue="{Binding TailingsBeltSpeedMs}"
+                                        CircuitStatus="{Binding DewateringCircuitStatus}"
+                                        Height="116" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.DewateringTailings}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Row="1" Grid.Column="2" Classes="scada-card">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="ROM, Loadout &amp; PGNAA" FontSize="16" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                    <TextBlock Text="AF-001, SL-601, AN-601, LD-601" FontSize="12" Foreground="#94A3B8" />
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="ROM, Loadout &amp; PGNAA" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="SP-001, FEL-101, AF-001, SL-601, AN-601, LD-601" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="3D ↗" Command="{Binding LocateIn3DCommand}" CommandParameter="BN-101" Classes="secondary-action" Padding="7,3" FontSize="10.5" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <controls:ProcessCircuitIllustrationControl
+                                        CircuitKind="{x:Static controls:ProcessCircuitKind.RomLoadoutQuality}"
+                                        PrimaryValue="{Binding ProductSiloLevelPercent}"
+                                        SecondaryValue="{Binding PgnaaAshPercent}"
+                                        TertiaryValue="{Binding TrainLoadoutRateTph}"
+                                        CircuitStatus="{Binding RomLoadoutCircuitStatus}"
+                                        Height="116" />
                                     <Button Content="Open Circuit View" Classes="secondary-action"
                                             Command="{Binding NavigateCommand}" CommandParameter="{x:Static models:PlantSection.RomLoadoutQuality}" />
                                 </StackPanel>
@@ -293,7 +365,15 @@
 
                     <!-- 2. CRUSHING & CONVEYORS -->
                     <StackPanel IsVisible="{Binding IsCrushing}" Spacing="14">
-                        <TextBlock Text="Crushing &amp; Conveyor Circuit" Classes="section-title" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel>
+                                <TextBlock Text="Crushing, Screening &amp; Conveyor Circuit (Stages 1–6 &amp; Wash Plant Conveyors)" Classes="section-title" />
+                                <TextBlock Text="18 Monitored Assets (Crushers, Screens, Hoppers, Grizzly Feeder &amp; All 11 Conveyors) · Live Status Belt Animation &amp; 3D GLB Turntable Previews" FontSize="12" Foreground="#94A3B8" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Open Full 3D Plant Twin ↗"
+                                    Command="{Binding LocateIn3DCommand}" CommandParameter="JC-101"
+                                    Classes="primary-action" Padding="12,6" FontSize="11" VerticalAlignment="Center" />
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding CrushingEquipment}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -302,12 +382,12 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Classes="scada-card" Width="320" Margin="0,0,14,14">
-                                        <StackPanel Spacing="10">
+                                    <Border Classes="scada-card" Width="336" Margin="0,0,14,14">
+                                        <StackPanel Spacing="8">
                                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#38BDF8" />
-                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" Foreground="#F1F5F9" TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
                                                 <Button Grid.Column="1" Content="3D ↗"
                                                         Command="{Binding $parent[UserControl].((vm:MainShellViewModel)DataContext).LocateIn3DCommand}"
@@ -321,22 +401,43 @@
                                             <Grid ColumnDefinitions="*,*">
                                                 <StackPanel>
                                                     <TextBlock Text="{Binding PrimaryMetricLabel}" Classes="card-label" />
-                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="18" FontWeight="Bold" Foreground="#F1F5F9" />
+                                                    <TextBlock Text="{Binding PrimaryMetricDisplay}" FontSize="17" FontWeight="Bold" Foreground="#F1F5F9" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="Power Draw" Classes="card-label" />
-                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="18" FontWeight="Bold" Foreground="#94A3B8" />
+                                                    <TextBlock Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="17" FontWeight="Bold" Foreground="#94A3B8" />
                                                 </StackPanel>
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
-                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
-                                            <Border IsVisible="{Binding HasConveyorSafety}" Classes="scada-panel" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
-                                                <StackPanel Spacing="3">
-                                                    <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="10" FontWeight="Bold" Foreground="#38BDF8" />
-                                                    <TextBlock Text="{Binding ConveyorSafetySummary}" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" />
+
+                                            <!-- Live Status-Driven Conveyor & Material Flow Animation -->
+                                            <controls:ConveyorStatusAnimationControl
+                                                EquipmentId="{Binding Id}"
+                                                EquipmentType="{Binding Type}"
+                                                Status="{Binding Status}"
+                                                LoadPercent="{Binding LoadPercent}"
+                                                BeltSpeed="{Binding PrimaryMetric}"
+                                                PullCordOk="{Binding PullCordOk}"
+                                                BeltAlignmentOk="{Binding BeltAlignmentOk}"
+                                                BeltSlipOk="{Binding BeltSlipOk}"
+                                                Height="48" />
+
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="38" />
+
+                                            <Border IsVisible="{Binding HasConveyorSafety}" Classes="scada-panel" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="9.5" FontWeight="Bold" Foreground="#38BDF8" />
+                                                    <TextBlock Text="{Binding ConveyorSafetySummary}" FontSize="10.5" Foreground="#94A3B8" TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Border>
+
+                                            <!-- Live 3D GLB Model Turntable Preview Canvas under Each Equipment Card -->
+                                            <controls:Equipment3DPreviewControl
+                                                EquipmentId="{Binding Id}"
+                                                Status="{Binding Status}"
+                                                LoadPercent="{Binding LoadPercent}"
+                                                Height="124" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -409,6 +510,7 @@
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#22C55E" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
                                             <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
+                                            <controls:Equipment3DPreviewControl EquipmentId="{Binding Id}" Status="{Binding Status}" LoadPercent="{Binding LoadPercent}" Height="116" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -526,6 +628,7 @@
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#F59E0B" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
                                             <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
+                                            <controls:Equipment3DPreviewControl EquipmentId="{Binding Id}" Status="{Binding Status}" LoadPercent="{Binding LoadPercent}" Height="116" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -573,6 +676,7 @@
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
                                             <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
+                                            <controls:Equipment3DPreviewControl EquipmentId="{Binding Id}" Status="{Binding Status}" LoadPercent="{Binding LoadPercent}" Height="116" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -619,6 +723,17 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#A855F7" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:ConveyorStatusAnimationControl
+                                                IsVisible="{Binding HasConveyorSafety}"
+                                                EquipmentId="{Binding Id}"
+                                                EquipmentType="{Binding Type}"
+                                                Status="{Binding Status}"
+                                                LoadPercent="{Binding LoadPercent}"
+                                                BeltSpeed="{Binding PrimaryMetric}"
+                                                PullCordOk="{Binding PullCordOk}"
+                                                BeltAlignmentOk="{Binding BeltAlignmentOk}"
+                                                BeltSlipOk="{Binding BeltSlipOk}"
+                                                Height="48" />
                                             <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                             <Border IsVisible="{Binding HasConveyorSafety}" Classes="scada-panel" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
                                                 <StackPanel Spacing="3">
@@ -626,6 +741,7 @@
                                                     <TextBlock Text="{Binding ConveyorSafetySummary}" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Border>
+                                            <controls:Equipment3DPreviewControl EquipmentId="{Binding Id}" Status="{Binding Status}" LoadPercent="{Binding LoadPercent}" Height="116" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -722,6 +838,7 @@
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#10B981" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
                                             <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
+                                            <controls:Equipment3DPreviewControl EquipmentId="{Binding Id}" Status="{Binding Status}" LoadPercent="{Binding LoadPercent}" Height="116" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

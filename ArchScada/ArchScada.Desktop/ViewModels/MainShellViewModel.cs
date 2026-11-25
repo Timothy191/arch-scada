@@ -152,6 +152,54 @@ public partial class MainShellViewModel : ViewModelBase
     [ObservableProperty]
     public partial double TrainLoadoutRateTph { get; set; } = 1850.0;
 
+    // Live Process Circuit Overview Illustration Telemetry & Statuses
+    [ObservableProperty]
+    public partial double CrushingBeltSpeedMs { get; set; } = 2.85;
+
+    [ObservableProperty]
+    public partial double CrushingLoadPercent { get; set; } = 78.0;
+
+    [ObservableProperty]
+    public partial double ThickenerUnderflowM3h { get; set; } = 385.0;
+
+    [ObservableProperty]
+    public partial double FlotationPulpLevelPercent { get; set; } = 78.5;
+
+    [ObservableProperty]
+    public partial double FlotationAirflowNm3h { get; set; } = 1420.0;
+
+    [ObservableProperty]
+    public partial double FlotationRecoveryPercent { get; set; } = 86.2;
+
+    [ObservableProperty]
+    public partial double CentrifugeMoisturePercent { get; set; } = 9.8;
+
+    [ObservableProperty]
+    public partial double FilterPressPressureBar { get; set; } = 12.4;
+
+    [ObservableProperty]
+    public partial double TailingsBeltSpeedMs { get; set; } = 2.15;
+
+    [ObservableProperty]
+    public partial EquipmentStatus CrushingCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    [ObservableProperty]
+    public partial EquipmentStatus ThickenerCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    [ObservableProperty]
+    public partial EquipmentStatus MagnetiteCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    [ObservableProperty]
+    public partial EquipmentStatus FlotationCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    [ObservableProperty]
+    public partial EquipmentStatus DewateringCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    [ObservableProperty]
+    public partial EquipmentStatus RomLoadoutCircuitStatus { get; set; } = EquipmentStatus.Running;
+
+    private readonly List<(EquipmentItem Item, string ParentScadaId, double PowerScale, double MetricScale)> _derivedCrushingItems = new();
+
     // System Diagnostics 8-Gate Readiness & 3D Engine Summary
     public ObservableCollection<StartupCheckItem> DiagnosticChecks { get; } = new();
 
@@ -330,6 +378,8 @@ public partial class MainShellViewModel : ViewModelBase
             else if (eq.Area == "Dewatering & Tailings") DewateringEquipment.Add(eq);
             else if (eq.Area == "ROM, Loadout & PGNAA") RomLoadoutEquipment.Add(eq);
         }
+
+        SeedExtendedCrushingAndConveyors();
 
         SelectedEquipment = _telemetry.Equipment.FirstOrDefault();
         Selected3DNode = Plant3DSceneData.AllNodes.FirstOrDefault();
@@ -1012,6 +1062,33 @@ public partial class MainShellViewModel : ViewModelBase
         var ld601Tph = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "LD601_TPH");
         if (ld601Tph is not null) TrainLoadoutRateTph = ld601Tph.Value;
 
+        var cr101 = _telemetry.Equipment.FirstOrDefault(e => e.Id == "CR-101");
+        if (cr101 is not null) CrushingLoadPercent = cr101.LoadPercent;
+
+        var cv101Spd = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "CV101_SPD");
+        if (cv101Spd is not null) CrushingBeltSpeedMs = cv101Spd.Value;
+
+        var pp201Flw = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "PP201_FLW");
+        if (pp201Flw is not null) ThickenerUnderflowM3h = pp201Flw.Value;
+
+        var fc401Lvl = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "FC401_LVL");
+        if (fc401Lvl is not null) FlotationPulpLevelPercent = fc401Lvl.Value;
+
+        var ab401Flw = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "AB401_FLW");
+        if (ab401Flw is not null) FlotationAirflowNm3h = ab401Flw.Value;
+
+        var fc401Rec = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "FC401_REC");
+        if (fc401Rec is not null) FlotationRecoveryPercent = fc401Rec.Value;
+
+        var cf501Moist = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "CF501_MOIST");
+        if (cf501Moist is not null) CentrifugeMoisturePercent = cf501Moist.Value;
+
+        var fp501Prs = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "FP501_PRS");
+        if (fp501Prs is not null) FilterPressPressureBar = fp501Prs.Value;
+
+        var cv501Spd = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "CV501_SPD");
+        if (cv501Spd is not null) TailingsBeltSpeedMs = cv501Spd.Value;
+
         RefreshFilteredAlarms();
 
         var topAlarm = _telemetry.Alarms.FirstOrDefault(a => !a.IsAcknowledged) ?? _telemetry.Alarms.FirstOrDefault();
@@ -1027,6 +1104,8 @@ public partial class MainShellViewModel : ViewModelBase
             }
         }
 
+        UpdateDerivedCrushingAndCircuitStatuses();
+
         if (SelectedTrendTag is not null)
         {
             SelectedTrendValues = _telemetry.GetTagHistory(SelectedTrendTag.TagId).ToList();
@@ -1036,5 +1115,90 @@ public partial class MainShellViewModel : ViewModelBase
 
         _unityBridge.PublishFrame(_telemetry.Equipment, UnityEffects);
         UnityStreamStatus = $"Streaming {_unityBridge.Endpoint} · {_unityBridge.PacketsSent} frames";
+    }
+
+    private void SeedExtendedCrushingAndConveyors()
+    {
+        var specs = new (string Id, string Name, string Type, string ParentId, string MetricLabel, string MetricUnit, double BaseKw, double BaseMetric, string CascadeTarget)[]
+        {
+            ("BN-101",  "ROM Feeder Receiving Hopper Bin",     "Hopper",   "AF-001", "Surge Level", "t",    12.0,  34.5, "VF-101"),
+            ("VF-101",  "Primary Vibro Grizzly Feeder (75mm)", "Feeder",   "AF-001", "Feed Rate",   "t/h",  30.0, 650.0, "CV-101"),
+            ("DRC-101", "Double Roller Crusher & Hopper",      "Crusher",  "CR-101", "Throughput",  "t/h", 160.0, 530.0, "CV-104"),
+            ("BN-201",  "Plant Feed Surge Bin (60t)",          "Silo",     "SL-601", "Surge Level", "%",    15.0,  68.0, "CV-202"),
+            ("DS-201",  "Wet Desliming Screen (0.5mm)",        "Screen",   "SC-102", "Vibration",   "mm/s", 45.0,  14.2, "CV-203"),
+            ("CV-103",  "Primary Crushed Transfer Conveyor",   "Conveyor", "CV-101", "Belt Speed",  "m/s",  55.0,   2.75, "DRC-101"),
+            ("CV-104",  "Sizing Screen Feed Conveyor",         "Conveyor", "CV-101", "Belt Speed",  "m/s",  75.0,   2.80, "SC-102"),
+            ("CV-105",  "Under-Screen Fines Conveyor (<6mm)",  "Conveyor", "CV-102", "Belt Speed",  "m/s",  30.0,   2.40, "SP-301"),
+            ("CV-106",  "Oversize Recirculation Conveyor",     "Conveyor", "CV-102", "Belt Speed",  "m/s",  45.0,   2.50, "DRC-101"),
+            ("CV-201",  "Plant Feed Conveyor (6-50mm)",        "Conveyor", "CV-101", "Belt Speed",  "m/s", 132.0,   2.85, "BN-201"),
+            ("CV-202",  "Desliming Screen Feed Conveyor",      "Conveyor", "CV-101", "Belt Speed",  "m/s", 110.0,   2.78, "DS-201"),
+            ("CV-203",  "Mixing Box Feed Conveyor",            "Conveyor", "DM-301", "Belt Speed",  "m/s",  90.0,   2.65, "WP-301"),
+            ("CV-301",  "Clean Coal Product Stacker Conveyor", "Conveyor", "CV-102", "Belt Speed",  "m/s",  75.0,   2.60, "SP-301"),
+            ("CV-302",  "Discard / Refuse Stacker Conveyor",   "Conveyor", "CV-501", "Belt Speed",  "m/s",  74.5,   2.15, "SP-302")
+        };
+
+        foreach (var s in specs)
+        {
+            var item = new EquipmentItem
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Area = "Crushing & Conveyors",
+                Type = s.Type,
+                Status = EquipmentStatus.Running,
+                PowerKw = s.BaseKw,
+                LoadPercent = 74.0,
+                PrimaryMetric = s.BaseMetric,
+                PrimaryMetricLabel = s.MetricLabel,
+                PrimaryMetricUnit = s.MetricUnit,
+                TripCascadeTarget = s.CascadeTarget
+            };
+            _derivedCrushingItems.Add((item, s.ParentId, s.BaseKw, s.BaseMetric));
+            CrushingEquipment.Add(item);
+        }
+    }
+
+    private void UpdateDerivedCrushingAndCircuitStatuses()
+    {
+        foreach (var (item, parentId, baseKw, baseMetric) in _derivedCrushingItems)
+        {
+            var parent = _telemetry.Equipment.FirstOrDefault(e => e.Id == parentId);
+            if (parent is null) continue;
+
+            item.Status = parent.Status;
+            item.LoadPercent = Math.Round(Math.Clamp(parent.LoadPercent, 0.0, 100.0), 1);
+            double loadFactor = item.Status is EquipmentStatus.Stopped or EquipmentStatus.Offline or EquipmentStatus.Fault
+                ? 0.0
+                : Math.Clamp(parent.LoadPercent / 76.0, 0.45, 1.25);
+            item.PowerKw = Math.Round(baseKw * loadFactor, 1);
+            item.PrimaryMetric = Math.Round(baseMetric * loadFactor, 2);
+            item.PullCordOk = parent.PullCordOk;
+            item.BeltAlignmentOk = parent.BeltAlignmentOk;
+            item.BeltSlipOk = parent.BeltSlipOk;
+            item.SparklineValues = parent.SparklineValues;
+        }
+
+        CrushingCircuitStatus = AggregateCircuitStatus(CrushingEquipment);
+        ThickenerCircuitStatus = AggregateCircuitStatus(ThickenerEquipment);
+        MagnetiteCircuitStatus = AggregateCircuitStatus(MagnetiteEquipment);
+        FlotationCircuitStatus = AggregateCircuitStatus(FlotationEquipment);
+        DewateringCircuitStatus = AggregateCircuitStatus(DewateringEquipment);
+        RomLoadoutCircuitStatus = AggregateCircuitStatus(RomLoadoutEquipment);
+    }
+
+    private static EquipmentStatus AggregateCircuitStatus(IEnumerable<EquipmentItem> items)
+    {
+        bool anyFault = false;
+        bool anyWarn = false;
+        bool anyRun = false;
+        foreach (var eq in items)
+        {
+            if (eq.Status == EquipmentStatus.Fault) anyFault = true;
+            else if (eq.Status == EquipmentStatus.Warning) anyWarn = true;
+            else if (eq.Status == EquipmentStatus.Running) anyRun = true;
+        }
+        if (anyFault) return EquipmentStatus.Fault;
+        if (anyWarn) return EquipmentStatus.Warning;
+        return anyRun ? EquipmentStatus.Running : EquipmentStatus.Stopped;
     }
 }
