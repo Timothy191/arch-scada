@@ -5,6 +5,9 @@
 # Build outputs (nested - subdirectories)
 **/bin/
 **/obj/
+
+# Unity packages
+ArchScada/ArchScada.Unity/Packages/
 # Python cache
 __pycache__/
 # Node modules
