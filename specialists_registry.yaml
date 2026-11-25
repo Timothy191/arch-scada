@@ -1,0 +1,44 @@
+# Plant Project - Page Specialists Registry
+
+specialists:
+  - name: Desktop
+    role: "Coordinates desktop client interfaces, UI/UX, and native platform integrations."
+    responsibilities:
+      - Desktop application layout and navigation
+      - Platform-specific bindings (Windows, Linux, macOS)
+      - Keyboard shortcuts and accessibility
+    pre_context_fetch: "desktop_precontext"
+
+  - name: Web
+    role: "Handles web portal pages, responsive design, and client‑side interactions."
+    responsibilities:
+      - React/Blazor component development
+      - UI consistency across browsers
+      - State management and API consumption
+    pre_context_fetch: "web_precontext"
+
+  - name: ThreeD
+    role: "Manages 3D visualizations, overlays, and interactive diagrams."
+    responsibilities:
+      - 3D model integration and rendering
+      - Real‑time scene updates
+      - Visual effect scripting
+    pre_context_fetch: "3d_precontext"
+
+  - name: Documentation
+    role: "Maintains inline help, user guides, and API references linked to pages."
+    responsibilities:
+      - Markdown content creation and updates
+      - Cross‑linking with code annotations
+      - Versioned documentation releases
+    pre_context_fetch: "doc_precontext"
+
+  - name: Testing
+    role: "Ensures page‑level functionality via unit, integration, and UI tests."
+    responsibilities:
+      - Test suite execution and reporting
+      - Flaky test detection
+      - Coverage analysis
+    pre_context_fetch: "test_precontext"
+
+# End of registry
