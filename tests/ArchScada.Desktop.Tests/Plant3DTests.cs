@@ -568,18 +568,18 @@ public class Plant3DTests
         }
 
         // Elevated sweeping cyclone feed pipe around West/North side -> picks PIPE-304 individually
-        Assert.Equal("PIPE-304", PickTopDown(new Vector3(-5.05f, 5.10f, -9.30f)));
-        // Full-length diamond cyclone, picked from above (instead of WP-301 frame)
-        Assert.Equal("DMC-301", PickTopDown(new Vector3(-1.95f, 4.35f, -7.60f)));
-        // East vortex finder, West apex spigot, and inlet PT-301 picked individually
-        Assert.Equal("VF-301", PickTopDown(new Vector3(0.48f, 4.45f, -7.60f)));
-        Assert.Equal("APEX-301", PickTopDown(new Vector3(-4.30f, 4.20f, -7.60f)));
-        Assert.Equal("PT-301", PickTopDown(new Vector3(-0.85f, 5.38f, -8.22f)));
+        Assert.Equal("PIPE-304", PickTopDown(new Vector3(-5.05f, 4.90f, -9.30f)));
+        // Full-length wide diamond cyclone, picked from above (instead of WP-301 frame)
+        Assert.Equal("DMC-301", PickTopDown(new Vector3(-1.95f, 4.60f, -7.60f)));
+        // East vortex finder, East discard spigot, and West inlet PT-301 picked individually
+        Assert.Equal("VF-301", PickTopDown(new Vector3(0.46f, 4.20f, -6.92f)));
+        Assert.Equal("APEX-301", PickTopDown(new Vector3(0.46f, 4.10f, -8.28f)));
+        Assert.Equal("PT-301", PickTopDown(new Vector3(-4.60f, 5.18f, -8.05f)));
         // Mixing box picked from the East side (not WP-301)
         Assert.Equal("MX-301", PickSide(new Vector3(2.30f, 0.7f, -8.30f), -Vector3.UnitX));
         // Product & discard screens picked from the West side at screen height
         Assert.Equal("SC-301", PickSide(new Vector3(-3.6f, 2.3f, -6.80f), Vector3.UnitX));
-        Assert.Equal("SC-302", PickTopDown(new Vector3(-3.85f, 2.3f, -8.85f)));
+        Assert.Equal("SC-302", Plant3DSceneData.PickEquipment(new Ray3D(new Vector3(-1.95f, 2.3f, -10.5f), Vector3.UnitZ), meshes));
         // Ground-floor drip bucket picked from the West side at ground level
         Assert.Equal("BK-301", PickSide(new Vector3(-3.4f, 0.6f, -7.65f), -Vector3.UnitZ));
         // Magnetite feed pipe on its open run between TK-301 and the wash plant
