@@ -271,13 +271,14 @@ public static class GlbMeshLoader
                 !attrsEl.TryGetProperty("POSITION", out var posAccEl))
                 continue;
 
-            var positions = ReadVec3Accessor(posAccEl.GetInt32(), accessorsEl, bufferViewsEl, bin);
-            if (positions.Length == 0)
+            var posSlice = GetVec3AccessorSlice(posAccEl.GetInt32(), accessorsEl, bufferViewsEl);
+            if (posSlice.Count <= 0)
                 continue;
 
-            Vector3[]? normals = null;
-            if (attrsEl.TryGetProperty("NORMAL", out var normAccEl))
-                normals = ReadVec3Accessor(normAccEl.GetInt32(), accessorsEl, bufferViewsEl, bin);
+            bool hasNormals = attrsEl.TryGetProperty("NORMAL", out var normAccEl);
+            var normSlice = hasNormals
+                ? GetVec3AccessorSlice(normAccEl.GetInt32(), accessorsEl, bufferViewsEl)
+                : default;
 
             var matInfo = new MaterialInfo(new Vector3(0.28f, 0.34f, 0.44f), 0.5f, 0.45f);
             if (prim.TryGetProperty("material", out var matIdxEl))
@@ -288,12 +289,13 @@ public static class GlbMeshLoader
             }
 
             uint baseVertex = (uint)(verts.Count / GlbMeshData.FloatsPerVertex);
+            verts.EnsureCapacity(verts.Count + posSlice.Count * GlbMeshData.FloatsPerVertex);
 
-            for (int i = 0; i < positions.Length; i++)
+            for (int i = 0; i < posSlice.Count; i++)
             {
-                var p = Vector3.Transform(positions[i], world);
-                var n = normals is not null && i < normals.Length
-                    ? Vector3.Normalize(Vector3.TransformNormal(normals[i], normalMatrix))
+                var p = Vector3.Transform(ReadVec3At(bin, posSlice, i), world);
+                var n = hasNormals && i < normSlice.Count
+                    ? Vector3.Normalize(Vector3.TransformNormal(ReadVec3At(bin, normSlice, i), normalMatrix))
                     : Vector3.UnitY;
                 if (float.IsNaN(n.X)) n = Vector3.UnitY;
 
@@ -315,19 +317,20 @@ public static class GlbMeshLoader
 
             if (prim.TryGetProperty("indices", out var idxAccEl))
             {
-                var rawIdx = ReadIndexAccessor(idxAccEl.GetInt32(), accessorsEl, bufferViewsEl, bin);
-                for (int i = 0; i < rawIdx.Length; i++)
-                    indices.Add(baseVertex + rawIdx[i]);
+                AppendIndexAccessor(idxAccEl.GetInt32(), baseVertex, accessorsEl, bufferViewsEl, bin, indices);
             }
             else
             {
-                for (uint i = 0; i < positions.Length; i++)
+                indices.EnsureCapacity(indices.Count + posSlice.Count);
+                for (uint i = 0; i < (uint)posSlice.Count; i++)
                     indices.Add(baseVertex + i);
             }
         }
     }
 
-    private static Vector3[] ReadVec3Accessor(int accessorIdx, JsonElement accessorsEl, JsonElement bufferViewsEl, ReadOnlySpan<byte> bin)
+    private readonly record struct Vec3AccessorSlice(int Count, int Start, int Stride);
+
+    private static Vec3AccessorSlice GetVec3AccessorSlice(int accessorIdx, JsonElement accessorsEl, JsonElement bufferViewsEl)
     {
         var acc = accessorsEl[accessorIdx];
         int count = acc.GetProperty("count").GetInt32();
@@ -339,24 +342,33 @@ public static class GlbMeshLoader
         int stride = bv.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : 12;
         if (stride < 12) stride = 12;
 
-        var result = new Vector3[count];
-        int start = bvOffset + accOffset;
-        for (int i = 0; i < count; i++)
-        {
-            int pos = start + i * stride;
-            if (pos + 12 > bin.Length) break;
-            float x = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos, 4));
-            float y = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 4, 4));
-            float z = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 8, 4));
-            result[i] = new Vector3(x, y, z);
-        }
-        return result;
+        return new Vec3AccessorSlice(count, bvOffset + accOffset, stride);
     }
 
-    private static uint[] ReadIndexAccessor(int accessorIdx, JsonElement accessorsEl, JsonElement bufferViewsEl, ReadOnlySpan<byte> bin)
+    private static Vector3 ReadVec3At(ReadOnlySpan<byte> bin, in Vec3AccessorSlice slice, int index)
+    {
+        int pos = slice.Start + index * slice.Stride;
+        if (pos < 0 || pos + 12 > bin.Length)
+            return Vector3.Zero;
+
+        float x = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos, 4));
+        float y = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 4, 4));
+        float z = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 8, 4));
+        return new Vector3(x, y, z);
+    }
+
+    private static void AppendIndexAccessor(
+        int accessorIdx,
+        uint baseVertex,
+        JsonElement accessorsEl,
+        JsonElement bufferViewsEl,
+        ReadOnlySpan<byte> bin,
+        List<uint> indices)
     {
         var acc = accessorsEl[accessorIdx];
         int count = acc.GetProperty("count").GetInt32();
+        if (count <= 0) return;
+
         int compType = acc.GetProperty("componentType").GetInt32();
         int bvIdx = acc.GetProperty("bufferView").GetInt32();
         int accOffset = acc.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0;
@@ -373,20 +385,23 @@ public static class GlbMeshLoader
         int stride = bv.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : elemSize;
         if (stride < elemSize) stride = elemSize;
 
-        var result = new uint[count];
+        indices.EnsureCapacity(indices.Count + count);
         int start = bvOffset + accOffset;
         for (int i = 0; i < count; i++)
         {
             int pos = start + i * stride;
-            if (pos + elemSize > bin.Length) break;
-            result[i] = compType switch
+            uint raw = 0;
+            if (pos >= 0 && pos + elemSize <= bin.Length)
             {
-                5121 => bin[pos],
-                5123 => BinaryPrimitives.ReadUInt16LittleEndian(bin.Slice(pos, 2)),
-                5125 => BinaryPrimitives.ReadUInt32LittleEndian(bin.Slice(pos, 4)),
-                _ => 0
-            };
+                raw = compType switch
+                {
+                    5121 => bin[pos],
+                    5123 => BinaryPrimitives.ReadUInt16LittleEndian(bin.Slice(pos, 2)),
+                    5125 => BinaryPrimitives.ReadUInt32LittleEndian(bin.Slice(pos, 4)),
+                    _ => 0
+                };
+            }
+            indices.Add(baseVertex + raw);
         }
-        return result;
     }
 }

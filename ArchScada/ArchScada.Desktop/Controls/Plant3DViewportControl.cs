@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
@@ -105,6 +106,7 @@ public sealed class Plant3DViewportControl : Panel
     private readonly Plant3DOpenGlCanvas _glCanvas;
     private readonly HudOverlayControl _overlay;
     private readonly DispatcherTimer _animTimer;
+    private readonly Stopwatch _frameStopwatch = Stopwatch.StartNew();
     private readonly List<(string Id, Rect Bounds)> _hitRects = new();
 
     private double _time;
@@ -112,12 +114,14 @@ public sealed class Plant3DViewportControl : Panel
     private double _pitch = 0.56;
     private double _zoom = 0.68;
     private double _targetX = -2.0;
+    private double _targetY = 0.9;
     private double _targetZ = -3.0;
 
     private double _goalYaw = -0.58;
     private double _goalPitch = 0.56;
     private double _goalZoom = 0.68;
     private double _goalTargetX = -2.0;
+    private double _goalTargetY = 0.9;
     private double _goalTargetZ = -3.0;
 
     private Point? _pressOrigin;
@@ -151,19 +155,22 @@ public sealed class Plant3DViewportControl : Panel
         Children.Add(_glCanvas);
         Children.Add(_overlay);
 
-        _animTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        _animTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _animTimer.Tick += (_, _) =>
         {
             if (!IsEffectivelyVisible || Bounds.Width < 40 || Bounds.Height < 40)
                 return;
 
+            double dt = Math.Clamp(_frameStopwatch.Elapsed.TotalSeconds, 0.001, 0.05);
+            _frameStopwatch.Restart();
+
             if (!FreezeSimulationTime)
-                _time += 0.033;
+                _time += dt;
             if (Effects?.AutoOrbit == true && _lastPointer is null)
             {
-                _goalYaw += 0.0045;
+                _goalYaw += 0.135 * dt;
             }
-            StepCameraSmoothing();
+            StepCameraSmoothing(dt);
             SyncCanvasState();
             _glCanvas.RequestNextFrameRendering();
             _overlay.InvalidateVisual();
@@ -173,6 +180,7 @@ public sealed class Plant3DViewportControl : Panel
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _frameStopwatch.Restart();
         SyncCanvasState();
         _animTimer.Start();
     }
@@ -212,6 +220,7 @@ public sealed class Plant3DViewportControl : Panel
         _pitch = _goalPitch;
         _zoom = _goalZoom;
         _targetX = _goalTargetX;
+        _targetY = _goalTargetY;
         _targetZ = _goalTargetZ;
         if (simTimeOverride.HasValue)
             _time = simTimeOverride.Value;
@@ -241,6 +250,7 @@ public sealed class Plant3DViewportControl : Panel
         }
 
         _goalTargetX = pos.X;
+        _goalTargetY = (node.IsConveyor || node.IsPipe) ? pos.Y + 0.35 : pos.Y + Math.Clamp((double)node.HalfExtents.Y, 0.6, 1.8);
         _goalTargetZ = pos.Z;
         _goalZoom = (node.IsSubComponent || node.IsPipe) ? 1.65 : node.IsConveyor ? 1.28 : 1.56;
         _goalPitch = 0.48;
@@ -255,6 +265,7 @@ public sealed class Plant3DViewportControl : Panel
         _glCanvas.CameraPitch = _pitch;
         _glCanvas.CameraZoom = _zoom;
         _glCanvas.TargetX = _targetX;
+        _glCanvas.TargetY = _targetY;
         _glCanvas.TargetZ = _targetZ;
         _glCanvas.SimTime = _time;
         _glCanvas.Equipment = Equipment;
@@ -264,14 +275,16 @@ public sealed class Plant3DViewportControl : Panel
         _glCanvas.HoveredNodeId = _hoveredId;
     }
 
-    private void StepCameraSmoothing()
+    private void StepCameraSmoothing(double dt)
     {
-        const double lerp = 0.22;
-        _yaw += (_goalYaw - _yaw) * lerp;
-        _pitch += (_goalPitch - _pitch) * lerp;
-        _zoom += (_goalZoom - _zoom) * lerp;
-        _targetX += (_goalTargetX - _targetX) * lerp;
-        _targetZ += (_goalTargetZ - _targetZ) * lerp;
+        double factor = 1.0 - Math.Exp(-9.5 * dt);
+        double dy = Math.IEEERemainder(_goalYaw - _yaw, Math.PI * 2.0);
+        _yaw += dy * factor;
+        _pitch += (_goalPitch - _pitch) * factor;
+        _zoom += (_goalZoom - _zoom) * factor;
+        _targetX += (_goalTargetX - _targetX) * factor;
+        _targetY += (_goalTargetY - _targetY) * factor;
+        _targetZ += (_goalTargetZ - _targetZ) * factor;
     }
 
     private void ApplyCameraPreset(string preset)
@@ -280,31 +293,31 @@ public sealed class Plant3DViewportControl : Panel
         {
             case "Top-Down GA Layout":
             case "Top-Down Schematic":
-                _goalYaw = 0.0; _goalPitch = 1.48; _goalZoom = 0.42; _goalTargetX = -1.6; _goalTargetZ = -0.2;
+                _goalYaw = 0.0; _goalPitch = 1.48; _goalZoom = 0.42; _goalTargetX = -1.6; _goalTargetY = 0.9; _goalTargetZ = -0.2;
                 break;
             case "Front View (South)":
-                _goalYaw = 0.0; _goalPitch = 0.24; _goalZoom = 0.72; _goalTargetX = -4.5; _goalTargetZ = 2.0;
+                _goalYaw = 0.0; _goalPitch = 0.24; _goalZoom = 0.72; _goalTargetX = -4.5; _goalTargetY = 1.2; _goalTargetZ = 2.0;
                 break;
             case "Side View (West)":
-                _goalYaw = -1.57; _goalPitch = 0.24; _goalZoom = 0.78; _goalTargetX = -13.5; _goalTargetZ = 8.4;
+                _goalYaw = -1.57; _goalPitch = 0.24; _goalZoom = 0.78; _goalTargetX = -13.5; _goalTargetY = 1.4; _goalTargetZ = 8.4;
                 break;
             case "Stage 1: Loader & Feeder":
-                _goalYaw = -1.16; _goalPitch = 0.34; _goalZoom = 0.94; _goalTargetX = -13.8; _goalTargetZ = 10.6;
+                _goalYaw = -1.16; _goalPitch = 0.34; _goalZoom = 0.94; _goalTargetX = -13.8; _goalTargetY = 4.8; _goalTargetZ = 10.6;
                 break;
             case "Stage 2–3: Jaw Crusher":
-                _goalYaw = 0.92; _goalPitch = 0.42; _goalZoom = 1.16; _goalTargetX = -12.8; _goalTargetZ = 1.8;
+                _goalYaw = 0.92; _goalPitch = 0.42; _goalZoom = 1.16; _goalTargetX = -12.8; _goalTargetY = 1.2; _goalTargetZ = 1.8;
                 break;
             case "Stage 4–5: Double Roll Crusher":
-                _goalYaw = -0.35; _goalPitch = 0.46; _goalZoom = 1.48; _goalTargetX = -5.2; _goalTargetZ = -0.8;
+                _goalYaw = -0.35; _goalPitch = 0.46; _goalZoom = 1.48; _goalTargetX = -5.2; _goalTargetY = 0.9; _goalTargetZ = -0.8;
                 break;
             case "Stage 6: Central Sizing Screen":
-                _goalYaw = -0.48; _goalPitch = 0.48; _goalZoom = 1.48; _goalTargetX = 0.0; _goalTargetZ = 0.5;
+                _goalYaw = -0.48; _goalPitch = 0.48; _goalZoom = 1.48; _goalTargetX = 0.0; _goalTargetY = 1.1; _goalTargetZ = 0.5;
                 break;
             case "Wash Plant & Thickener":
-                _goalYaw = -0.45; _goalPitch = 0.58; _goalZoom = 0.86; _goalTargetX = -0.8; _goalTargetZ = -11.8;
+                _goalYaw = -0.45; _goalPitch = 0.58; _goalZoom = 0.86; _goalTargetX = -0.8; _goalTargetY = 1.4; _goalTargetZ = -11.8;
                 break;
             default: // "Plant Overview"
-                _goalYaw = -0.58; _goalPitch = 0.56; _goalZoom = 0.52; _goalTargetX = -1.8; _goalTargetZ = -1.2;
+                _goalYaw = -0.58; _goalPitch = 0.56; _goalZoom = 0.52; _goalTargetX = -1.8; _goalTargetY = 0.9; _goalTargetZ = -1.2;
                 break;
         }
         SyncCanvasState();
@@ -462,7 +475,7 @@ public sealed class Plant3DViewportControl : Panel
         if (Bounds.Width < 40 || Bounds.Height < 40) return null;
         var fx = Effects ?? new Unity3DEffectSettings();
         var (view, proj, _) = Plant3DSceneData.BuildCameraMatrices(
-            _yaw, _pitch, _zoom, _targetX, _targetZ, Bounds.Width, Bounds.Height, fx.IsOrthographic);
+            _yaw, _pitch, _zoom, _targetX, _targetZ, Bounds.Width, Bounds.Height, fx.IsOrthographic, _targetY);
         var ray = Plant3DSceneData.UnprojectRay(p, view * proj, Bounds.Width, Bounds.Height);
 
         var loaderPose = Plant3DSceneData.ComputeLoaderPose(_time, fx.AnimateConveyors);
@@ -545,7 +558,7 @@ public sealed class Plant3DViewportControl : Panel
             var eqMap = (_owner.Equipment ?? Array.Empty<EquipmentItem>()).ToDictionary(e => e.Id, e => e, StringComparer.OrdinalIgnoreCase);
 
             var (view, proj, _) = Plant3DSceneData.BuildCameraMatrices(
-                _owner._yaw, _owner._pitch, _owner._zoom, _owner._targetX, _owner._targetZ, w, h, fx.IsOrthographic);
+                _owner._yaw, _owner._pitch, _owner._zoom, _owner._targetX, _owner._targetZ, w, h, fx.IsOrthographic, _owner._targetY);
             var viewProj = view * proj;
             var flowMap = Plant3DSceneData.EvaluateProcessFlows(eqMap, _owner._time);
             eqMap.TryGetValue("AF-001", out var afEq);
@@ -979,27 +992,51 @@ public sealed class Plant3DViewportControl : Panel
             string? activeSelected = _owner.Selected3DNode?.Id ?? _owner.SelectedEquipment?.Id;
 
             var ordered = Plant3DSceneData.InteractiveNodes
-                .OrderByDescending(p => string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase) ? 6
-                    : string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase) ? 5
-                    : (!p.IsConveyor && !p.IsSubComponent && !p.IsPipe ? 3 : p.IsSubComponent ? 2 : 0)
-                      + (!p.IsSubComponent && !p.IsPipe && eqMap.TryGetValue(p.LinkedScadaId, out var e) && e.Status is EquipmentStatus.Fault or EquipmentStatus.Warning ? 1 : 0));
+                .OrderByDescending(p =>
+                {
+                    if (string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase))
+                        return 100;
+                    if (string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase))
+                        return 90;
+
+                    int priority = (!p.IsConveyor && !p.IsSubComponent && !p.IsPipe) ? 30
+                        : p.IsSubComponent ? 20
+                        : p.IsConveyor ? 10
+                        : 5;
+
+                    if (p.IsSubComponent && p.StageLabel.Contains("Wash Plant", StringComparison.OrdinalIgnoreCase))
+                        priority += 5;
+
+                    if (eqMap.TryGetValue(p.LinkedScadaId, out var e))
+                    {
+                        if (e.Status is EquipmentStatus.Fault or EquipmentStatus.Warning)
+                            priority += !p.IsSubComponent && !p.IsPipe ? 15 : 8;
+                        else if (e.Status == EquipmentStatus.Running)
+                            priority += 3;
+                    }
+
+                    return priority;
+                });
 
             foreach (var p in ordered)
             {
+                bool isSelected = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
+                bool isHovered = string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
+
+                // Declutter secondary labels by zoom threshold unless selected or hovered
+                if (p.IsConveyor && !isSelected && !isHovered && _owner._zoom < 0.78)
+                    continue;
+                if (p.IsSubComponent && !isSelected && !isHovered && _owner._zoom < 0.88)
+                    continue;
+                if (p.IsPipe && !isSelected && !isHovered && _owner._zoom < 0.96)
+                    continue;
+
                 var basePos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
                 var anchor = new Vector3(basePos.X, basePos.Y + p.LabelHeight, basePos.Z);
                 if (!Plant3DSceneData.TryProjectToScreen(anchor, viewProj, w, h, out var pt, out _))
                     continue;
 
-                bool isSelected = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
-                bool isHovered = string.Equals(_owner._hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
-
-                // When zoomed out, only show conveyor labels if hovered/selected or zoomed in >= 0.85
-                if (p.IsConveyor && !isSelected && !isHovered && _owner._zoom < 0.78)
-                    continue;
-                if (p.IsSubComponent && !isSelected && !isHovered && _owner._zoom < 0.76)
-                    continue;
-                if (p.IsPipe && !isSelected && !isHovered && _owner._zoom < 0.84)
+                if (!isSelected && !isHovered && (pt.X < 4 || pt.X > w - 4 || pt.Y < 4 || pt.Y > h - 4))
                     continue;
 
                 bool showDetail = isSelected || isHovered || _owner._zoom >= 1.28;
@@ -1017,7 +1054,8 @@ public sealed class Plant3DViewportControl : Panel
                     bg = new Rect(bg.X, bg.Y - (bg.Height + 3), bg.Width, bg.Height);
                     nudges++;
                 }
-                if (!isSelected && !isHovered && placed.Any(r => r.Intersects(bg)))
+                if (!isSelected && !isHovered &&
+                    (bg.X < 4 || bg.Right > w - 4 || bg.Y < 4 || bg.Bottom > h - 4 || placed.Any(r => r.Intersects(bg))))
                 {
                     overlaps = true;
                 }

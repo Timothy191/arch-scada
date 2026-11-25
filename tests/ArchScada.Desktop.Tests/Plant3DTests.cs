@@ -496,14 +496,34 @@ public class Plant3DTests
     [Fact]
     public void Plant3DSceneData_SubEquipmentAndPipes_HaveIndividualIdsAndCanBePickedSeparately()
     {
-        string[] subIds = { "MX-301", "PP-301", "DMC-301", "SC-301", "SC-302", "SPRAY-301", "BK-301", "PP-302" };
-        string[] pipeIds = { "PIPE-301", "PIPE-302", "PIPE-303", "PIPE-304", "PIPE-305", "PIPE-306", "PIPE-307" };
+        string[] subIds =
+        {
+            // Existing WP-301 (8)
+            "MX-301", "PP-301", "DMC-301", "SC-301", "SC-302", "SPRAY-301", "BK-301", "PP-302",
+            // Stage 1-2 (15)
+            "GRIZ-101", "RAMP-101", "GATE-101", "CHUTE-100", "GRIZ-102", "PAN-101", "DRV-101",
+            "CHUTE-101", "CHUTE-102", "BW-101", "BW-102", "M-CV101", "M-CV102", "RC-101", "RC-102",
+            // Stage 3-5 (11)
+            "FW-101", "JAW-101", "M-JC101", "CHUTE-103", "ROLL-101", "HOP-101",
+            "M-DRC101A", "M-DRC101B", "CHUTE-104", "DIV-101", "CHUTE-106",
+            // Stage 6 (8)
+            "FBOX-101", "DECK-101A", "DECK-101B", "DRV-102", "HOP-102", "VT-102", "CHUTE-105", "BW-201",
+            // Wash Plant & Thickener (20)
+            "GATE-201", "SPRAY-201", "PAN-201", "VALVE-204", "RAKE-201", "LAUNDER-201", "LT-201",
+            "VALVE-201", "VALVE-202", "VALVE-203", "AGIT-301", "DT-301", "VALVE-303", "AGIT-302",
+            "PIPE-312", "PIPE-313", "VALVE-301", "VALVE-302", "PT-301", "VALVE-305"
+        };
+        string[] pipeIds =
+        {
+            "PIPE-301", "PIPE-302", "PIPE-303", "PIPE-304", "PIPE-305", "PIPE-306",
+            "PIPE-307", "PIPE-308", "PIPE-309", "PIPE-310", "PIPE-311"
+        };
 
         Assert.Equal(29, Plant3DSceneData.AllNodes.Count);
-        Assert.Equal(8, Plant3DSceneData.SubEquipmentNodes.Count);
-        Assert.Equal(7, Plant3DSceneData.PipeNodes.Count);
-        Assert.Equal(44, Plant3DSceneData.InteractiveNodes.Count);
-        Assert.Equal(44, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(62, Plant3DSceneData.SubEquipmentNodes.Count);
+        Assert.Equal(11, Plant3DSceneData.PipeNodes.Count);
+        Assert.Equal(102, Plant3DSceneData.InteractiveNodes.Count);
+        Assert.Equal(102, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
         var tempDir = Path.Combine(Path.GetTempPath(), "archscada-sub-test-" + Guid.NewGuid().ToString("N"));
         try
@@ -531,6 +551,8 @@ public class Plant3DTests
         Assert.All(subIds, id => Assert.True(Plant3DSceneData.FindNode(id)!.IsSubComponent));
         Assert.All(pipeIds, id => Assert.True(Plant3DSceneData.FindNode(id)!.IsPipe));
         Assert.NotNull(Plant3DSceneData.FindPipeRoute("PIPE-304"));
+        Assert.NotNull(Plant3DSceneData.FindPipeRoute("PIPE-308"));
+        Assert.NotNull(Plant3DSceneData.FindPipeRoute("PIPE-310"));
 
         var meshes = Plant3DSceneData.LoadAllGlbMeshes();
         string? PickTopDown(Vector3 world)
@@ -558,6 +580,15 @@ public class Plant3DTests
         Assert.Equal("BK-301", PickSide(new Vector3(-3.4f, 0.6f, -7.65f), -Vector3.UnitZ));
         // Magnetite feed pipe on its open run between TK-301 and the wash plant
         Assert.Equal("PIPE-303", PickTopDown(new Vector3(-4.0f, 1.45f, -10.2f)));
+        // Newly added process pipes and stage/circuit sub-equipment picking checks
+        Assert.Equal("PIPE-308", PickTopDown(new Vector3(5.0f, 0.95f, -11.50f)));
+        Assert.Equal("PIPE-310", PickTopDown(new Vector3(4.0f, 0.55f, -13.80f)));
+        Assert.Equal("VALVE-204", PickTopDown(new Vector3(7.45f, 1.0f, -11.50f)));
+        Assert.Equal("BW-101", PickTopDown(new Vector3(-13.80f, 4.20f, 3.10f)));
+        var divOrigin = new Vector3(-8.50f, 2.55f, -2.50f);
+        var divTarget = new Vector3(-8.15f, 2.55f, -0.55f);
+        Assert.Equal("DIV-101", Plant3DSceneData.PickEquipment(new Ray3D(divOrigin, Vector3.Normalize(divTarget - divOrigin)), meshes));
+        Assert.Equal("RAKE-201", PickTopDown(new Vector3(-2.50f, 2.30f, -15.80f)));
     }
 
     [Fact]

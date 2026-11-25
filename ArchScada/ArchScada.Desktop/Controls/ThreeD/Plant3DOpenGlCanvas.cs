@@ -30,7 +30,6 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_SRC_ALPHA = 0x0302;
     private const int GL_ONE_MINUS_SRC_ALPHA = 0x0303;
     private const int GL_TRIANGLES = 0x0004;
-    private const int GL_LINES = 0x0001;
     private const int GL_UNSIGNED_INT = 0x1405;
     private const int GL_UNSIGNED_INT_24_8 = 0x84FA;
     private const int GL_FLOAT = 0x1406;
@@ -226,7 +225,6 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         public uint Vbo;
         public uint Ebo;
         public int IndexCount;
-        public bool IsLines;
     }
 
     private readonly record struct InstanceItem(Matrix4x4 Model, float R, float G, float B, float Alpha, float Metallic, float Roughness);
@@ -236,7 +234,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private GpuMesh? _unitCylinder;
     private GpuMesh? _unitRing;
     private GpuMesh? _unitCone;
-    private GpuMesh? _gridLines;
+    private GpuMesh? _groundTerrainQuad;
     private GpuMesh? _pipesMesh;
     private GpuMesh? _conveyorStructureMesh;
     private GpuMesh? _coalLumpMesh;
@@ -247,12 +245,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
     private readonly List<InstanceItem> _groundPadBoxes = new(16);
     private readonly List<InstanceItem> _casterBoxes = new(512);
-    private readonly List<InstanceItem> _casterCylinders = new(48);
+    private readonly List<InstanceItem> _casterCylinders = new(64);
     private readonly List<InstanceItem> _coalLumps = new(1024);
-    private readonly List<InstanceItem> _unlitBoxes = new(64);
+    private readonly List<InstanceItem> _unlitBoxes = new(96);
     private readonly List<InstanceItem> _unlitCones = new(64);
     private readonly List<InstanceItem> _fillCylinders = new(8);
+    private readonly List<InstanceItem> _softHighlightBoxes = new(32);
     private readonly List<InstanceItem> _softParticleBoxes = new(96);
+    private readonly List<InstanceItem> _ringInstances = new(32);
 
     // Pass 1: Shadow Map
     private int _shadowProgram;
@@ -298,6 +298,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private int _uPostIsOrtho = -1;
     private int _uPostNear = -1;
     private int _uPostFar = -1;
+    private int _uPostInvViewProj = -1;
     private uint _postVao;
     private uint _postFbo;
     private uint _postColorTex;
@@ -313,6 +314,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     public double CameraPitch { get; set; } = 0.56;
     public double CameraZoom { get; set; } = 0.68;
     public double TargetX { get; set; } = -2.0;
+    public double TargetY { get; set; } = 0.9;
     public double TargetZ { get; set; } = -3.0;
     public double SimTime { get; set; }
     public IReadOnlyList<EquipmentItem>? Equipment { get; set; }
@@ -485,6 +487,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 _uPostIsOrtho = GetUniformLoc(_postProgram, "uIsOrtho");
                 _uPostNear = GetUniformLoc(_postProgram, "uNear");
                 _uPostFar = GetUniformLoc(_postProgram, "uFar");
+                _uPostInvViewProj = GetUniformLoc(_postProgram, "uInvViewProj");
                 uint postVao = 0;
                 _glGenVertexArrays!(1, &postVao);
                 _postVao = postVao;
@@ -500,14 +503,14 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
             foreach (var (fileName, meshData) in Plant3DSceneData.LoadAllGlbMeshes())
             {
-                _glbGpuMeshes[fileName] = UploadIndexedMesh(meshData.Vertices, meshData.Indices, withInstancing: false);
+                _glbGpuMeshes[fileName] = UploadGlbMesh(fileName, meshData);
             }
 
             _unitBox = BuildUnitBoxMesh();
             _unitCylinder = BuildUnitCylinderMesh(20);
             _unitRing = BuildUnitRingMesh(32, 0.88f, 1.0f);
             _unitCone = BuildUnitConeMesh(14);
-            _gridLines = BuildGroundGridLines();
+            _groundTerrainQuad = BuildGroundTerrainQuad();
             _pipesMesh = BuildOrthogonalPipesMesh();
             _conveyorStructureMesh = BuildConveyorStructuresMesh();
             _coalLumpMesh = BuildCoalLumpMesh();
@@ -533,7 +536,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         DeleteMesh(_unitCylinder); _unitCylinder = null;
         DeleteMesh(_unitRing); _unitRing = null;
         DeleteMesh(_unitCone); _unitCone = null;
-        DeleteMesh(_gridLines); _gridLines = null;
+        DeleteMesh(_groundTerrainQuad); _groundTerrainQuad = null;
         DeleteMesh(_pipesMesh); _pipesMesh = null;
         DeleteMesh(_conveyorStructureMesh); _conveyorStructureMesh = null;
         DeleteMesh(_coalLumpMesh); _coalLumpMesh = null;
@@ -567,7 +570,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         // Context is already lost: reset all managed GL handles/state without invoking GL delete procs.
         IsHardwareActive = false;
         _glbGpuMeshes.Clear();
-        _unitBox = _unitCylinder = _unitRing = _unitCone = _gridLines = _pipesMesh = _conveyorStructureMesh = _coalLumpMesh = null;
+        _unitBox = _unitCylinder = _unitRing = _unitCone = _groundTerrainQuad = _pipesMesh = _conveyorStructureMesh = _coalLumpMesh = null;
         _instanceVbo = _postVao = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
         _program = _shadowProgram = _postProgram = 0;
         _offscreenW = _offscreenH = 0;
@@ -824,13 +827,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         var (view, proj, camPos) = Plant3DSceneData.BuildCameraMatrices(
             CameraYaw, CameraPitch, CameraZoom, TargetX, TargetZ,
             Math.Max(1.0, bw), Math.Max(1.0, bh),
-            fx.IsOrthographic);
+            fx.IsOrthographic, TargetY);
         var viewProj = view * proj;
 
         var lightDir = Vector3.Normalize(new Vector3(0.48f, 0.82f, 0.34f));
-        var shadowCenter = new Vector3(-2.5f, 0.5f, -0.5f);
+        var shadowCenter = new Vector3(-2.0f, 1.0f, -0.5f);
         var lightViewProj = Matrix4x4.CreateLookAt(shadowCenter + lightDir * 32f, shadowCenter, Vector3.UnitY)
-                          * Plant3DSceneData.CreateOpenGlOrthographic(44f, 44f, 2f, 68f);
+                          * Plant3DSceneData.CreateOpenGlOrthographic(48f, 48f, 2f, 68f);
 
         var eqMap = new Dictionary<string, EquipmentItem>(StringComparer.OrdinalIgnoreCase);
         if (Equipment is not null)
@@ -943,15 +946,15 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _glUniform1f?.Invoke(_uSimTime, (float)SimTime);
         _glUniform1f!(_uIsInstanced, 0f);
 
-        // 1. Ground Grid
-        if (_gridLines is not null)
+        // 1. Yard Terrain Quad + Anti-Aliased fwidth() Grid (Pass 2 only)
+        if (_groundTerrainQuad is not null)
         {
             SetModelAndNormalMatrix(Matrix4x4.Identity);
-            _glUniform3f!(_uTint, 0.22f, 0.65f, 0.92f);
+            _glUniform3f!(_uTint, 0.14f, 0.17f, 0.22f);
             _glUniform1f!(_uTintMix, 1.0f);
-            _glUniform1f!(_uAlpha, 0.20f);
-            _glUniform1f!(_uUnlit, 1.0f);
-            DrawMesh(_gridLines);
+            _glUniform1f!(_uAlpha, 1.0f);
+            _glUniform1f!(_uUnlit, 0.0f);
+            DrawMesh(_groundTerrainQuad);
         }
 
         // 2. Concrete Foundation Pads + Circuit Accent Trim (Instanced)
@@ -1015,7 +1018,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             DrawInstancedBatch(_unitCone, _unlitCones, isShadowPass: false);
         }
 
-        // 8. Transparent Overlays: Live 3D Fill-Level Indicators, Dust/Spray Plumes & Alarm / Selection Rings
+        // 8. Transparent Overlays: Live 3D Fill-Level Indicators, Selection Sleeves, Volumetric Dust/Spray Plumes & Instanced Rings
         _glDepthMask!(0);
         if (_unitCylinder is not null && _fillCylinders.Count > 0)
         {
@@ -1023,53 +1026,23 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glUniform1f!(_uTintMix, 1.0f);
             DrawInstancedBatch(_unitCylinder, _fillCylinders, isShadowPass: false);
         }
-        if (_unitBox is not null && _softParticleBoxes.Count > 0)
+        if (_unitBox is not null && _softHighlightBoxes.Count > 0)
         {
             _glUniform1f!(_uUnlit, 1.0f);
+            _glUniform1f!(_uTintMix, 1.0f);
+            DrawInstancedBatch(_unitBox, _softHighlightBoxes, isShadowPass: false);
+        }
+        if (_unitBox is not null && _softParticleBoxes.Count > 0)
+        {
+            _glUniform1f!(_uUnlit, 2.0f);
             _glUniform1f!(_uTintMix, 1.0f);
             DrawInstancedBatch(_unitBox, _softParticleBoxes, isShadowPass: false);
         }
-
-        _glUniform1f!(_uIsInstanced, 0f);
-        if (_unitRing is not null)
+        if (_unitRing is not null && _ringInstances.Count > 0)
         {
             _glUniform1f!(_uUnlit, 1.0f);
             _glUniform1f!(_uTintMix, 1.0f);
-
-            float pulse = 0.55f + 0.45f * MathF.Sin((float)(SimTime * 4.5));
-            foreach (var p in Plant3DSceneData.InteractiveNodes)
-            {
-                eqMap.TryGetValue(p.LinkedScadaId, out var eq);
-                var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
-                bool isPrimaryMachine = !p.IsConveyor && !p.IsSubComponent && !p.IsPipe;
-                float baseR = p.IsConveyor ? 1.15f
-                    : p.IsPipe ? 0.55f
-                    : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
-
-                if (isPrimaryMachine && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
-                {
-                    var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
-                    var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
-                           * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.08f, pos.Z);
-                    SetModelAndNormalMatrix(rm);
-                    _glUniform3f!(_uTint, ac.R / 255f, ac.G / 255f, ac.B / 255f);
-                    _glUniform1f!(_uAlpha, 0.42f + 0.42f * pulse);
-                    DrawMesh(_unitRing);
-                }
-
-                bool isSel = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
-                bool isHov = string.Equals(HoveredNodeId, p.Id, StringComparison.OrdinalIgnoreCase);
-                if (isSel || isHov)
-                {
-                    var sc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
-                    var rm = Matrix4x4.CreateScale(baseR + 0.16f, 1f, baseR + 0.16f)
-                           * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.10f, pos.Z);
-                    SetModelAndNormalMatrix(rm);
-                    _glUniform3f!(_uTint, sc.R / 255f, sc.G / 255f, sc.B / 255f);
-                    _glUniform1f!(_uAlpha, isSel ? 0.92f : 0.62f);
-                    DrawMesh(_unitRing);
-                }
-            }
+            DrawInstancedBatch(_unitRing, _ringInstances, isShadowPass: false);
         }
         _glDepthMask!(1);
 
@@ -1104,6 +1077,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glUniform1f!(_uPostIsOrtho, fx.IsOrthographic ? 1f : 0f);
             _glUniform1f!(_uPostNear, fx.IsOrthographic ? 0.1f : 0.2f);
             _glUniform1f!(_uPostFar, 140.0f);
+            if (!Matrix4x4.Invert(viewProj, out var invViewProj))
+                invViewProj = Matrix4x4.Identity;
+            SetMatrix(_uPostInvViewProj, invViewProj);
 
             _glBindVertexArray!(_postVao);
             _glDrawArrays!(GL_TRIANGLES, 0, 3);
@@ -1171,7 +1147,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _unlitBoxes.Clear();
         _unlitCones.Clear();
         _fillCylinders.Clear();
+        _softHighlightBoxes.Clear();
         _softParticleBoxes.Clear();
+        _ringInstances.Clear();
 
         // 1. Concrete Foundation Pads + Stage 1-2 Elevated ROM Hill Terraces & Retaining Wall
         foreach (var pad in Plant3DSceneData.FoundationPads)
@@ -1237,6 +1215,11 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                            * Matrix4x4.CreateRotationY(ang)
                            * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.RotatingTopY, p.Position.Z);
                 _casterBoxes.Add(new InstanceItem(rotMat, 0.22f, 0.78f, 0.98f, 1.0f, 0.72f, 0.30f));
+
+                if (p.Id == "TK-201")
+                {
+                    AppendThickenerRakeTruss(p.Position, ang);
+                }
             }
 
             if (p.HasFillLevel)
@@ -1244,17 +1227,46 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 float fillFrac = eq is not null ? Math.Clamp((float)(eq.LoadPercent / 100.0), 0.12f, 0.95f) : 0.60f;
                 if (p.Id == "BN-101") fillFrac = Math.Clamp(fillFrac + loaderPose.BinFillPulse, 0.15f, 0.98f);
 
-                float fillH = p.FillMaxHeight * fillFrac;
                 bool isCoalBin = p.Id is "BN-101" or "BN-201";
+                float fillH = p.Id == "TK-201"
+                    ? p.FillMaxHeight * Math.Clamp(0.76f + 0.18f * fillFrac, 0.76f, 0.96f)
+                    : p.FillMaxHeight * fillFrac;
                 var fillColor = p.Id == "BN-101" ? Color.Parse("#1C1E22")
                               : p.Id == "BN-201" ? Color.Parse("#12151A")
                               : p.Id == "TK-301" ? Color.Parse("#14B8A6")
-                              : Color.Parse("#38BDF8");
+                              : Color.Parse("#1D7CB8");
 
                 var fm = Matrix4x4.CreateScale(p.FillRadius, fillH, p.FillRadius)
                        * Matrix4x4.CreateTranslation(p.Position.X, p.Position.Y + p.FillBaseY + fillH * 0.5f, p.Position.Z);
-                _fillCylinders.Add(new InstanceItem(fm, fillColor.R / 255f, fillColor.G / 255f, fillColor.B / 255f, isCoalBin ? 0.78f : 0.44f, isCoalBin ? 0.06f : 0.15f, isCoalBin ? 0.84f : 0.35f));
+                _fillCylinders.Add(new InstanceItem(
+                    fm,
+                    fillColor.R / 255f,
+                    fillColor.G / 255f,
+                    fillColor.B / 255f,
+                    isCoalBin ? 0.78f : (p.Id == "TK-301" ? 0.72f : 0.52f),
+                    isCoalBin ? 0.06f : 0.14f,
+                    isCoalBin ? 0.84f : 0.17f));
             }
+
+            AppendMachineStatusBeacon(p, eq, loaderPose);
+        }
+
+        // MX-301 Dense-Medium Mixing Box agitated slurry surface (matches isWater predicate)
+        _casterBoxes.Add(new InstanceItem(
+            Matrix4x4.CreateScale(1.88f, 0.04f, 1.88f) * Matrix4x4.CreateTranslation(2.30f, 1.84f, -8.30f),
+            0.078f, 0.239f, 0.349f, 1.0f, 0.14f, 0.20f));
+
+        // Instrumentation beacon LED lenses (VT-102, LT-201, DT-301, PT-301) with 2.4x HDR boost
+        foreach (var sensorPos in new[]
+        {
+            new Vector3(0.25f, 2.58f, 1.38f),
+            new Vector3(-0.55f, 2.26f, -15.25f),
+            new Vector3(-2.50f, 1.66f, -10.20f),
+            new Vector3(2.30f, 3.28f, -8.30f)
+        })
+        {
+            var lm = Matrix4x4.CreateScale(0.085f, 0.095f, 0.085f) * Matrix4x4.CreateTranslation(sensorPos);
+            _unlitBoxes.Add(new InstanceItem(lm, 0.16f, 0.96f, 0.62f, 1.0f, 1.0f, 0.25f));
         }
 
         void AddCoalChunk(Vector3 pos, float size, Color col, float metallic, float roughness, int seed, float rotAnim = 0f)
@@ -1513,7 +1525,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             float r = hc.R / 255f, g = hc.G / 255f, b = hc.B / 255f;
             var size = new Vector3(sub.HalfExtents.X * 2f + 0.10f, sub.HalfExtents.Y * 2f + 0.10f, sub.HalfExtents.Z * 2f + 0.10f);
             var center = new Vector3(sub.Position.X, sub.Position.Y + sub.HalfExtents.Y, sub.Position.Z);
-            _softParticleBoxes.Add(new InstanceItem(
+            _softHighlightBoxes.Add(new InstanceItem(
                 Matrix4x4.CreateScale(size) * Matrix4x4.CreateTranslation(center),
                 r, g, b, isSel ? 0.30f : 0.20f, 0f, 0.5f));
 
@@ -1551,7 +1563,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 var m = Matrix4x4.CreateScale(len + sleeve, sleeve, sleeve)
                       * Matrix4x4.CreateFromQuaternion(q)
                       * Matrix4x4.CreateTranslation((a + bPt) * 0.5f);
-                _softParticleBoxes.Add(new InstanceItem(m, hc.R / 255f, hc.G / 255f, hc.B / 255f, isSel ? 0.55f : 0.38f, 0f, 0.5f));
+                _softHighlightBoxes.Add(new InstanceItem(m, hc.R / 255f, hc.G / 255f, hc.B / 255f, isSel ? 0.55f : 0.38f, 0f, 0.5f));
             }
         }
 
@@ -1564,6 +1576,141 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                 _softParticleBoxes.Add(new InstanceItem(sm, sp.R, sp.G, sp.B, sp.Alpha, 0f, sp.IsWaterSpray ? 0.25f : 0.95f));
             }
         }
+
+        // 7. Instanced Selection, Hover & Alarm Rings (1 draw call max)
+        float pulse = 0.55f + 0.45f * MathF.Sin((float)(SimTime * 4.5));
+        foreach (var p in Plant3DSceneData.InteractiveNodes)
+        {
+            eqMap.TryGetValue(p.LinkedScadaId, out var eq);
+            var pos = p.Id == "FEL-101" ? loaderPose.ChassisPosition : p.Position;
+            bool isPrimaryMachine = !p.IsConveyor && !p.IsSubComponent && !p.IsPipe;
+            float baseR = p.IsConveyor ? 1.15f
+                : p.IsPipe ? 0.55f
+                : MathF.Max(p.HalfExtents.X, p.HalfExtents.Z) + 0.32f;
+
+            if (isPrimaryMachine && fx.ShowAlarmHalos && eq is not null && eq.Status is EquipmentStatus.Warning or EquipmentStatus.Fault)
+            {
+                var ac = eq.Status == EquipmentStatus.Fault ? Color.Parse("#EF4444") : Color.Parse("#F59E0B");
+                var rm = Matrix4x4.CreateScale(baseR + 0.25f * pulse, 1f, baseR + 0.25f * pulse)
+                       * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.08f, pos.Z);
+                _ringInstances.Add(new InstanceItem(rm, ac.R / 255f, ac.G / 255f, ac.B / 255f, 0.42f + 0.42f * pulse, 0f, 0.5f));
+            }
+
+            bool isSel = string.Equals(activeSelected, p.Id, StringComparison.OrdinalIgnoreCase);
+            bool isHov = string.Equals(hoveredId, p.Id, StringComparison.OrdinalIgnoreCase);
+            if (isSel || isHov)
+            {
+                var sc = isSel ? Color.Parse("#38BDF8") : Color.Parse("#93C5FD");
+                var rm = Matrix4x4.CreateScale(baseR + 0.16f, 1f, baseR + 0.16f)
+                       * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.10f, pos.Z);
+                _ringInstances.Add(new InstanceItem(rm, sc.R / 255f, sc.G / 255f, sc.B / 255f, isSel ? 0.92f : 0.62f, 0f, 0.5f));
+            }
+        }
+    }
+
+    private void AppendThickenerRakeTruss(Vector3 center, float angle)
+    {
+        var rotY = Matrix4x4.CreateRotationY(angle);
+        var xlate = Matrix4x4.CreateTranslation(center);
+
+        // Central vertical torque shaft connecting drive head down to rake hub
+        var shaftMat = Matrix4x4.CreateScale(0.13f, 2.12f, 0.13f)
+                     * Matrix4x4.CreateTranslation(center.X, center.Y + 1.15f, center.Z);
+        _casterCylinders.Add(new InstanceItem(shaftMat, 0.72f, 0.76f, 0.84f, 1.0f, 0.88f, 0.24f));
+
+        // Submerged upper rake truss chord at Y = 0.95 and lower scraper chord at Y = 0.45
+        var topChord = Matrix4x4.CreateScale(4.75f, 0.09f, 0.13f)
+                     * Matrix4x4.CreateTranslation(0f, 0.95f, 0f) * rotY * xlate;
+        _casterBoxes.Add(new InstanceItem(topChord, 0.88f, 0.68f, 0.14f, 1.0f, 0.70f, 0.36f));
+
+        var botChord = Matrix4x4.CreateScale(4.60f, 0.08f, 0.11f)
+                     * Matrix4x4.CreateTranslation(0f, 0.45f, 0f) * rotY * xlate;
+        _casterBoxes.Add(new InstanceItem(botChord, 0.44f, 0.52f, 0.62f, 1.0f, 0.78f, 0.34f));
+
+        foreach (float rx in new[] { -2.10f, -1.25f, 1.25f, 2.10f })
+        {
+            var strutMat = Matrix4x4.CreateScale(0.07f, 0.50f, 0.07f)
+                         * Matrix4x4.CreateTranslation(rx, 0.70f, 0f) * rotY * xlate;
+            _casterBoxes.Add(new InstanceItem(strutMat, 0.85f, 0.65f, 0.14f, 1.0f, 0.70f, 0.36f));
+
+            var bladeMat = Matrix4x4.CreateScale(0.08f, 0.18f, 0.32f)
+                         * Matrix4x4.CreateRotationY(0.55f)
+                         * Matrix4x4.CreateTranslation(rx, 0.36f, 0f) * rotY * xlate;
+            _casterBoxes.Add(new InstanceItem(bladeMat, 0.32f, 0.38f, 0.46f, 1.0f, 0.82f, 0.35f));
+        }
+    }
+
+    private void AppendMachineStatusBeacon(Plant3DNode p, EquipmentItem? eq, LoaderPose loaderPose)
+    {
+        var status = eq?.Status ?? EquipmentStatus.Running;
+        float lr, lg, lb, hdrFlag;
+        if (status == EquipmentStatus.Fault)
+        {
+            bool flash = MathF.Sin((float)(SimTime * 9.0)) > -0.2f;
+            lr = flash ? 1.00f : 0.42f; lg = 0.20f; lb = 0.16f;
+            hdrFlag = flash ? 1.0f : 0.0f;
+        }
+        else if (status == EquipmentStatus.Warning)
+        {
+            float pulse = 0.72f + 0.28f * MathF.Sin((float)(SimTime * 5.0));
+            lr = 1.00f * pulse; lg = 0.72f * pulse; lb = 0.12f * pulse;
+            hdrFlag = 1.0f;
+        }
+        else if (status is EquipmentStatus.Stopped or EquipmentStatus.Offline)
+        {
+            lr = 0.36f; lg = 0.42f; lb = 0.50f;
+            hdrFlag = 0.0f;
+        }
+        else
+        {
+            lr = 0.16f; lg = 0.96f; lb = 0.58f;
+            hdrFlag = 1.0f;
+        }
+
+        if (p.Id == "FEL-101")
+        {
+            const float deg = MathF.PI / 180f;
+            var chassisWorld = Matrix4x4.CreateRotationZ(loaderPose.PitchDegrees * deg)
+                             * Matrix4x4.CreateRotationY(loaderPose.YawDegrees * deg)
+                             * Matrix4x4.CreateTranslation(loaderPose.ChassisPosition);
+            var lensWorld = Matrix4x4.CreateScale(0.14f, 0.15f, 0.14f)
+                          * Matrix4x4.CreateTranslation(0.28f, 3.08f, 0f)
+                          * chassisWorld;
+            _unlitBoxes.Add(new InstanceItem(lensWorld, lr, lg, lb, 1.0f, hdrFlag, 0.25f));
+            return;
+        }
+
+        float mastH = 0.42f;
+        Vector3 anchor = p.Id switch
+        {
+            "SP-001" => p.Position + new Vector3(-2.30f, 0f, -1.50f),
+            "SP-301" => p.Position + new Vector3(-2.05f, 0f, 1.55f),
+            "SP-302" => p.Position + new Vector3(-1.95f, 0f, -1.45f),
+            "BN-101" => p.Position + new Vector3(1.22f, 3.56f, -1.22f),
+            "VF-101" => p.Position + new Vector3(-0.68f, 1.45f, 0f),
+            "JC-101" => p.Position + new Vector3(-1.55f, 2.78f, 1.35f),
+            "DRC-101" => p.Position + new Vector3(-1.45f, 4.10f, -1.25f),
+            "SS-101" => p.Position + new Vector3(-2.05f, 3.95f, 1.45f),
+            "BN-201" => p.Position + new Vector3(-0.25f, 4.59f, 0f),
+            "DS-201" => p.Position + new Vector3(1.75f, 2.45f, -1.28f),
+            "WP-301" => p.Position + new Vector3(-3.30f, 3.15f, 1.55f),
+            "MS-301" => p.Position + new Vector3(0.80f, 1.18f, -0.60f),
+            "TK-301" => p.Position + new Vector3(-1.35f, 2.61f, 0f),
+            "TK-201" => p.Position + new Vector3(2.95f, 2.71f, 0.32f),
+            "PP-201" or "PP-202" => p.Position + new Vector3(-0.32f, 0.95f, 0f),
+            "PP-203" => p.Position + new Vector3(0.32f, 0.95f, 0f),
+            _ => p.Position + new Vector3(0f, p.HalfExtents.Y * 2f, 0f)
+        };
+        if (p.EquipmentType.Contains("Stockpile", StringComparison.OrdinalIgnoreCase))
+            mastH = 1.95f;
+
+        var mastMat = Matrix4x4.CreateScale(0.032f, mastH, 0.032f)
+                    * Matrix4x4.CreateTranslation(anchor.X, anchor.Y + mastH * 0.5f, anchor.Z);
+        _casterCylinders.Add(new InstanceItem(mastMat, 0.20f, 0.25f, 0.32f, 1.0f, 0.78f, 0.36f));
+
+        var lensMat = Matrix4x4.CreateScale(0.13f, 0.15f, 0.13f)
+                    * Matrix4x4.CreateTranslation(anchor.X, anchor.Y + mastH + 0.075f, anchor.Z);
+        _unlitBoxes.Add(new InstanceItem(lensMat, lr, lg, lb, 1.0f, hdrFlag, 0.25f));
     }
 
     private void AppendJawCrusherMechanics(Vector3 pos, bool running)
@@ -1931,6 +2078,7 @@ out vec2 vPbr;
 out vec4 vShadowCoord;
 out vec4 vInstColorAlpha;
 out vec2 vInstPbr;
+out vec3 vLocalPos;
 
 void main() {
     vec4 wp;
@@ -1953,6 +2101,7 @@ void main() {
     vWorldPos = wp.xyz;
     vColor = aColor;
     vPbr = aPbr;
+    vLocalPos = aPos;
     vShadowCoord = uLightViewProj * wp;
     gl_Position = uViewProj * wp;
 }
@@ -1966,6 +2115,7 @@ in vec2 vPbr;
 in vec4 vShadowCoord;
 in vec4 vInstColorAlpha;
 in vec2 vInstPbr;
+in vec3 vLocalPos;
 
 uniform vec3 uCamPos;
 uniform vec3 uTint;
@@ -2011,7 +2161,27 @@ float fbm3(vec3 p) {
     return v;
 }
 
-vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float metallic, float roughness, vec3 F0, float clearcoatWeight) {
+float sdBox2D(vec2 p, vec2 c, vec2 h) {
+    vec2 d = abs(p - c) - h;
+    return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0);
+}
+
+vec3 sampleIndustrialEnv(vec3 dir, float rough, vec3 sunDir) {
+    vec3 skyTop = vec3(0.18, 0.34, 0.62);
+    vec3 horizon = vec3(0.42, 0.52, 0.66);
+    vec3 groundBounce = vec3(0.14, 0.11, 0.09);
+    vec3 baseSky = mix(groundBounce, mix(horizon, skyTop, smoothstep(0.0, 0.65, dir.y)), smoothstep(-0.28, 0.22, dir.y));
+    float sunExp = mix(48.0, 4.0, rough * rough);
+    vec3 sunLobe = vec3(1.15, 0.88, 0.58) * pow(max(dot(dir, sunDir), 0.0), sunExp) * mix(0.85, 0.25, rough);
+    float strip = smoothstep(0.55, 0.92, abs(cos(dir.x * 5.0))) * smoothstep(0.25, 0.72, dir.y);
+    vec3 skylights = vec3(0.62, 0.78, 0.96) * strip * mix(0.85, 0.18, rough);
+    return baseSky + sunLobe + skylights;
+}
+
+vec3 evalCookTorrance(
+    vec3 N, vec3 V, vec3 L, vec3 lightCol,
+    vec3 albedo, float metallic, float roughness, vec3 F0, float clearcoatWeight,
+    vec3 T, vec3 B, float aniso) {
     vec3 H = normalize(L + V);
     float NdotL = max(dot(N, L), 0.0);
     if (NdotL <= 0.0) return vec3(0.0);
@@ -2020,9 +2190,12 @@ vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float 
     float HdotV = max(dot(H, V), 0.0);
 
     float a = roughness * roughness;
-    float a2 = a * a;
-    float denom = NdotH * NdotH * (a2 - 1.0) + 1.0;
-    float D = a2 / (3.14159265 * denom * denom + 1e-5);
+    float ax = max(a * (1.0 + aniso), 0.002);
+    float ay = max(a * (1.0 - aniso), 0.002);
+    float TdotH = dot(T, H);
+    float BdotH = dot(B, H);
+    float dAniso = (TdotH * TdotH) / (ax * ax) + (BdotH * BdotH) / (ay * ay) + NdotH * NdotH;
+    float D = 1.0 / (3.14159265 * ax * ay * dAniso * dAniso + 1e-5);
 
     float k = roughness + 1.0;
     k = (k * k) / 8.0;
@@ -2043,7 +2216,8 @@ vec3 evalCookTorrance(vec3 N, vec3 V, vec3 L, vec3 lightCol, vec3 albedo, float 
         float denomC = NdotH * NdotH * (aCoat2 - 1.0) + 1.0;
         float Dc = aCoat2 / (3.14159265 * denomC * denomC + 1e-5);
         float Fc = 0.04 + 0.96 * pow(clamp(1.0 - HdotV, 0.0, 1.0), 5.0);
-        float Gc = 0.25 / max(NdotL * NdotV, 0.05);
+        float LdotH = max(dot(H, L), 0.05);
+        float Gc = 0.25 / (LdotH * LdotH);
         float coatSpec = Dc * Gc * Fc * clearcoatWeight;
         contrib = contrib * (1.0 - Fc * clearcoatWeight * 0.65) + vec3(coatSpec);
     }
@@ -2064,55 +2238,150 @@ void main() {
     vec3 tintSrgb = (uIsInstanced > 0.5) ? vInstColorAlpha.rgb : uTint;
     vec3 tintLinear = pow(max(tintSrgb, vec3(0.0)), vec3(2.2));
     float alpha = (uIsInstanced > 0.5) ? vInstColorAlpha.a : uAlpha;
-    float metallic = clamp((uIsInstanced > 0.5) ? vInstPbr.x : vPbr.x, 0.0, 1.0);
-    float roughness = clamp((uIsInstanced > 0.5) ? vInstPbr.y : vPbr.y, 0.06, 1.0);
+    float rawMetallic = (uIsInstanced > 0.5) ? vInstPbr.x : vPbr.x;
+    bool isGround = (rawMetallic < -0.5);
+    float metallic = isGround ? 0.03 : clamp(rawMetallic, 0.0, 1.0);
+    float roughness = isGround ? 0.88 : clamp((uIsInstanced > 0.5) ? vInstPbr.y : vPbr.y, 0.06, 1.0);
 
     vec3 albedo = mix(vColor, tintLinear, uTintMix);
 
+    // Precompute screen-space derivatives uniformly before non-uniform material branches
+    vec3 dpdx = dFdx(vWorldPos);
+    vec3 dpdy = dFdy(vWorldPos);
+    vec2 coord2 = vWorldPos.xz / 2.0;
+    vec2 fw2 = max(fwidth(coord2), vec2(1e-4));
+    vec2 coord10 = vWorldPos.xz / 10.0;
+    vec2 fw10 = max(fwidth(coord10), vec2(1e-4));
+
     vec3 hdrCol;
-    if (uUnlit > 0.5) {
-        hdrCol = albedo * (alpha > 0.5 ? 1.32 : 1.0);
+    if (uUnlit > 1.5) {
+        float radial = pow(clamp(1.0 - length(vLocalPos) * 2.0, 0.0, 1.0), 1.75);
+        bool isSpray = (roughness < 0.5);
+        vec3 drift = isSpray ? vec3(0.0, uSimTime * 1.8, 0.0) : vec3(0.18 * uSimTime, -0.55 * uSimTime, 0.12 * uSimTime);
+        float wisp = fbm3(vWorldPos * (isSpray ? 3.8 : 2.1) + drift);
+        float density = radial * smoothstep(0.16, 0.88, wisp * 1.15);
+        alpha *= density;
+        if (alpha < 0.005) discard;
+        vec3 L = normalize(vec3(0.48, 0.82, 0.34));
+        vec3 V = normalize(uCamPos - vWorldPos);
+        float forwardScatter = pow(max(dot(-V, L), 0.0), 4.0) * 0.45 + 0.55;
+        hdrCol = albedo * (isSpray ? (0.95 + 0.55 * forwardScatter) : (0.70 + 0.40 * forwardScatter));
+    } else if (uUnlit > 0.5) {
+        float boost = (metallic > 0.95) ? 2.4 : (alpha > 0.5 ? 1.32 : 1.0);
+        hdrCol = albedo * boost;
     } else {
         vec3 N = normalize(vNormal);
 
-        // Animated slurry vortex & Clarified Water ripples on thickener / medium tanks
-        if (uUnlit > 0.1 && alpha > 0.30 && alpha < 0.75) {
-            float wave = sin(vWorldPos.x * 4.5 + uSimTime * 2.2) * cos(vWorldPos.z * 4.5 - uSimTime * 1.9);
-            float swirl = sin((vWorldPos.x + vWorldPos.z) * 3.0 + uSimTime * 1.4);
-            N = normalize(N + vec3(wave * 0.14, 0.0, swirl * 0.14));
-            albedo *= mix(0.85, 1.18, 0.5 + 0.5 * wave);
-        }
+        bool isWater = (!isGround && N.y > 0.70 && metallic < 0.25 && roughness < 0.26 && albedo.b > albedo.r * 2.0 && albedo.b > 0.04);
+        bool isRubberBelt = (!isGround && !isWater && abs(metallic - 0.14) < 0.025 && roughness > 0.84 && roughness < 0.90);
+        bool isConcrete = (!isGround && !isWater && !isRubberBelt && metallic < 0.12 && roughness > 0.76 && (dot(albedo, vec3(0.333)) >= 0.055 || albedo.b > albedo.r * 1.8));
+        bool isCoal = (!isGround && !isWater && !isRubberBelt && !isConcrete && dot(albedo, vec3(0.333)) < 0.045 && metallic < 0.25);
+        bool isGranular = (!isGround && !isWater && !isRubberBelt && roughness > 0.65 && metallic < 0.25);
+        bool isBrushed = (metallic > 0.50);
 
-        // Micro-surface dFdx/dFdy procedural bump: granular on coal/concrete, brushed on metallic steel
-        bool isCoal = (dot(albedo, vec3(0.333)) < 0.045 && metallic < 0.25);
-        bool isGranular = (roughness > 0.65 && metallic < 0.25);
-        bool isBrushed = (metallic > 0.5);
-        float freq = isCoal ? 12.5 : (isGranular ? 7.5 : (isBrushed ? 18.0 : 10.0));
-        float bumpAmp = isCoal ? 0.18 : (isGranular ? 0.14 : (isBrushed ? 0.035 : 0.02));
+        float freq = isGround ? 2.8 : (isCoal ? 12.5 : (isGranular ? 7.5 : (isBrushed ? 18.0 : 10.0)));
+        float bumpAmp = isGround ? 0.045 : (isCoal ? 0.18 : (isGranular ? 0.14 : (isBrushed ? 0.035 : 0.02)));
         vec3 samplePos = isBrushed ? vec3(vWorldPos.x * 2.2, vWorldPos.y * 0.8, vWorldPos.z * 2.2) : vWorldPos;
         float h = fbm3(samplePos * freq);
-        if (isCoal) {
-            albedo *= mix(0.65, 1.48, h);
-        } else if (isGranular) {
-            albedo *= mix(0.84, 1.16, h);
+        float groundPadContact = 1.0;
+        vec3 groundGridGlow = vec3(0.0);
+
+        if (isGround) {
+            float gravel = fbm3(vec3(vWorldPos.x * 0.45, 0.0, vWorldPos.z * 0.45));
+            float fineGravel = fbm3(vec3(vWorldPos.x * 3.2, 0.0, vWorldPos.z * 3.2));
+            albedo = mix(vec3(0.015, 0.019, 0.028), vec3(0.030, 0.036, 0.048), gravel * 0.65 + fineGravel * 0.35);
+            roughness = clamp(0.84 + fineGravel * 0.12, 0.06, 1.0);
+
+            vec2 g2 = abs(fract(coord2 - 0.5) - 0.5) / fw2;
+            float line2 = 1.0 - min(min(g2.x, g2.y), 1.0);
+            vec2 g10 = abs(fract(coord10 - 0.5) - 0.5) / fw10;
+            float line10 = 1.0 - min(min(g10.x, g10.y), 1.0);
+            float yardDist = length(vWorldPos.xz - vec2(-2.0, -0.5));
+            float gridFade = 1.0 - smoothstep(26.0, 42.0, yardDist);
+
+            float minPad = 99.0;
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(-13.8, 11.4), vec2(3.0, 7.9)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(-10.5, -0.8), vec2(5.1, 2.2)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(0.4, 0.6), vec2(2.8, 2.4)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(10.4, -5.2), vec2(3.1, 6.0)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(-5.0, -7.2), vec2(7.25, 3.1)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(-1.6, -13.9), vec2(5.8, 3.8)));
+            minPad = min(minPad, sdBox2D(vWorldPos.xz, vec2(-13.8, 13.8), vec2(3.9, 6.5)));
+
+            groundPadContact = mix(0.46, 1.0, smoothstep(0.0, 1.35, max(minPad, 0.0)));
+            float padSuppress = smoothstep(-0.1, 0.45, minPad);
+            float minorMask = line2 * 0.22 * gridFade * padSuppress;
+            float majorMask = line10 * 0.50 * gridFade * padSuppress;
+            vec3 gridCol = mix(vec3(0.04, 0.14, 0.24), vec3(0.08, 0.36, 0.56), line10);
+            albedo = mix(albedo, gridCol, clamp(max(minorMask, majorMask), 0.0, 0.65));
+            groundGridGlow = gridCol * (minorMask * 0.08 + majorMask * 0.22);
+        } else if (isWater) {
+            vec2 tkDelta = vWorldPos.xz - vec2(-1.2, -15.8);
+            float tkR = length(tkDelta);
+            if (tkR < 2.80) {
+                float tkAngle = atan(tkDelta.y, tkDelta.x);
+                float rakeWake = sin(tkAngle * 2.0 + uSimTime * 0.90) * 0.5 + 0.5;
+                float radialWave = sin(tkR * 14.0 - uSimTime * 2.6 + rakeWake * 1.4);
+                float crossWave = cos(vWorldPos.x * 7.5 + uSimTime * 1.9) * sin(vWorldPos.z * 7.5 - uSimTime * 1.7);
+                vec2 radDir = tkDelta / max(tkR, 0.1);
+                float waveSlope = radialWave * 0.11 + crossWave * 0.07;
+                N = normalize(N + vec3(waveSlope * radDir.x, 0.0, waveSlope * radDir.y));
+                albedo *= mix(0.88, 1.18, 0.5 + 0.5 * radialWave);
+
+                float foamNoise = fbm3(vec3(vWorldPos.x * 4.5, uSimTime * 0.45, vWorldPos.z * 4.5));
+                float ringMask = smoothstep(2.22, 2.34, tkR) * (1.0 - smoothstep(2.49, 2.58, tkR));
+                float foam = ringMask * smoothstep(0.30, 0.72, foamNoise + 0.18 * sin(tkAngle * 6.0 - uSimTime * 1.4));
+                albedo = mix(albedo, vec3(0.72, 0.84, 0.92), foam * 0.78);
+                roughness = mix(roughness, 0.58, foam * 0.70);
+            } else {
+                float w1 = sin(vWorldPos.x * 9.5 + uSimTime * 2.6) * cos(vWorldPos.z * 9.5 - uSimTime * 2.3);
+                float w2 = sin((vWorldPos.x - vWorldPos.z) * 6.5 + uSimTime * 3.1);
+                N = normalize(N + vec3(w1 * 0.13, 0.0, w2 * 0.13));
+                albedo *= mix(0.86, 1.18, 0.5 + 0.5 * w1);
+            }
+            bumpAmp = 0.0;
+        } else {
+            if (isRubberBelt) {
+                float treadA = abs(fract((vWorldPos.x + vWorldPos.z) * 2.2 - uSimTime * 0.85) - 0.5) * 2.0;
+                float treadB = abs(fract((vWorldPos.x - vWorldPos.z) * 2.2 - uSimTime * 0.85) - 0.5) * 2.0;
+                float chevron = smoothstep(0.68, 0.92, max(treadA, treadB));
+                float wearTrack = fbm3(vec3(vWorldPos.x * 3.5, 0.0, vWorldPos.z * 3.5));
+                albedo *= mix(0.84, 1.14, chevron * 0.55 + wearTrack * 0.45);
+                roughness = clamp(roughness - chevron * 0.06, 0.06, 1.0);
+            } else if (isConcrete && abs(N.y) > 0.70) {
+                vec2 jg = abs(fract(coord2 - 0.5) - 0.5) / fw2;
+                float joint = 1.0 - min(min(jg.x, jg.y), 1.0);
+                albedo *= mix(1.0, 0.54, joint * 0.75);
+                h -= joint * 0.18;
+            }
+            if (isCoal) {
+                albedo *= mix(0.65, 1.48, h);
+            } else if (isGranular) {
+                albedo *= mix(0.84, 1.16, h);
+            }
         }
 
-        vec3 dpdx = dFdx(vWorldPos);
-        vec3 dpdy = dFdy(vWorldPos);
         float dhdx = dFdx(h);
         float dhdy = dFdy(h);
-        vec3 r1 = cross(dpdy, N);
-        vec3 r2 = cross(N, dpdx);
-        float det = dot(dpdx, r1);
-        if (abs(det) > 1e-6) {
-            vec3 surfGrad = sign(det) * (dhdx * r1 + dhdy * r2) / abs(det);
-            float gLen = length(surfGrad);
-            if (gLen > 2.5) surfGrad *= (2.5 / gLen);
-            N = normalize(N - bumpAmp * surfGrad);
+        if (bumpAmp > 0.001) {
+            vec3 r1 = cross(dpdy, N);
+            vec3 r2 = cross(N, dpdx);
+            float det = dot(dpdx, r1);
+            if (abs(det) > 1e-6) {
+                vec3 surfGrad = sign(det) * (dhdx * r1 + dhdy * r2) / abs(det);
+                float gLen = length(surfGrad);
+                if (gLen > 2.5) surfGrad *= (2.5 / gLen);
+                N = normalize(N - bumpAmp * surfGrad);
+            }
         }
 
         vec3 V = normalize(uCamPos - vWorldPos);
         float NdotV = max(dot(N, V), 0.001);
+        vec3 upRef = (abs(N.y) < 0.92) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+        vec3 T = normalize(cross(upRef, N));
+        vec3 B = cross(N, T);
+        float aniso = isBrushed ? 0.42 : 0.0;
+
         vec3 F0 = mix(vec3(isCoal ? 0.058 : 0.04), albedo, metallic);
         float clearcoatWeight = (uEnableClearcoat > 0.5 && roughness < 0.44 && metallic < 0.25)
             ? clamp((0.46 - roughness) * 3.0, 0.25, 0.90)
@@ -2142,40 +2411,62 @@ void main() {
             }
         }
 
-        vec3 direct = evalCookTorrance(N, V, L, vec3(2.45, 2.38, 2.25), albedo, metallic, roughness, F0, clearcoatWeight) * shadow;
+        vec3 direct = evalCookTorrance(N, V, L, vec3(2.45, 2.38, 2.25), albedo, metallic, roughness, F0, clearcoatWeight, T, B, aniso) * shadow;
 
         // Secondary cool/warm industrial fill light
         vec3 L2 = normalize(vec3(-0.55, 0.38, -0.62));
-        vec3 fill = evalCookTorrance(N, V, L2, vec3(0.46, 0.62, 0.84), albedo, metallic, roughness, F0, clearcoatWeight * 0.5);
+        vec3 fill = evalCookTorrance(N, V, L2, vec3(0.46, 0.62, 0.84), albedo, metallic, roughness, F0, clearcoatWeight * 0.5, T, B, aniso);
 
-        // Procedural industrial sky / horizon / ground IBL + wet clearcoat reflection
+        // 4 analytical downward industrial bay spotlights
+        vec3 spots[4];
+        spots[0] = vec3(-13.8, 9.2, 7.5);
+        spots[1] = vec3(-10.5, 6.8, -0.6);
+        spots[2] = vec3(0.2, 7.8, 0.5);
+        spots[3] = vec3(-0.8, 8.2, -7.8);
+        vec3 baySpots = vec3(0.0);
+        for (int s = 0; s < 4; s++) {
+            vec3 toSpot = spots[s] - vWorldPos;
+            float d2 = dot(toSpot, toSpot);
+            float d = sqrt(max(d2, 1e-4));
+            vec3 Ls = toSpot / d;
+            float cone = smoothstep(0.45, 0.86, Ls.y);
+            float atten = (1.0 / (1.0 + 0.045 * d2)) * smoothstep(16.5, 7.5, d);
+            vec3 spotCol = ((s == 3) ? vec3(0.88, 1.02, 1.15) : vec3(1.15, 1.06, 0.92)) * (atten * cone * 1.45);
+            if (atten * cone > 0.005) {
+                baySpots += evalCookTorrance(N, V, Ls, spotCol, albedo, metallic, roughness, F0, clearcoatWeight * 0.5, T, B, aniso);
+            }
+        }
+
+        // Procedural industrial IBL (sun lobe, skylight strips, warm ground bounce) + wet clearcoat reflection
         vec3 R = reflect(-V, N);
-        vec3 skyTop = vec3(0.24, 0.42, 0.68);
-        vec3 horizon = vec3(0.48, 0.58, 0.70);
-        vec3 ground = vec3(0.08, 0.10, 0.14);
-
-        vec3 envDiff = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.7, N.y)), smoothstep(-0.35, 0.25, N.y));
-        vec3 envSpec = mix(ground, mix(horizon, skyTop, smoothstep(0.0, 0.65, R.y)), smoothstep(-0.20, 0.20, R.y));
-        float bayHighlight = pow(max(R.y, 0.0), mix(18.0, 2.0, roughness)) * 0.48;
-        vec3 rawEnvSpec = envSpec + vec3(0.55, 0.68, 0.85) * bayHighlight;
-        envSpec = mix(rawEnvSpec, envDiff, roughness * roughness * 0.75);
+        vec3 envDiff = sampleIndustrialEnv(N, 0.88, L);
+        vec3 rawEnvSpec = sampleIndustrialEnv(R, roughness, L);
+        vec3 envSpec = mix(rawEnvSpec, envDiff, roughness * roughness * 0.65);
 
         vec3 F_ibl = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
         vec3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
         float specOcc = mix(1.0, 0.28, roughness);
-        float contactAo = mix(0.68, 1.0, smoothstep(0.0, 0.55, vWorldPos.y));
+        float contactAo = mix(0.68, 1.0, smoothstep(0.0, 0.55, vWorldPos.y)) * groundPadContact;
 
-        vec3 ambient = (kD_ibl * albedo * envDiff * 0.58 + F_ibl * envSpec * specOcc * 0.82) * contactAo;
+        vec3 ambient = (kD_ibl * albedo * envDiff * 0.56 + F_ibl * envSpec * specOcc * 0.84) * contactAo;
         if (clearcoatWeight > 0.01) {
             float Fc_ibl = 0.04 + 0.96 * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
             ambient += rawEnvSpec * (Fc_ibl * clearcoatWeight * 0.85) * contactAo;
         }
 
-        vec3 lit = ambient + direct + fill;
+        // Grazing Fresnel silhouette rim for non-ground machinery & steel
+        vec3 rimGlow = vec3(0.0);
+        if (!isGround) {
+            float rim = pow(clamp(1.0 - NdotV, 0.0, 1.0), 3.5);
+            vec3 rimCol = mix(vec3(0.22, 0.44, 0.72), vec3(0.56, 0.76, 0.96), metallic);
+            rimGlow = rimCol * rim * (0.20 + 0.24 * max(N.y, 0.0)) * contactAo;
+        }
+
+        vec3 lit = ambient + direct + fill + baySpots + rimGlow + groundGridGlow;
 
         float dist = length(uCamPos - vWorldPos);
         float fog = clamp((dist - 32.0) / 56.0, 0.0, 0.36);
-        hdrCol = mix(lit, vec3(0.005, 0.010, 0.022), fog);
+        hdrCol = mix(lit, vec3(0.008, 0.018, 0.038), fog);
     }
 
     if (uEncodeHdr > 0.5) {
@@ -2183,7 +2474,7 @@ void main() {
         vec3 encoded = sqrt(clamp(hdrCol * 0.4, 0.0, 1.0));
         FragColor = vec4(encoded, alpha);
     } else if (uApplyToneMap > 0.5) {
-        vec3 mapped = ACESFilm(hdrCol);
+        vec3 mapped = ACESFilm(hdrCol * 1.06);
         vec3 srgb = pow(mapped, vec3(1.0 / 2.2));
         FragColor = vec4(srgb, alpha);
     } else {
@@ -2219,6 +2510,7 @@ uniform float uDecodeHdr;
 uniform float uIsOrtho;
 uniform float uNear;
 uniform float uFar;
+uniform mat4 uInvViewProj;
 
 out vec4 FragColor;
 
@@ -2234,6 +2526,36 @@ float linearizeDepth(float d) {
     return (2.0 * uNear * uFar) / max(uFar + uNear - zNdc * (uFar - uNear), 0.0001);
 }
 
+vec3 sampleDuskSky(vec2 uv) {
+    vec3 rayDir;
+    if (uIsOrtho > 0.5) {
+        float elev = clamp((uv.y - 0.12) * 1.15, 0.0, 1.0);
+        rayDir = normalize(vec3(0.48, elev * 0.85, 0.34));
+    } else {
+        vec2 ndc = uv * 2.0 - 1.0;
+        vec4 pNear = uInvViewProj * vec4(ndc, -1.0, 1.0);
+        vec4 pFar = uInvViewProj * vec4(ndc, 1.0, 1.0);
+        vec3 wNear = pNear.xyz / max(abs(pNear.w), 1e-5);
+        vec3 wFar = pFar.xyz / max(abs(pFar.w), 1e-5);
+        rayDir = normalize(wFar - wNear);
+    }
+
+    vec3 fogColor = vec3(0.008, 0.018, 0.038);
+    vec3 horizonGlow = vec3(0.026, 0.044, 0.078);
+    vec3 zenithCol = vec3(0.004, 0.009, 0.024);
+
+    float up = max(rayDir.y, 0.0);
+    vec3 grad = mix(fogColor, mix(horizonGlow, zenithCol, smoothstep(0.04, 0.58, up)), smoothstep(-0.02, 0.06, rayDir.y));
+    if (rayDir.y < 0.0) {
+        grad = mix(fogColor, vec3(0.004, 0.010, 0.022), clamp(-rayDir.y * 2.4, 0.0, 1.0));
+    }
+
+    vec3 L = normalize(vec3(0.48, 0.82, 0.34));
+    float sunCos = max(dot(rayDir, L), 0.0);
+    float scatter = pow(sunCos, 10.0) * 0.14 + pow(sunCos, 96.0) * 0.42;
+    return grad + vec3(1.0, 0.72, 0.42) * scatter;
+}
+
 vec3 ACESFilm(vec3 x) {
     float a = 2.51;
     float b = 0.03;
@@ -2246,11 +2568,18 @@ vec3 ACESFilm(vec3 x) {
 void main() {
     vec3 hdrCol = decodeHdr(texture(uColorTex, vUv).rgb);
     float centerDepth = texture(uDepthTex, vUv).r;
+    float linCenter = linearizeDepth(centerDepth);
+    float maxSlope = 0.25 + 0.04 * linCenter;
+    float dzdx = clamp(dFdx(linCenter), -maxSlope, maxSlope);
+    float dzdy = clamp(dFdy(linCenter), -maxSlope, maxSlope);
 
-    // 12-tap Normal-Aware Bilateral GTAO-Lite
+    if (centerDepth >= 0.9995) {
+        hdrCol = sampleDuskSky(vUv);
+    }
+
+    // 12-tap Normal-Aware Depth-Plane Bilateral GTAO-Lite
     float ao = 1.0;
     if (uEnableAo > 0.5 && centerDepth < 0.9995) {
-        float linCenter = linearizeDepth(centerDepth);
         float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
         float ang = ign * 6.2831853;
         float ca = cos(ang);
@@ -2263,14 +2592,16 @@ void main() {
             float r = sqrt((float(i) + 0.5) / 12.0);
             float theta = float(i) * 2.3999632;
             vec2 tapVec = rot * (vec2(cos(theta), sin(theta)) * r);
-            vec2 uvTap = vUv + tapVec * radiusPx * uTexelSize;
+            vec2 pxDelta = tapVec * radiusPx;
+            vec2 uvTap = vUv + pxDelta * uTexelSize;
             float tapDepth = texture(uDepthTex, uvTap).r;
             if (tapDepth >= 0.9995) continue;
             float linTap = linearizeDepth(tapDepth);
-            float diff = linCenter - linTap;
+            float planeLin = linCenter + dzdx * pxDelta.x + dzdy * pxDelta.y;
+            float diff = planeLin - linTap;
             float horizon = clamp(diff / (0.42 + 0.02 * linCenter), 0.0, 1.0);
             float bilateralWeight = 1.0 - smoothstep(0.75, 1.95, abs(diff));
-            occSum += smoothstep(0.04, 0.30, diff) * horizon * bilateralWeight;
+            occSum += smoothstep(0.05, 0.30, diff) * horizon * bilateralWeight;
         }
         ao = clamp(1.0 - (occSum / 12.0) * 0.72, 0.38, 1.0);
     }
@@ -2291,21 +2622,32 @@ void main() {
     }
     bloom *= (1.0 / 8.0) * 0.24;
 
-    vec3 finalHdr = hdrCol * ao + bloom;
+    vec3 finalHdr = (hdrCol * ao + bloom) * 1.06;
     vec3 mapped = ACESFilm(finalHdr);
 
-    // FidelityFX Contrast Adaptive Sharpening (CAS)
-    if (uEnableCas > 0.5) {
-        vec3 nCol = ACESFilm(decodeHdr(texture(uColorTex, vUv + vec2(0.0, uTexelSize.y)).rgb) * ao + bloom);
-        vec3 sCol = ACESFilm(decodeHdr(texture(uColorTex, vUv - vec2(0.0, uTexelSize.y)).rgb) * ao + bloom);
-        vec3 eCol = ACESFilm(decodeHdr(texture(uColorTex, vUv + vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom);
-        vec3 wCol = ACESFilm(decodeHdr(texture(uColorTex, vUv - vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom);
+    // Depth-aware FidelityFX Contrast Adaptive Sharpening (CAS)
+    if (uEnableCas > 0.5 && centerDepth < 0.9995) {
+        float dN = linearizeDepth(texture(uDepthTex, vUv + vec2(0.0, uTexelSize.y)).r);
+        float dS = linearizeDepth(texture(uDepthTex, vUv - vec2(0.0, uTexelSize.y)).r);
+        float dE = linearizeDepth(texture(uDepthTex, vUv + vec2(uTexelSize.x, 0.0)).r);
+        float dW = linearizeDepth(texture(uDepthTex, vUv - vec2(uTexelSize.x, 0.0)).r);
+        float maxEdgeDiff = max(max(abs(dN - linCenter), abs(dS - linCenter)), max(abs(dE - linCenter), abs(dW - linCenter)));
+        float edgeMask = 1.0 - smoothstep(0.35, 1.60, maxEdgeDiff);
+
+        vec3 nCol = ACESFilm((decodeHdr(texture(uColorTex, vUv + vec2(0.0, uTexelSize.y)).rgb) * ao + bloom) * 1.06);
+        vec3 sCol = ACESFilm((decodeHdr(texture(uColorTex, vUv - vec2(0.0, uTexelSize.y)).rgb) * ao + bloom) * 1.06);
+        vec3 eCol = ACESFilm((decodeHdr(texture(uColorTex, vUv + vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom) * 1.06);
+        vec3 wCol = ACESFilm((decodeHdr(texture(uColorTex, vUv - vec2(uTexelSize.x, 0.0)).rgb) * ao + bloom) * 1.06);
         vec3 mn = min(mapped, min(min(nCol, sCol), min(eCol, wCol)));
         vec3 mx = max(mapped, max(max(nCol, sCol), max(eCol, wCol)));
         vec3 amp = clamp(min(mn, vec3(1.0) - mx) / max(mx, vec3(1e-4)), 0.0, 1.0);
-        vec3 weight = sqrt(amp) * -0.14;
+        vec3 weight = sqrt(amp) * (-0.16 * edgeMask);
         mapped = clamp((mapped + (nCol + sCol + eCol + wCol) * weight) / (vec3(1.0) + 4.0 * weight), 0.0, 1.0);
     }
+
+    vec2 vCent = vUv - vec2(0.5);
+    float vig = clamp(1.0 - dot(vCent, vCent) * 0.24, 0.78, 1.0);
+    mapped *= vig;
 
     vec3 srgb = pow(mapped, vec3(1.0 / 2.2));
     FragColor = vec4(srgb, 1.0);
@@ -2502,36 +2844,54 @@ void main() {
         return new GpuMesh { Vao = vao, InstancedVao = instVao, Vbo = vbo, Ebo = ebo, IndexCount = indices.Length };
     }
 
-    private GpuMesh UploadLineMesh(float[] vertices)
+    private GpuMesh UploadGlbMesh(string fileName, GlbMeshData meshData)
     {
-        uint vao = 0, vbo = 0;
-        _glGenVertexArrays!(1, &vao);
-        _glGenBuffers!(1, &vbo);
-        _glBindVertexArray!(vao);
-        _glBindBuffer!(GL_ARRAY_BUFFER, vbo);
-        fixed (float* vp = vertices)
-            _glBufferData!(GL_ARRAY_BUFFER, (nint)(vertices.Length * sizeof(float)), vp, GL_STATIC_DRAW);
+        bool isTk201 = string.Equals(fileName, "thickener_tk201.glb", StringComparison.OrdinalIgnoreCase);
+        bool isTk301 = string.Equals(fileName, "magnetite_tank_tk301.glb", StringComparison.OrdinalIgnoreCase);
+        if (!isTk201 && !isTk301)
+            return UploadIndexedMesh(meshData.Vertices, meshData.Indices, withInstancing: false);
 
-        int stride = GlbMeshData.FloatsPerVertex * sizeof(float);
-        _glEnableVertexAttribArray!(0);
-        _glVertexAttribPointer!(0, 3, GL_FLOAT, 0, stride, 0);
-        _glEnableVertexAttribArray!(1);
-        _glVertexAttribPointer!(1, 3, GL_FLOAT, 0, stride, 3 * sizeof(float));
-        _glEnableVertexAttribArray!(2);
-        _glVertexAttribPointer!(2, 3, GL_FLOAT, 0, stride, 6 * sizeof(float));
-        _glEnableVertexAttribArray!(3);
-        _glVertexAttribPointer!(3, 2, GL_FLOAT, 0, stride, 9 * sizeof(float));
-        _glBindVertexArray!(0);
-        return new GpuMesh { Vao = vao, Vbo = vbo, IndexCount = vertices.Length / GlbMeshData.FloatsPerVertex, IsLines = true };
+        var verts = meshData.Vertices;
+        var srcIdx = meshData.Indices;
+        var kept = new List<uint>(srcIdx.Length);
+        const int stride = GlbMeshData.FloatsPerVertex;
+
+        for (int i = 0; i + 2 < srcIdx.Length; i += 3)
+        {
+            uint i0 = srcIdx[i], i1 = srcIdx[i + 1], i2 = srcIdx[i + 2];
+            int o0 = (int)i0 * stride, o1 = (int)i1 * stride, o2 = (int)i2 * stride;
+            float cx = (verts[o0] + verts[o1] + verts[o2]) / 3f;
+            float cy = (verts[o0 + 1] + verts[o1 + 1] + verts[o2 + 1]) / 3f;
+            float cz = (verts[o0 + 2] + verts[o1 + 2] + verts[o2 + 2]) / 3f;
+            float ny = (verts[o0 + 4] + verts[o1 + 4] + verts[o2 + 4]) / 3f;
+            float r = MathF.Sqrt(cx * cx + cz * cz);
+
+            if (isTk201)
+            {
+                bool isLaunderCap = r < 2.96f && MathF.Abs(ny) > 0.92f && (MathF.Abs(cy - 1.69f) < 0.015f || MathF.Abs(cy - 1.47f) < 0.015f);
+                bool isBasinLid = r < 2.82f && ny > 0.92f && MathF.Abs(cy - 1.60f) < 0.015f;
+                bool isOpaqueSlurry = r < 2.70f && cy > 1.42f && cy < 1.54f && verts[o0 + 9] < 0.25f && verts[o0 + 10] < 0.26f;
+                if (isLaunderCap || isBasinLid || isOpaqueSlurry) continue;
+            }
+            else if (isTk301)
+            {
+                bool isRimCap = r < 1.52f && MathF.Abs(ny) > 0.92f && (MathF.Abs(cy - 2.44f) < 0.012f || MathF.Abs(cy - 2.32f) < 0.012f);
+                bool isShellLid = r < 1.44f && ny > 0.92f && MathF.Abs(cy - 2.375f) < 0.012f;
+                if (isRimCap || isShellLid) continue;
+            }
+
+            kept.Add(i0);
+            kept.Add(i1);
+            kept.Add(i2);
+        }
+
+        return UploadIndexedMesh(verts, kept.ToArray(), withInstancing: false);
     }
 
     private void DrawMesh(GpuMesh m)
     {
         _glBindVertexArray!(m.Vao);
-        if (m.IsLines)
-            _glDrawArrays!(GL_LINES, 0, m.IndexCount);
-        else
-            _glDrawElements!(GL_TRIANGLES, m.IndexCount, GL_UNSIGNED_INT, 0);
+        _glDrawElements!(GL_TRIANGLES, m.IndexCount, GL_UNSIGNED_INT, 0);
         _frameDrawCalls++;
     }
 
@@ -2651,16 +3011,22 @@ void main() {
             float c1 = MathF.Cos(a1), s1 = MathF.Sin(a1);
             uint b = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
             AddVert(v, new(c0, -0.5f, s0), new(c0, 0, s0));
-            AddVert(v, new(c1, -0.5f, s1), new(c1, 0, s1));
-            AddVert(v, new(c1, 0.5f, s1), new(c1, 0, s1));
             AddVert(v, new(c0, 0.5f, s0), new(c0, 0, s0));
+            AddVert(v, new(c1, 0.5f, s1), new(c1, 0, s1));
+            AddVert(v, new(c1, -0.5f, s1), new(c1, 0, s1));
             idx.AddRange(new uint[] { b, b + 1, b + 2, b, b + 2, b + 3 });
 
             uint t = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
             AddVert(v, new(0, 0.5f, 0), Vector3.UnitY);
-            AddVert(v, new(c0, 0.5f, s0), Vector3.UnitY);
             AddVert(v, new(c1, 0.5f, s1), Vector3.UnitY);
+            AddVert(v, new(c0, 0.5f, s0), Vector3.UnitY);
             idx.AddRange(new uint[] { t, t + 1, t + 2 });
+
+            uint bot = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            AddVert(v, new(0, -0.5f, 0), -Vector3.UnitY);
+            AddVert(v, new(c0, -0.5f, s0), -Vector3.UnitY);
+            AddVert(v, new(c1, -0.5f, s1), -Vector3.UnitY);
+            idx.AddRange(new uint[] { bot, bot + 1, bot + 2 });
         }
         return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
@@ -2710,30 +3076,28 @@ void main() {
             AddVert(v, new(c1 * innerR, 0, s1 * innerR), Vector3.UnitY);
             idx.AddRange(new uint[] { b, b + 1, b + 2, b, b + 2, b + 3 });
         }
-        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
+        return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: true);
     }
 
-    private GpuMesh BuildGroundGridLines()
+    private GpuMesh BuildGroundTerrainQuad()
     {
-        var v = new List<float>();
-        for (int x = -18; x <= 14; x += 2)
-        {
-            AddVert(v, new(x, -0.01f, -18), Vector3.UnitY);
-            AddVert(v, new(x, -0.01f, 16), Vector3.UnitY);
-        }
-        for (int z = -18; z <= 16; z += 2)
-        {
-            AddVert(v, new(-18, -0.01f, z), Vector3.UnitY);
-            AddVert(v, new(14, -0.01f, z), Vector3.UnitY);
-        }
-        return UploadLineMesh(v.ToArray());
+        var v = new List<float>(4 * GlbMeshData.FloatsPerVertex);
+        const float y = -0.02f;
+        const float cx = -2.0f, cz = -0.5f, half = 44.0f;
+        AddVert(v, new(cx - half, y, cz - half), Vector3.UnitY, 0.02f, 0.025f, 0.035f, -1.0f, 0.88f);
+        AddVert(v, new(cx + half, y, cz - half), Vector3.UnitY, 0.02f, 0.025f, 0.035f, -1.0f, 0.88f);
+        AddVert(v, new(cx + half, y, cz + half), Vector3.UnitY, 0.02f, 0.025f, 0.035f, -1.0f, 0.88f);
+        AddVert(v, new(cx - half, y, cz + half), Vector3.UnitY, 0.02f, 0.025f, 0.035f, -1.0f, 0.88f);
+        var idx = new uint[] { 0, 2, 1, 0, 3, 2 };
+        return UploadIndexedMesh(v.ToArray(), idx, withInstancing: false);
     }
 
     private GpuMesh BuildOrthogonalPipesMesh()
     {
         var v = new List<float>();
         var idx = new List<uint>();
-        const int sides = 8;
+        const int sides = 14;
+        float flR = SrgbToLinear(0.22f), flG = SrgbToLinear(0.27f), flB = SrgbToLinear(0.34f);
 
         foreach (var route in Plant3DSceneData.PipeRoutes)
         {
@@ -2741,17 +3105,52 @@ void main() {
             float cr = SrgbToLinear(0.50f + (col.R / 255f) * 0.35f);
             float cg = SrgbToLinear(0.56f + (col.G / 255f) * 0.35f);
             float cb = SrgbToLinear(0.64f + (col.B / 255f) * 0.35f);
+            float flangeR = route.Radius * 1.52f;
 
             for (int w = 0; w < route.Waypoints.Length - 1; w++)
             {
-                AppendSegmentTube(v, idx, route.Waypoints[w], route.Waypoints[w + 1], route.Radius, sides, cr, cg, cb);
+                var a = route.Waypoints[w];
+                var b = route.Waypoints[w + 1];
+                AppendSegmentTube(v, idx, a, b, route.Radius, sides, cr, cg, cb);
+
+                var delta = b - a;
+                float segLen = delta.Length();
+                if (segLen > 0.55f)
+                {
+                    var dir = delta / segLen;
+                    float off = MathF.Min(route.Radius * 1.85f, segLen * 0.22f);
+                    var fA = a + dir * off;
+                    var fB = b - dir * off;
+                    AppendSegmentTube(v, idx, fA - dir * 0.03f, fA + dir * 0.03f, flangeR, sides, flR, flG, flB, 0.82f, 0.36f, capEnds: true);
+                    AppendSegmentTube(v, idx, fB - dir * 0.03f, fB + dir * 0.03f, flangeR, sides, flR, flG, flB, 0.82f, 0.36f, capEnds: true);
+                }
+            }
+
+            for (int w = 1; w < route.Waypoints.Length - 1; w++)
+            {
+                AppendSphere(v, idx, route.Waypoints[w], route.Radius * 1.12f, 6, 10, cr, cg, cb, 0.72f, 0.32f);
             }
         }
+
+        // Inline valves with bolted flanges and red (isolation) / yellow (modulating/medium) spoked handwheels
+        AppendInlineValve(v, idx, new(-3.85f, 0.56f, -15.00f), Vector3.UnitX, 0.075f, isRedHandwheel: true);
+        AppendInlineValve(v, idx, new(-3.85f, 0.56f, -16.30f), Vector3.UnitX, 0.075f, isRedHandwheel: true);
+        AppendInlineValve(v, idx, new(0.65f, 2.10f, -15.80f), Vector3.UnitX, 0.045f, isRedHandwheel: false);
+        AppendInlineValve(v, idx, new(7.10f, 0.95f, -11.50f), Vector3.UnitX, 0.065f, isRedHandwheel: true);
+        AppendInlineValve(v, idx, new(0.15f, 1.25f, -6.55f), Vector3.UnitZ, 0.070f, isRedHandwheel: false);
+        AppendInlineValve(v, idx, new(0.15f, 1.25f, -8.75f), Vector3.UnitZ, 0.070f, isRedHandwheel: false);
+        AppendInlineValve(v, idx, new(2.45f, 1.15f, -9.60f), Vector3.UnitZ, 0.075f, isRedHandwheel: false);
+        AppendInlineValve(v, idx, new(-0.65f, 3.08f, -9.28f), Vector3.UnitX, 0.065f, isRedHandwheel: true);
+
+        // PT-301 pressure transmitter manifold & gauge on PIPE-304 riser
+        AppendPressureTransmitter(v, idx, new(2.30f, 2.95f, -8.30f), Vector3.UnitY);
 
         return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
     }
 
-    private static void AppendSegmentTube(List<float> v, List<uint> idx, Vector3 a, Vector3 b, float radius, int sides, float cr, float cg, float cb)
+    private static void AppendSegmentTube(
+        List<float> v, List<uint> idx, Vector3 a, Vector3 b, float radius, int sides,
+        float cr, float cg, float cb, float met = 0.72f, float rough = 0.32f, bool capEnds = false)
     {
         var dir = b - a;
         float len = dir.Length();
@@ -2770,12 +3169,104 @@ void main() {
             var n1 = right * MathF.Cos(a1) + orthoUp * MathF.Sin(a1);
 
             uint baseIdx = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
-            AddVert(v, a + n0 * radius, n0, cr, cg, cb, 0.72f, 0.32f);
-            AddVert(v, a + n1 * radius, n1, cr, cg, cb, 0.72f, 0.32f);
-            AddVert(v, b + n1 * radius, n1, cr, cg, cb, 0.72f, 0.32f);
-            AddVert(v, b + n0 * radius, n0, cr, cg, cb, 0.72f, 0.32f);
+            AddVert(v, a + n0 * radius, n0, cr, cg, cb, met, rough);
+            AddVert(v, a + n1 * radius, n1, cr, cg, cb, met, rough);
+            AddVert(v, b + n1 * radius, n1, cr, cg, cb, met, rough);
+            AddVert(v, b + n0 * radius, n0, cr, cg, cb, met, rough);
             idx.AddRange(new uint[] { baseIdx, baseIdx + 1, baseIdx + 2, baseIdx, baseIdx + 2, baseIdx + 3 });
+
+            if (capEnds)
+            {
+                uint cA = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+                AddVert(v, a, -dir, cr, cg, cb, met, rough);
+                AddVert(v, a + n1 * radius, -dir, cr, cg, cb, met, rough);
+                AddVert(v, a + n0 * radius, -dir, cr, cg, cb, met, rough);
+                idx.AddRange(new uint[] { cA, cA + 1, cA + 2 });
+
+                uint cB = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+                AddVert(v, b, dir, cr, cg, cb, met, rough);
+                AddVert(v, b + n0 * radius, dir, cr, cg, cb, met, rough);
+                AddVert(v, b + n1 * radius, dir, cr, cg, cb, met, rough);
+                idx.AddRange(new uint[] { cB, cB + 1, cB + 2 });
+            }
         }
+    }
+
+    private static void AppendSphere(
+        List<float> v, List<uint> idx, Vector3 center, float radius, int stacks, int slices,
+        float cr, float cg, float cb, float met, float rough)
+    {
+        uint start = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+        for (int st = 0; st <= stacks; st++)
+        {
+            float phi = MathF.PI * st / stacks;
+            float sp = MathF.Sin(phi), cp = MathF.Cos(phi);
+            for (int sl = 0; sl <= slices; sl++)
+            {
+                float th = 2f * MathF.PI * sl / slices;
+                var n = new Vector3(sp * MathF.Cos(th), cp, sp * MathF.Sin(th));
+                AddVert(v, center + n * radius, n, cr, cg, cb, met, rough);
+            }
+        }
+
+        int stride = slices + 1;
+        for (int st = 0; st < stacks; st++)
+        {
+            for (int sl = 0; sl < slices; sl++)
+            {
+                uint a = start + (uint)(st * stride + sl);
+                uint b = a + (uint)stride;
+                idx.AddRange(new uint[] { a, b, a + 1, a + 1, b, b + 1 });
+            }
+        }
+    }
+
+    private static void AppendInlineValve(List<float> v, List<uint> idx, Vector3 pos, Vector3 axis, float pipeRadius, bool isRedHandwheel)
+    {
+        var dir = Vector3.Normalize(axis);
+        float bodyR = pipeRadius * 1.65f;
+        float flangeR = pipeRadius * 1.95f;
+        float br = SrgbToLinear(0.18f), bg = SrgbToLinear(0.24f), bb = SrgbToLinear(0.32f);
+        float chr = SrgbToLinear(0.72f), chg = SrgbToLinear(0.76f), chb = SrgbToLinear(0.82f);
+
+        AppendSegmentTube(v, idx, pos - dir * 0.16f, pos + dir * 0.16f, bodyR, 12, br, bg, bb, 0.78f, 0.36f, capEnds: true);
+        AppendSegmentTube(v, idx, pos - dir * 0.17f, pos - dir * 0.12f, flangeR, 12, br, bg, bb, 0.82f, 0.34f, capEnds: true);
+        AppendSegmentTube(v, idx, pos + dir * 0.12f, pos + dir * 0.17f, flangeR, 12, br, bg, bb, 0.82f, 0.34f, capEnds: true);
+
+        var stemDir = MathF.Abs(dir.Y) > 0.85f ? Vector3.UnitX : Vector3.UnitY;
+        var stemTop = pos + stemDir * (bodyR + 0.18f);
+        AppendSegmentTube(v, idx, pos + stemDir * (bodyR * 0.6f), stemTop, 0.030f, 10, chr, chg, chb, 0.90f, 0.22f, capEnds: true);
+
+        var hwR = isRedHandwheel ? SrgbToLinear(0.92f) : SrgbToLinear(0.95f);
+        var hwG = isRedHandwheel ? SrgbToLinear(0.16f) : SrgbToLinear(0.74f);
+        var hwB = isRedHandwheel ? SrgbToLinear(0.14f) : SrgbToLinear(0.08f);
+
+        var u = Vector3.Normalize(Vector3.Cross(stemDir, MathF.Abs(Vector3.Dot(stemDir, Vector3.UnitZ)) > 0.9f ? Vector3.UnitX : Vector3.UnitZ));
+        var w = Vector3.Normalize(Vector3.Cross(stemDir, u));
+        const float wheelR = 0.15f;
+        const int wheelSegs = 10;
+        for (int s = 0; s < wheelSegs; s++)
+        {
+            float a0 = s * MathF.PI * 2f / wheelSegs;
+            float a1 = (s + 1) * MathF.PI * 2f / wheelSegs;
+            var p0 = stemTop + (u * MathF.Cos(a0) + w * MathF.Sin(a0)) * wheelR;
+            var p1 = stemTop + (u * MathF.Cos(a1) + w * MathF.Sin(a1)) * wheelR;
+            AppendSegmentTube(v, idx, p0, p1, 0.022f, 8, hwR, hwG, hwB, 0.35f, 0.38f, capEnds: true);
+        }
+        AppendSegmentTube(v, idx, stemTop - u * wheelR, stemTop + u * wheelR, 0.016f, 6, hwR, hwG, hwB, 0.35f, 0.38f);
+        AppendSegmentTube(v, idx, stemTop - w * wheelR, stemTop + w * wheelR, 0.016f, 6, hwR, hwG, hwB, 0.35f, 0.38f);
+    }
+
+    private static void AppendPressureTransmitter(List<float> v, List<uint> idx, Vector3 pos, Vector3 pipeAxis)
+    {
+        var dir = Vector3.Normalize(pipeAxis);
+        float dkR = SrgbToLinear(0.20f), dkG = SrgbToLinear(0.25f), dkB = SrgbToLinear(0.32f);
+        float chr = SrgbToLinear(0.76f), chg = SrgbToLinear(0.80f), chb = SrgbToLinear(0.86f);
+        AppendSegmentTube(v, idx, pos - dir * 0.10f, pos + dir * 0.10f, 0.14f, 12, dkR, dkG, dkB, 0.82f, 0.34f, capEnds: true);
+        var outDir = Vector3.UnitX;
+        var gaugePos = pos + outDir * 0.24f;
+        AppendSegmentTube(v, idx, pos, gaugePos, 0.028f, 8, chr, chg, chb, 0.90f, 0.20f, capEnds: true);
+        AppendSegmentTube(v, idx, gaugePos - Vector3.UnitZ * 0.035f, gaugePos + Vector3.UnitZ * 0.035f, 0.095f, 12, chr, chg, chb, 0.88f, 0.22f, capEnds: true);
     }
 
     private GpuMesh BuildConveyorStructuresMesh()
@@ -2797,9 +3288,9 @@ void main() {
             var mid = (c.TailPos + c.HeadPos) * 0.5f;
             float halfW = c.Width * 0.5f;
 
-            // 1. Rubber belt bed (dusty slate-gray rubber for clear black coal contrast)
+            // 1. Matte rubber belt bed (metallic = 0.14f, roughness = 0.87f triggers scrolling chevron/wear tracks)
             var beltMat = Matrix4x4.CreateScale(len, 0.08f, c.Width * 0.90f) * beltRot * Matrix4x4.CreateTranslation(mid);
-            AppendBox(v, idx, beltMat, 0.25f, 0.29f, 0.35f, 0.12f, 0.86f, convertSrgbToLinear: true);
+            AppendBox(v, idx, beltMat, 0.25f, 0.29f, 0.35f, 0.14f, 0.87f, convertSrgbToLinear: true);
 
             // 2. Left & right steel side stringer channels
             foreach (float side in new[] { -halfW, halfW })
@@ -2809,13 +3300,31 @@ void main() {
                 AppendBox(v, idx, strMat, 0.30f, 0.37f, 0.45f, 0.75f, 0.38f, convertSrgbToLinear: true);
             }
 
-            // 3. Cross-bracing struts under belt every ~1.8m
+            // 3. Cross-bracing struts & 35-deg troughing wing-idler brackets under belt every ~1.8m
             int crossCount = Math.Max(2, (int)(len / 1.8f));
             for (int i = 0; i <= crossCount; i++)
             {
                 var p = Vector3.Lerp(c.TailPos, c.HeadPos, (float)i / crossCount);
                 var crossMat = Matrix4x4.CreateScale(0.08f, 0.10f, c.Width + 0.06f) * beltRot * Matrix4x4.CreateTranslation(p.X, p.Y - 0.12f, p.Z);
                 AppendBox(v, idx, crossMat, 0.26f, 0.32f, 0.40f, 0.72f, 0.42f, convertSrgbToLinear: true);
+
+                if (i > 0 && i < crossCount)
+                {
+                    var centerIdler = Matrix4x4.CreateScale(0.06f, 0.06f, c.Width * 0.42f)
+                                    * beltRot
+                                    * Matrix4x4.CreateTranslation(p + Vector3.Transform(new Vector3(0f, -0.055f, 0f), beltRot));
+                    AppendBox(v, idx, centerIdler, 0.56f, 0.62f, 0.70f, 0.80f, 0.32f, convertSrgbToLinear: true);
+
+                    foreach (float wingSide in new[] { -1f, 1f })
+                    {
+                        var wingOff = Vector3.Transform(new Vector3(0f, 0.01f, wingSide * c.Width * 0.34f), beltRot);
+                        var wingMat = Matrix4x4.CreateScale(0.065f, 0.065f, c.Width * 0.28f)
+                                    * Matrix4x4.CreateRotationX(-wingSide * 0.610865f)
+                                    * beltRot
+                                    * Matrix4x4.CreateTranslation(p + wingOff);
+                        AppendBox(v, idx, wingMat, 0.88f, 0.58f, 0.10f, 0.62f, 0.38f, convertSrgbToLinear: true);
+                    }
+                }
             }
 
             // 4. Vertical structural support bents / trestles extending down to Y=0 every ~3.5m
@@ -2845,7 +3354,7 @@ void main() {
                 }
             }
 
-            // 5. Side maintenance walkway + safety-yellow handrail on elevated/inclined conveyors
+            // 5. Side maintenance walkway + safety-yellow handrail, mid-rail (y=0.42) & kickplate (y=0.06)
             if (len > 4.2f || MathF.Abs(c.HeadPos.Y - c.TailPos.Y) > 0.6f)
             {
                 float walkZ = halfW + 0.34f;
@@ -2857,6 +3366,14 @@ void main() {
                 var railMid = mid + Vector3.Transform(new Vector3(0f, 0.78f, railZ), beltRot);
                 var railMat = Matrix4x4.CreateScale(len * 0.92f, 0.05f, 0.05f) * beltRot * Matrix4x4.CreateTranslation(railMid);
                 AppendBox(v, idx, railMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f, convertSrgbToLinear: true);
+
+                var midRailPos = mid + Vector3.Transform(new Vector3(0f, 0.42f, railZ), beltRot);
+                var midRailMat = Matrix4x4.CreateScale(len * 0.92f, 0.04f, 0.04f) * beltRot * Matrix4x4.CreateTranslation(midRailPos);
+                AppendBox(v, idx, midRailMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f, convertSrgbToLinear: true);
+
+                var kickPos = mid + Vector3.Transform(new Vector3(0f, 0.06f, railZ), beltRot);
+                var kickMat = Matrix4x4.CreateScale(len * 0.92f, 0.11f, 0.03f) * beltRot * Matrix4x4.CreateTranslation(kickPos);
+                AppendBox(v, idx, kickMat, 0.95f, 0.76f, 0.08f, 0.35f, 0.45f, convertSrgbToLinear: true);
 
                 int posts = Math.Max(3, (int)(len / 2.0f));
                 for (int p = 0; p <= posts; p++)
@@ -2920,6 +3437,144 @@ void main() {
             }
         }
 
+        AppendPlantDetailsToStructureMesh(v, idx);
         return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
+    }
+
+    private static void AppendAnnularRim(
+        List<float> v, List<uint> idx, Vector3 center,
+        float rInner, float rOuter, float yBot, float yTop, int segs,
+        float r, float g, float b, float met, float rough)
+    {
+        float lr = SrgbToLinear(r), lg = SrgbToLinear(g), lb = SrgbToLinear(b);
+        for (int i = 0; i < segs; i++)
+        {
+            float a0 = i * MathF.PI * 2f / segs;
+            float a1 = (i + 1) * MathF.PI * 2f / segs;
+            float c0 = MathF.Cos(a0), s0 = MathF.Sin(a0);
+            float c1 = MathF.Cos(a1), s1 = MathF.Sin(a1);
+
+            // Inner weir wall (facing inward)
+            uint iw = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            AddVert(v, center + new Vector3(c0 * rInner, yBot, s0 * rInner), new(-c0, 0, -s0), lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rInner, yBot, s1 * rInner), new(-c1, 0, -s1), lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rInner, yTop, s1 * rInner), new(-c1, 0, -s1), lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c0 * rInner, yTop, s0 * rInner), new(-c0, 0, -s0), lr, lg, lb, met, rough);
+            idx.AddRange(new uint[] { iw, iw + 1, iw + 2, iw, iw + 2, iw + 3 });
+
+            // Top rim annulus
+            uint tr = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            AddVert(v, center + new Vector3(c0 * rInner, yTop, s0 * rInner), Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rInner, yTop, s1 * rInner), Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rOuter, yTop, s1 * rOuter), Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c0 * rOuter, yTop, s0 * rOuter), Vector3.UnitY, lr, lg, lb, met, rough);
+            idx.AddRange(new uint[] { tr, tr + 1, tr + 2, tr, tr + 2, tr + 3 });
+
+            // Bottom rim annulus
+            uint br = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            AddVert(v, center + new Vector3(c0 * rOuter, yBot, s0 * rOuter), -Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rOuter, yBot, s1 * rOuter), -Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c1 * rInner, yBot, s1 * rInner), -Vector3.UnitY, lr, lg, lb, met, rough);
+            AddVert(v, center + new Vector3(c0 * rInner, yBot, s0 * rInner), -Vector3.UnitY, lr, lg, lb, met, rough);
+            idx.AddRange(new uint[] { br, br + 1, br + 2, br, br + 2, br + 3 });
+        }
+    }
+
+    private static void AppendPlantDetailsToStructureMesh(List<float> v, List<uint> idx)
+    {
+        // Open-top launder rim for TK-201 and top rim collar for TK-301
+        AppendAnnularRim(v, idx, new(-1.20f, 0f, -15.80f), 2.52f, 2.95f, 1.47f, 1.69f, 32, 0.16f, 0.20f, 0.26f, 0.82f, 0.38f);
+        AppendAnnularRim(v, idx, new(-5.40f, 0f, -12.00f), 1.28f, 1.50f, 2.32f, 2.44f, 28, 0.16f, 0.20f, 0.26f, 0.82f, 0.38f);
+
+        // GATE-101 (BN-101 discharge throat isolation gate + actuator) & CHUTE-100 (BN-101 -> VF-101 transfer chute)
+        AppendBox(v, idx, Matrix4x4.CreateScale(1.06f, 0.18f, 1.06f) * Matrix4x4.CreateTranslation(-13.80f, 4.84f, 8.80f),
+            0.90f, 0.62f, 0.10f, 0.55f, 0.40f, convertSrgbToLinear: true);
+        AppendSegmentTube(v, idx, new(-13.26f, 4.84f, 8.80f), new(-12.75f, 4.84f, 8.80f), 0.055f, 10,
+            SrgbToLinear(0.75f), SrgbToLinear(0.78f), SrgbToLinear(0.84f), 0.90f, 0.22f, capEnds: true);
+        AppendBox(v, idx, Matrix4x4.CreateScale(1.18f, 0.66f, 1.32f) * Matrix4x4.CreateTranslation(-13.80f, 5.26f, 7.65f),
+            0.28f, 0.34f, 0.42f, 0.72f, 0.44f, convertSrgbToLinear: true);
+
+        // PAN-101 Eastward undersize chute extension (VF-101 -> CV-102)
+        var panDir = Vector3.Normalize(new Vector3(0.72f, -0.22f, -0.04f));
+        float panYaw = MathF.Atan2(-panDir.Z, panDir.X);
+        float panPitch = MathF.Asin(panDir.Y);
+        AppendBox(v, idx,
+            Matrix4x4.CreateScale(0.86f, 0.34f, 0.86f)
+            * Matrix4x4.CreateRotationZ(panPitch)
+            * Matrix4x4.CreateRotationY(panYaw)
+            * Matrix4x4.CreateTranslation(-13.10f, 4.66f, 6.12f),
+            0.30f, 0.37f, 0.45f, 0.75f, 0.42f, convertSrgbToLinear: true);
+
+        // DIV-101 motorized flop-gate diverter box (CV-103 / DRC-101 / CV-104)
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.92f, 0.86f, 0.92f) * Matrix4x4.CreateTranslation(-8.15f, 2.30f, -0.55f),
+            0.26f, 0.33f, 0.41f, 0.76f, 0.40f, convertSrgbToLinear: true);
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.32f, 0.38f, 0.24f) * Matrix4x4.CreateTranslation(-8.15f, 2.35f, -1.10f),
+            0.94f, 0.70f, 0.10f, 0.45f, 0.40f, convertSrgbToLinear: true);
+
+        // BW-101 / BW-102 / BW-201 belt weighers mounted cleanly along host conveyors
+        void AppendBeltWeigher(string convId, float t)
+        {
+            var conv = Plant3DSceneData.FindConveyor(convId);
+            if (conv is null) return;
+            var d = conv.HeadPos - conv.TailPos;
+            float l = d.Length();
+            if (l < 0.1f) return;
+            var dn = d / l;
+            float yaw = MathF.Atan2(-dn.Z, dn.X);
+            float pitch = MathF.Asin(Math.Clamp(dn.Y, -1f, 1f));
+            var rot = Matrix4x4.CreateRotationZ(pitch) * Matrix4x4.CreateRotationY(yaw);
+            var pos = Vector3.Lerp(conv.TailPos, conv.HeadPos, t);
+
+            float bwHalf = conv.Width * 0.56f;
+            foreach (float side in new[] { -bwHalf, bwHalf })
+            {
+                var sidePt = pos + Vector3.Transform(new Vector3(0f, 0.26f, side), rot);
+                AppendBox(v, idx, Matrix4x4.CreateScale(0.42f, 0.52f, 0.08f) * rot * Matrix4x4.CreateTranslation(sidePt),
+                    0.94f, 0.72f, 0.08f, 0.45f, 0.40f, convertSrgbToLinear: true);
+            }
+            var archPt = pos + Vector3.Transform(new Vector3(0f, 0.52f, 0f), rot);
+            AppendBox(v, idx, Matrix4x4.CreateScale(0.24f, 0.10f, conv.Width * 1.24f) * rot * Matrix4x4.CreateTranslation(archPt),
+                0.94f, 0.72f, 0.08f, 0.45f, 0.40f, convertSrgbToLinear: true);
+        }
+        AppendBeltWeigher("CV-101", 0.50f);
+        AppendBeltWeigher("CV-102", 0.25f);
+        AppendBeltWeigher("CV-201", 0.50f);
+
+        // RC-101 / RC-102 emergency pull-wire rip-cord switches + red safety cable along CV-101 & CV-102
+        void AppendRipCord(string convId, float sideSign)
+        {
+            var conv = Plant3DSceneData.FindConveyor(convId);
+            if (conv is null) return;
+            var d = conv.HeadPos - conv.TailPos;
+            float l = d.Length();
+            if (l < 0.5f) return;
+            var dn = d / l;
+            float yaw = MathF.Atan2(-dn.Z, dn.X);
+            float pitch = MathF.Asin(Math.Clamp(dn.Y, -1f, 1f));
+            var rot = Matrix4x4.CreateRotationZ(pitch) * Matrix4x4.CreateRotationY(yaw);
+            var sideOff = Vector3.Transform(new Vector3(0f, 0.26f, sideSign * (conv.Width * 0.5f + 0.14f)), rot);
+            var pA = Vector3.Lerp(conv.TailPos, conv.HeadPos, 0.15f) + sideOff;
+            var pB = Vector3.Lerp(conv.TailPos, conv.HeadPos, 0.85f) + sideOff;
+            AppendSegmentTube(v, idx, pA, pB, 0.018f, 6, SrgbToLinear(0.92f), SrgbToLinear(0.16f), SrgbToLinear(0.14f), 0.25f, 0.45f, capEnds: true);
+            var switchPos = Vector3.Lerp(pA, pB, 0.5f);
+            AppendBox(v, idx, Matrix4x4.CreateScale(0.20f, 0.22f, 0.14f) * rot * Matrix4x4.CreateTranslation(switchPos),
+                0.92f, 0.16f, 0.14f, 0.45f, 0.38f, convertSrgbToLinear: true);
+        }
+        AppendRipCord("CV-101", -1f);
+        AppendRipCord("CV-102", 1f);
+
+        // LAUNDER-201 peripheral overflow box & East weir takeoff on TK-201
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.76f, 0.42f, 0.76f) * Matrix4x4.CreateTranslation(1.35f, 1.48f, -14.40f),
+            0.18f, 0.38f, 0.58f, 0.76f, 0.36f, convertSrgbToLinear: true);
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.62f, 0.36f, 0.88f) * Matrix4x4.CreateTranslation(1.75f, 1.54f, -15.80f),
+            0.22f, 0.28f, 0.36f, 0.78f, 0.38f, convertSrgbToLinear: true);
+
+        // Instrumentation sensor housings: VT-102 (SS-101), LT-201 (TK-201 bridge), DT-301 (PIPE-303)
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.24f, 0.26f, 0.18f) * Matrix4x4.CreateTranslation(0.25f, 2.40f, 1.38f),
+            0.22f, 0.28f, 0.36f, 0.80f, 0.34f, convertSrgbToLinear: true);
+        AppendBox(v, idx, Matrix4x4.CreateScale(0.22f, 0.30f, 0.22f) * Matrix4x4.CreateTranslation(-0.55f, 2.05f, -15.25f),
+            0.22f, 0.28f, 0.36f, 0.80f, 0.34f, convertSrgbToLinear: true);
+        AppendSegmentTube(v, idx, new(-2.68f, 1.45f, -10.20f), new(-2.32f, 1.45f, -10.20f), 0.16f, 12,
+            SrgbToLinear(0.14f), SrgbToLinear(0.65f), SrgbToLinear(0.62f), 0.78f, 0.32f, capEnds: true);
     }
 }
