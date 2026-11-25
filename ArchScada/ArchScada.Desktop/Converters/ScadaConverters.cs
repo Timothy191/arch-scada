@@ -37,7 +37,7 @@ public sealed class StatusToBrushConverter : IValueConverter
             {
                 AlarmSeverity.Critical => FaultBrush,
                 AlarmSeverity.High => WarningBrush,
-                AlarmSeverity.Medium => new SolidColorBrush(Color.Parse("#38BDF8")),
+                AlarmSeverity.Medium => new SolidColorBrush(Color.Parse("#FBBF24")),
                 _ => StoppedBrush
             };
         }
@@ -49,7 +49,7 @@ public sealed class StatusToBrushConverter : IValueConverter
                 StartupCheckState.Passed => RunningBrush,
                 StartupCheckState.Warning => WarningBrush,
                 StartupCheckState.Failed => FaultBrush,
-                StartupCheckState.Running => new SolidColorBrush(Color.Parse("#38BDF8")),
+                StartupCheckState.Running => new SolidColorBrush(Color.Parse("#F59E0B")),
                 _ => OfflineBrush
             };
         }
@@ -65,7 +65,7 @@ public sealed class BoolToActiveNavBrushConverter : IValueConverter
 {
     public static readonly BoolToActiveNavBrushConverter Instance = new();
 
-    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#1E293B"));
+    private static readonly IBrush ActiveBg = new SolidColorBrush(Color.Parse("#29200E"));
     private static readonly IBrush InactiveBg = Brushes.Transparent;
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

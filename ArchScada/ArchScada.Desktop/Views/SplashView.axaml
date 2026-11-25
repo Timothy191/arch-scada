@@ -26,19 +26,24 @@
                         <!-- Slow ambient outer ring -->
                         <Arc Classes="splash-brand-ring"
                              StartAngle="0" SweepAngle="270"
-                             Stroke="#0284C7" StrokeThickness="2"
+                             Stroke="#D97706" StrokeThickness="2"
                              Width="46" Height="46"
                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        <!-- Pulsing brand badge -->
+                        <!-- Pulsing brand badge with Official Golden Arch Linux Logo -->
                         <Border Classes="splash-brand-badge"
                                 Width="40" Height="40"
                                 CornerRadius="12"
-                                Background="#0F243C"
-                                BorderBrush="#0284C7"
+                                Background="#14120B"
+                                BorderBrush="#F59E0B"
                                 BorderThickness="1"
                                 HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Ellipse Classes="splash-core-dot" Fill="#38BDF8" Width="16" Height="16"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Panel>
+                                <Ellipse Classes="splash-core-dot" Fill="#F59E0B" Width="6" Height="6"
+                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,3,0" />
+                                <Image Source="avares://ArchScada.Desktop/Assets/archlinux-logo.png"
+                                       Width="30" Height="30"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Panel>
                         </Border>
                     </Panel>
 
@@ -46,16 +51,16 @@
                         <TextBlock Text="{Binding AppTitle}"
                                    FontSize="24"
                                    FontWeight="Bold"
-                                   Foreground="#F8FAFC" />
+                                   Foreground="#FBBF24" />
                         <TextBlock Text="{Binding AppSubtitle}"
                                    FontSize="12"
                                    FontWeight="Medium"
-                                   Foreground="#94A3B8" />
+                                   Foreground="#A1A1AA" />
                     </StackPanel>
 
                     <Border Grid.Column="2"
-                            Background="#111A2E"
-                            BorderBrush="#1E293B"
+                            Background="#141418"
+                            BorderBrush="#27272A"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="8,4"
@@ -63,13 +68,13 @@
                         <TextBlock Text="{Binding VersionLabel}"
                                    FontSize="10"
                                    FontWeight="Medium"
-                                   Foreground="#94A3B8" />
+                                   Foreground="#FBBF24" />
                     </Border>
                 </Grid>
 
                 <!-- Readiness Summary Banner -->
-                <Border Background="#111A2E"
-                        BorderBrush="#1E3A5F"
+                <Border Background="#141418"
+                        BorderBrush="#453517"
                         BorderThickness="1"
                         CornerRadius="12"
                         Padding="14,10">
@@ -82,16 +87,16 @@
                             <TextBlock Text="{Binding ReadinessBannerTitle}"
                                        FontSize="12"
                                        FontWeight="Bold"
-                                       Foreground="#F8FAFC" />
+                                       Foreground="#FAFAFA" />
                             <TextBlock Text="{Binding ReadinessBannerDetail}"
                                        FontSize="11"
-                                       Foreground="#94A3B8" />
+                                       Foreground="#A1A1AA" />
                         </StackPanel>
                         <TextBlock Grid.Column="2"
                                    Text="{Binding ProgressText}"
                                    FontSize="14"
                                    FontWeight="Bold"
-                                   Foreground="#38BDF8"
+                                   Foreground="#F59E0B"
                                    VerticalAlignment="Center" />
                     </Grid>
                 </Border>
@@ -104,27 +109,27 @@
                                IsVisible="{Binding IsRunning}">
                             <Arc Classes="splash-processing-arc"
                                  StartAngle="0" SweepAngle="270"
-                                 Stroke="#38BDF8" StrokeThickness="2.5"
+                                 Stroke="#F59E0B" StrokeThickness="2.5"
                                  Width="18" Height="18"
                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Panel>
                         <Border Grid.Column="1" Width="560" Height="6"
                                 CornerRadius="3"
-                                Background="#1E293B"
+                                Background="#27272A"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Center">
                             <Border Classes="splash-progress-fill"
                                     Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}, ConverterParameter=5.6}"
                                     Height="6"
                                     CornerRadius="3"
-                                    Background="#38BDF8"
+                                    Background="#F59E0B"
                                     HorizontalAlignment="Left" />
                         </Border>
                     </Grid>
                     <TextBlock Text="{Binding StatusText}"
                                FontSize="11"
                                FontWeight="Medium"
-                               Foreground="#94A3B8"
+                               Foreground="#A1A1AA"
                                TextTrimming="CharacterEllipsis"
                                HorizontalAlignment="Center" />
                 </StackPanel>
@@ -135,8 +140,8 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:StartupCheckItem">
                                 <Border Classes="splash-check-row"
-                                        Background="#111A2E"
-                                        BorderBrush="#1E293B"
+                                        Background="#141418"
+                                        BorderBrush="#27272A"
                                         BorderThickness="1"
                                         CornerRadius="10"
                                         Padding="10,6"
@@ -147,8 +152,8 @@
                                                  Fill="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}" />
 
                                         <Border Grid.Column="1"
-                                                Background="#172554"
-                                                BorderBrush="#1E40AF"
+                                                Background="#241C0B"
+                                                BorderBrush="#D97706"
                                                 BorderThickness="1"
                                                 CornerRadius="5"
                                                 Padding="6,2"
@@ -157,7 +162,7 @@
                                             <TextBlock Text="{Binding Category}"
                                                        FontSize="9"
                                                        FontWeight="Bold"
-                                                       Foreground="#60A5FA"
+                                                       Foreground="#FBBF24"
                                                        HorizontalAlignment="Center" />
                                         </Border>
 
@@ -165,22 +170,22 @@
                                             <TextBlock Text="{Binding Title}"
                                                        FontSize="12"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9" />
+                                                       Foreground="#FAFAFA" />
                                             <TextBlock Text="{Binding Detail}"
                                                        FontSize="11"
-                                                       Foreground="#94A3B8"
+                                                       Foreground="#A1A1AA"
                                                        TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
 
                                         <TextBlock Grid.Column="3"
                                                    Text="{Binding DurationText}"
                                                    FontSize="10"
-                                                   Foreground="#64748B"
+                                                   Foreground="#71717A"
                                                    VerticalAlignment="Center" />
 
                                         <Border Grid.Column="4"
-                                                Background="#0B1220"
-                                                BorderBrush="#1E293B"
+                                                Background="#0D0D0F"
+                                                BorderBrush="#27272A"
                                                 BorderThickness="1"
                                                 CornerRadius="6"
                                                 Padding="8,2"
@@ -206,7 +211,7 @@
                     <CheckBox IsChecked="{Binding HoldOnSplash}"
                               Content="Hold screen to inspect results"
                               FontSize="11"
-                              Foreground="#CBD5E1"
+                              Foreground="#D4D4D8"
                               VerticalAlignment="Center" />
 
                     <Button Grid.Column="1"
@@ -228,7 +233,7 @@
 
                 <TextBlock Text="ESC to skip · R to re-run checks · Read-Only Safety Boundary Enforced"
                            FontSize="10"
-                           Foreground="#64748B"
+                           Foreground="#71717A"
                            HorizontalAlignment="Center" />
 
             </StackPanel>

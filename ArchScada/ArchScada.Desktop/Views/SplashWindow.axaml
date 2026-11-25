@@ -13,6 +13,7 @@
         Background="Transparent"
         x:Class="ArchScada.Desktop.Views.SplashWindow"
         x:DataType="vm:SplashViewModel"
+        Icon="/Assets/avalonia-logo.ico"
         Title="Arch SCADA — Deployment Readiness">
 
     <Border Classes="splash-window-border">

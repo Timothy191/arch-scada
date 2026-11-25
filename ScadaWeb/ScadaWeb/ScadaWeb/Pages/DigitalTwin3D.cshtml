@@ -12,22 +12,22 @@
     <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
     <style>
         :root {
-            --bg-canvas: #070d1a;
-            --bg-panel: rgba(12, 20, 36, 0.90);
-            --bg-card: rgba(19, 30, 52, 0.86);
-            --bg-chip: rgba(30, 41, 59, 0.85);
-            --border: rgba(56, 189, 248, 0.22);
-            --border-strong: rgba(56, 189, 248, 0.45);
-            --text-primary: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --accent: #38bdf8;
-            --accent-strong: #0284c7;
+            --bg-canvas: #09090b;
+            --bg-panel: rgba(16, 16, 19, 0.92);
+            --bg-card: rgba(23, 23, 27, 0.90);
+            --bg-chip: rgba(32, 30, 24, 0.88);
+            --border: rgba(245, 158, 11, 0.25);
+            --border-strong: rgba(245, 158, 11, 0.55);
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --accent: #f59e0b;
+            --accent-strong: #d97706;
             --emerald: #22c55e;
-            --amber: #f59e0b;
+            --amber: #fbbf24;
             --red: #ef4444;
             --teal: #14b8a6;
-            --shadow: 0 12px 32px rgba(2, 6, 23, 0.55);
+            --shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
         }
 
         html[data-theme="light"] {
@@ -184,7 +184,7 @@
         #viewport-wrap {
             position: relative;
             overflow: hidden;
-            background: radial-gradient(circle at 50% 35%, #0f1b33 0%, var(--bg-canvas) 75%);
+            background: radial-gradient(circle at 50% 35%, #18150e 0%, var(--bg-canvas) 75%);
         }
 
         html[data-theme="light"] #viewport-wrap {
@@ -528,7 +528,8 @@
     <!-- Top HUD -->
     <header id="top-bar">
         <div class="brand-group">
-            <span class="brand-title">ARCH SCADA · CHPP 3D DIGITAL TWIN</span>
+            <img src="~/images/archlinux-logo.svg" alt="Arch Linux Logo" style="width:26px; height:26px; vertical-align:middle;" />
+            <span class="brand-title" style="color:var(--accent);">ARCH SCADA · CHPP 3D DIGITAL TWIN</span>
             <span class="badge badge-ro" title="Zero PLC Write Path · HTTP GET Only">READ-ONLY · NO PLC WRITE</span>
             <span id="provenance-badge" class="badge badge-demo">SIMULATED DEMO TELEMETRY · READ-ONLY</span>
             <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES + 75 SUB-ITEMS</span>

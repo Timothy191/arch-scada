@@ -527,7 +527,7 @@ public sealed class Plant3DViewportControl : Panel
         private static readonly SolidColorBrush LabelBgBrush = new(Color.FromArgb(198, 15, 23, 42));
         private static readonly SolidColorBrush SelectedLabelBgBrush = new(Color.FromArgb(235, 12, 74, 110));
         private static readonly SolidColorBrush HoverLabelBgBrush = new(Color.FromArgb(224, 30, 41, 59));
-        private static readonly Pen SelectedLabelPen = new(new SolidColorBrush(Color.Parse("#38BDF8")), 1.6);
+        private static readonly Pen SelectedLabelPen = new(new SolidColorBrush(Color.Parse("#F59E0B")), 1.6);
         private static readonly Pen HoverLabelPen = new(new SolidColorBrush(Color.Parse("#93C5FD")), 1.1);
         private static readonly Typeface LabelTypeface = new("Inter", FontStyle.Normal, FontWeight.SemiBold);
         private static readonly Typeface HudTypeface = new("Inter");
@@ -674,7 +674,7 @@ public sealed class Plant3DViewportControl : Panel
                     if (meshes.TryGetValue("wheel_loader_bucket.glb", out var bMesh))
                         AppendMeshTris(bMesh, bucketMat, tint, tintMix, viewProj, w, h, lightDir, tris);
                     else
-                        AppendBoxTris(Matrix4x4.CreateScale(0.75f, 0.52f, 1.55f) * Matrix4x4.CreateTranslation(0.28f, -0.08f, 0f) * bucketMat, Color.Parse("#475569"), viewProj, w, h, lightDir, tris);
+                        AppendBoxTris(Matrix4x4.CreateScale(0.75f, 0.52f, 1.55f) * Matrix4x4.CreateTranslation(0.28f, -0.08f, 0f) * bucketMat, Color.Parse("#524C3C"), viewProj, w, h, lightDir, tris);
                     continue;
                 }
 
@@ -741,7 +741,7 @@ public sealed class Plant3DViewportControl : Panel
                 }
 
                 // Belt ribbon quad
-                var beltColor = isSel ? Color.Parse("#38BDF8") : isHov ? Color.Parse("#7DD3FC") : Color.Parse("#334155");
+                var beltColor = isSel ? Color.Parse("#F59E0B") : isHov ? Color.Parse("#7DD3FC") : Color.Parse("#3F3A2D");
                 DrawProjectedQuad(context, viewProj, w, h,
                     c.TailPos - right, c.TailPos + right, c.HeadPos + right, c.HeadPos - right,
                     GetBrush(30, 41, 59, 215),

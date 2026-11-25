@@ -48,16 +48,16 @@ public sealed class Equipment3DPreviewControl : Control
 
     private static readonly ConcurrentDictionary<string, PreviewMesh> PreviewCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly IBrush BgBrush = new SolidColorBrush(Color.Parse("#060B15"));
-    private static readonly IPen FramePen = new Pen(new SolidColorBrush(Color.Parse("#1E293B")), 1.0);
-    private static readonly IPen GridFloorPen = new Pen(new SolidColorBrush(Color.Parse("#16263E")), 1.0);
-    private static readonly IPen WireframeEdgePen = new Pen(new SolidColorBrush(Color.FromArgb(48, 148, 163, 184)), 0.55);
-    private static readonly IBrush CyanTextBrush = new SolidColorBrush(Color.Parse("#38BDF8"));
-    private static readonly IBrush MutedTextBrush = new SolidColorBrush(Color.Parse("#94A3B8"));
+    private static readonly IBrush BgBrush = new SolidColorBrush(Color.Parse("#09090B"));
+    private static readonly IPen FramePen = new Pen(new SolidColorBrush(Color.Parse("#27272A")), 1.0);
+    private static readonly IPen GridFloorPen = new Pen(new SolidColorBrush(Color.Parse("#241E12")), 1.0);
+    private static readonly IPen WireframeEdgePen = new Pen(new SolidColorBrush(Color.FromArgb(48, 217, 119, 6)), 0.55);
+    private static readonly IBrush CyanTextBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
+    private static readonly IBrush MutedTextBrush = new SolidColorBrush(Color.Parse("#A1A1AA"));
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#22C55E"));
     private static readonly IBrush WarningBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
     private static readonly IBrush FaultBrush = new SolidColorBrush(Color.Parse("#EF4444"));
-    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#64748B"));
+    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#71717A"));
 
     private readonly DispatcherTimer _timer;
     private float _yawRadians = 0.55f;

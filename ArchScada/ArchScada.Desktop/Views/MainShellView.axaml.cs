@@ -77,10 +77,10 @@ public partial class MainShellView : UserControl
 
         _historianPlotConfigured = true;
         var plt = HistorianAvaPlot.Plot;
-        plt.FigureBackground.Color = new ScottPlot.Color(11, 18, 32);
-        plt.DataBackground.Color = new ScottPlot.Color(15, 23, 42);
-        plt.Axes.Color(new ScottPlot.Color(148, 163, 184));
-        plt.Grid.MajorLineColor = new ScottPlot.Color(30, 41, 59);
+        plt.FigureBackground.Color = new ScottPlot.Color(17, 17, 19);
+        plt.DataBackground.Color = new ScottPlot.Color(20, 20, 24);
+        plt.Axes.Color(new ScottPlot.Color(161, 161, 170));
+        plt.Grid.MajorLineColor = new ScottPlot.Color(39, 39, 42);
     }
 
     private void RefreshHistorianPlot()
@@ -108,9 +108,9 @@ public partial class MainShellView : UserControl
             {
                 ScottPlot.Color[] palette =
                 {
-                    new(56, 189, 248),
+                    new(245, 158, 11),
                     new(34, 197, 94),
-                    new(245, 158, 11)
+                    new(251, 191, 36)
                 };
 
                 for (int i = 0; i < overlayIds.Length; i++)
@@ -133,7 +133,7 @@ public partial class MainShellView : UserControl
                 {
                     double[] ys = values is double[] arr ? arr : values.ToArray();
                     var sig = plt.Add.Signal(ys);
-                    sig.Color = new ScottPlot.Color(56, 189, 248);
+                    sig.Color = new ScottPlot.Color(245, 158, 11);
                     sig.LineWidth = 2.2f;
 
                     double minVal = ys.Min();
@@ -143,7 +143,7 @@ public partial class MainShellView : UserControl
                     if (_vm.SelectedTrendTag is { } tag)
                     {
                         var hi = plt.Add.HorizontalLine(tag.MaxLimit * 0.85);
-                        hi.Color = new ScottPlot.Color(245, 158, 11, 150);
+                        hi.Color = new ScottPlot.Color(217, 119, 6, 150);
                         hi.LineWidth = 1.1f;
                         hi.LinePattern = ScottPlot.LinePattern.Dashed;
                     }
@@ -167,7 +167,7 @@ public partial class MainShellView : UserControl
             return;
 
         _plotConfigured = true;
-        var bg = new ScottPlot.Color(11, 18, 32);
+        var bg = new ScottPlot.Color(17, 17, 19);
         var plt = SelectedNodeTrendPlot.Plot;
         plt.FigureBackground.Color = bg;
         plt.DataBackground.Color = bg;
@@ -194,7 +194,7 @@ public partial class MainShellView : UserControl
             {
                 double[] ys = values is double[] arr ? arr : values.ToArray();
                 var sig = plt.Add.Signal(ys);
-                sig.Color = new ScottPlot.Color(56, 189, 248);
+                sig.Color = new ScottPlot.Color(245, 158, 11);
                 sig.LineWidth = 1.6f;
                 sig.MaximumMarkerSize = 0;
 

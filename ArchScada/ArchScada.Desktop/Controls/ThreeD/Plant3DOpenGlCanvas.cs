@@ -1049,12 +1049,12 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         if (runPostPass)
         {
             if (encodeSqrtHdr)
-                _glClearColor!(0.0346f, 0.0490f, 0.0775f, 1.0f); // sqrt(linear(0.003,0.006,0.015) * 0.4)
+                _glClearColor!(0.0447f, 0.0430f, 0.0410f, 1.0f); // Matte black obsidian sqrt-HDR clear
             else
-                _glClearColor!(0.003f, 0.006f, 0.015f, 1.0f); // linear HDR for RGBA16F
+                _glClearColor!(0.005f, 0.0046f, 0.0042f, 1.0f); // Matte black obsidian linear HDR clear
         }
         else
-            _glClearColor!(0.031f, 0.055f, 0.106f, 1.0f);
+            _glClearColor!(0.039f, 0.039f, 0.043f, 1.0f);
 
         _glClear!(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         _glEnable!(GL_DEPTH_TEST);
@@ -2439,7 +2439,7 @@ void main() {
         if (isGround) {
             float gravel = fbm3(vec3(vWorldPos.x * 0.45, 0.0, vWorldPos.z * 0.45));
             float fineGravel = fbm3(vec3(vWorldPos.x * 3.2, 0.0, vWorldPos.z * 3.2));
-            albedo = mix(vec3(0.015, 0.019, 0.028), vec3(0.030, 0.036, 0.048), gravel * 0.65 + fineGravel * 0.35);
+            albedo = mix(vec3(0.014, 0.014, 0.016), vec3(0.028, 0.027, 0.025), gravel * 0.65 + fineGravel * 0.35);
             roughness = clamp(0.84 + fineGravel * 0.12, 0.06, 1.0);
 
             vec2 g2 = abs(fract(coord2 - 0.5) - 0.5) / fw2;
@@ -2462,7 +2462,7 @@ void main() {
             float padSuppress = smoothstep(-0.1, 0.45, minPad);
             float minorMask = line2 * 0.22 * gridFade * padSuppress;
             float majorMask = line10 * 0.50 * gridFade * padSuppress;
-            vec3 gridCol = mix(vec3(0.04, 0.14, 0.24), vec3(0.08, 0.36, 0.56), line10);
+            vec3 gridCol = mix(vec3(0.24, 0.16, 0.04), vec3(0.56, 0.36, 0.07), line10);
             albedo = mix(albedo, gridCol, clamp(max(minorMask, majorMask), 0.0, 0.65));
             groundGridGlow = gridCol * (minorMask * 0.08 + majorMask * 0.22);
         } else if (isWater) {

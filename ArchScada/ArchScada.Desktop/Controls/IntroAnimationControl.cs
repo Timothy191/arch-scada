@@ -21,11 +21,11 @@ namespace ArchScada.Desktop.Controls;
 /// </summary>
 public sealed class IntroAnimationControl : Control
 {
-    private static readonly Color Accent = Color.Parse("#38BDF8");
-    private static readonly Color AccentDim = Color.Parse("#0284C7");
-    private static readonly Color Silhouette = Color.Parse("#1E3A5F");
-    private static readonly Color SilhouetteEdge = Color.Parse("#0EA5E9");
-    private static readonly Color TextColor = Color.Parse("#F8FAFC");
+    private static readonly Color Accent = Color.Parse("#F59E0B");
+    private static readonly Color AccentDim = Color.Parse("#B45309");
+    private static readonly Color Silhouette = Color.Parse("#453517");
+    private static readonly Color SilhouetteEdge = Color.Parse("#D97706");
+    private static readonly Color TextColor = Color.Parse("#FAFAFA");
 
     private readonly DispatcherTimer _timer;
     private double _progress;

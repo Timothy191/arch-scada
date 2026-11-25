@@ -49,14 +49,14 @@ public sealed class ValveIndicatorControl : Control
         var (stateColor, stateText) = State switch
         {
             ValveState.Open => (Color.Parse("#10B981"), "OPEN"),
-            ValveState.Closed => (Color.Parse("#64748B"), "CLOSED"),
+            ValveState.Closed => (Color.Parse("#71717A"), "CLOSED"),
             ValveState.Transitioning => (Color.Parse("#F59E0B"), "MOVING"),
             ValveState.Faulted => (Color.Parse("#EF4444"), "FAULT"),
-            _ => (Color.Parse("#64748B"), "UNKNOWN")
+            _ => (Color.Parse("#71717A"), "UNKNOWN")
         };
 
         var fillBrush = new SolidColorBrush(stateColor, 0.85);
-        var strokePen = new Pen(new SolidColorBrush(Color.Parse("#E2E8F0")), 1.4);
+        var strokePen = new Pen(new SolidColorBrush(Color.Parse("#E4E4E7")), 1.4);
 
         double cx = rect.Width / 2.0;
         double cy = rect.Height / 2.0;
@@ -98,7 +98,7 @@ public sealed class ValveIndicatorControl : Control
                 FlowDirection.LeftToRight,
                 Typeface.Default,
                 10,
-                new SolidColorBrush(Color.Parse("#CBD5E1")));
+                new SolidColorBrush(Color.Parse("#D4D4D8")));
             context.DrawText(labelText, new Point((rect.Width - labelText.Width) / 2.0, 2));
         }
 

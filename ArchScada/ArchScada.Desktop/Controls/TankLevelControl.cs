@@ -91,8 +91,8 @@ public sealed class TankLevelControl : Control
             Math.Max(8, rect.Width - sidePad * 2),
             Math.Max(8, rect.Height - topPad - bottomPad));
 
-        var bgBrush = new SolidColorBrush(Color.Parse("#0B1220"));
-        var borderPen = new Pen(new SolidColorBrush(Color.Parse("#334155")), 1.5);
+        var bgBrush = new SolidColorBrush(Color.Parse("#111113"));
+        var borderPen = new Pen(new SolidColorBrush(Color.Parse("#3F3A2D")), 1.5);
         context.DrawRectangle(bgBrush, borderPen, tankRect, 6, 6);
 
         double level = Math.Clamp(LevelPercent, 0.0, 100.0);
@@ -100,7 +100,7 @@ public sealed class TankLevelControl : Control
             ? Color.Parse("#EF4444")
             : level >= HighLimit || level <= LowLimit
                 ? Color.Parse("#F59E0B")
-                : Color.Parse("#0EA5E9");
+                : Color.Parse("#D97706");
 
         double innerPad = 2.0;
         var innerRect = tankRect.Deflate(innerPad);
@@ -130,7 +130,7 @@ public sealed class TankLevelControl : Control
                 FlowDirection.LeftToRight,
                 Typeface.Default,
                 11,
-                new SolidColorBrush(Color.Parse("#CBD5E1")));
+                new SolidColorBrush(Color.Parse("#D4D4D8")));
             context.DrawText(labelText, new Point(Math.Max(sidePad, (rect.Width - labelText.Width) / 2), 2));
         }
 

@@ -134,7 +134,9 @@ fi
 echo
 echo "===== Installing application icon and desktop entry ====="
 ICON_DST="$PREFIX/archscada.ico"
+ICON_PNG_DST="$PREFIX/archscada.png"
 cp -f "$REPO_ROOT/ArchScada/ArchScada.Desktop/Assets/avalonia-logo.ico" "$ICON_DST"
+cp -f "$REPO_ROOT/ArchScada/ArchScada.Desktop/Assets/archlinux-logo.png" "$ICON_PNG_DST"
 
 APPS_DIR="$HOME/.local/share/applications"
 mkdir -p "$APPS_DIR"
@@ -144,7 +146,7 @@ Type=Application
 Name=Arch SCADA 3D HMI
 Comment=Coal Handling & Preparation Plant (CHPP) 3D Digital Twin & Operator HMI
 Exec=$BIN_DIR/archscada
-Icon=$ICON_DST
+Icon=$ICON_PNG_DST
 Terminal=false
 Categories=Engineering;Science;Utility;
 StartupWMClass=ArchScada.Desktop

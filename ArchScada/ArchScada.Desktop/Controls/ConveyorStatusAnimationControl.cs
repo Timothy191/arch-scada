@@ -39,23 +39,23 @@ public sealed class ConveyorStatusAnimationControl : Control
     public static readonly StyledProperty<bool> BeltSlipOkProperty =
         AvaloniaProperty.Register<ConveyorStatusAnimationControl, bool>(nameof(BeltSlipOk), true);
 
-    private static readonly IBrush BgBrush = new SolidColorBrush(Color.Parse("#080E1A"));
-    private static readonly IPen BorderPen = new Pen(new SolidColorBrush(Color.Parse("#1E293B")), 1.0);
-    private static readonly IBrush PulleyFill = new SolidColorBrush(Color.Parse("#162238"));
-    private static readonly IPen IdlerPen = new Pen(new SolidColorBrush(Color.Parse("#475569")), 1.3);
+    private static readonly IBrush BgBrush = new SolidColorBrush(Color.Parse("#0B0B0D"));
+    private static readonly IPen BorderPen = new Pen(new SolidColorBrush(Color.Parse("#27272A")), 1.0);
+    private static readonly IBrush PulleyFill = new SolidColorBrush(Color.Parse("#1C1A15"));
+    private static readonly IPen IdlerPen = new Pen(new SolidColorBrush(Color.Parse("#524C3C")), 1.3);
     private static readonly IPen RunningBeltPen = new Pen(new SolidColorBrush(Color.Parse("#22C55E")), 2.0);
     private static readonly IPen WarningBeltPen = new Pen(new SolidColorBrush(Color.Parse("#F59E0B")), 2.2);
     private static readonly IPen FaultBeltPen = new Pen(new SolidColorBrush(Color.Parse("#EF4444")), 2.2);
-    private static readonly IPen StoppedBeltPen = new Pen(new SolidColorBrush(Color.Parse("#64748B")), 1.8);
+    private static readonly IPen StoppedBeltPen = new Pen(new SolidColorBrush(Color.Parse("#71717A")), 1.8);
     private static readonly IBrush RunningBrush = new SolidColorBrush(Color.Parse("#22C55E"));
     private static readonly IBrush WarningBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
     private static readonly IBrush FaultBrush = new SolidColorBrush(Color.Parse("#EF4444"));
-    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#64748B"));
-    private static readonly IBrush CyanBrush = new SolidColorBrush(Color.Parse("#38BDF8"));
-    private static readonly IBrush CoalBurdenBrush = new SolidColorBrush(Color.Parse("#1E293B"));
-    private static readonly IPen CoalEdgePen = new Pen(new SolidColorBrush(Color.Parse("#38BDF8")), 1.0);
-    private static readonly IBrush TextBrush = new SolidColorBrush(Color.Parse("#E2E8F0"));
-    private static readonly IBrush MutedTextBrush = new SolidColorBrush(Color.Parse("#94A3B8"));
+    private static readonly IBrush StoppedBrush = new SolidColorBrush(Color.Parse("#71717A"));
+    private static readonly IBrush CyanBrush = new SolidColorBrush(Color.Parse("#F59E0B"));
+    private static readonly IBrush CoalBurdenBrush = new SolidColorBrush(Color.Parse("#27272A"));
+    private static readonly IPen CoalEdgePen = new Pen(new SolidColorBrush(Color.Parse("#F59E0B")), 1.0);
+    private static readonly IBrush TextBrush = new SolidColorBrush(Color.Parse("#E4E4E7"));
+    private static readonly IBrush MutedTextBrush = new SolidColorBrush(Color.Parse("#A1A1AA"));
 
     private readonly DispatcherTimer _timer;
     private double _phase;

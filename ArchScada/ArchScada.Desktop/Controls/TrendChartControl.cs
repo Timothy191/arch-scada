@@ -13,7 +13,7 @@ public sealed class TrendChartControl : Control
         AvaloniaProperty.Register<TrendChartControl, IReadOnlyList<double>?>(nameof(Values));
 
     public static readonly StyledProperty<IBrush> LineBrushProperty =
-        AvaloniaProperty.Register<TrendChartControl, IBrush>(nameof(LineBrush), new SolidColorBrush(Color.Parse("#38BDF8")));
+        AvaloniaProperty.Register<TrendChartControl, IBrush>(nameof(LineBrush), new SolidColorBrush(Color.Parse("#F59E0B")));
 
     public IReadOnlyList<double>? Values
     {
@@ -39,8 +39,8 @@ public sealed class TrendChartControl : Control
         var rect = new Rect(Bounds.Size);
         if (rect.Width <= 10 || rect.Height <= 10) return;
 
-        var bg = new SolidColorBrush(Color.Parse("#0B1220"));
-        var gridPen = new Pen(new SolidColorBrush(Color.Parse("#1E293B")), 1);
+        var bg = new SolidColorBrush(Color.Parse("#111113"));
+        var gridPen = new Pen(new SolidColorBrush(Color.Parse("#27272A")), 1);
         context.FillRectangle(bg, rect, 6);
 
         // Horizontal grid lines
