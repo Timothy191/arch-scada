@@ -3,7 +3,9 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
-using System.Text.Json;
+using SharpGLTF.Schema2;
+using SharpGLTF.Validation;
+using StbImageSharp;
 
 namespace ArchScada.Desktop.Controls.ThreeD;
 
@@ -34,14 +36,12 @@ public sealed class GlbMeshData
 }
 
 /// <summary>
-/// Zero-dependency binary glTF 2.0 (.glb) loader supporting Blender-exported meshes,
-/// node hierarchy transforms, indexed/non-indexed triangles, and PBR material factors.
+/// glTF 2.0 (.glb) asset loader backed by SharpGLTF.Core and StbImageSharp, supporting full
+/// scene hierarchies, world transforms, indexed/non-indexed triangles, PBR factors, and embedded textures.
 /// </summary>
 public static class GlbMeshLoader
 {
     private const uint GlbMagic = 0x46546C67; // "glTF"
-    private const uint ChunkJson = 0x4E4F534A; // "JSON"
-    private const uint ChunkBin = 0x004E4942;  // "BIN\0"
 
     public static GlbMeshData? Load(string filePath)
     {
@@ -49,7 +49,7 @@ public static class GlbMeshLoader
             return null;
 
         var bytes = File.ReadAllBytes(filePath);
-        return Parse(Path.GetFileNameWithoutExtension(filePath), bytes);
+        return ParseOwnedBytes(Path.GetFileNameWithoutExtension(filePath), bytes);
     }
 
     public static GlbMeshData? Parse(string name, ReadOnlySpan<byte> data)
@@ -57,63 +57,56 @@ public static class GlbMeshLoader
         if (data.Length < 20)
             return null;
 
-        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(0, 4));
-        uint version = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4));
+        return ParseOwnedBytes(name, data.ToArray());
+    }
+
+    private static GlbMeshData? ParseOwnedBytes(string name, byte[] bytes)
+    {
+        if (bytes.Length < 20)
+            return null;
+
+        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0, 4));
+        uint version = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4, 4));
         if (magic != GlbMagic || version != 2)
             return null;
 
-        ReadOnlySpan<byte> jsonChunk = default;
-        ReadOnlySpan<byte> binChunk = default;
-
-        int offset = 12;
-        while (offset + 8 <= data.Length)
+        ModelRoot model;
+        try
         {
-            int chunkLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset, 4));
-            uint chunkType = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset + 4, 4));
-            offset += 8;
-            if (chunkLen < 0 || offset + chunkLen > data.Length)
-                break;
-
-            if (chunkType == ChunkJson)
-                jsonChunk = data.Slice(offset, chunkLen);
-            else if (chunkType == ChunkBin)
-                binChunk = data.Slice(offset, chunkLen);
-
-            offset += chunkLen;
+            model = ModelRoot.ParseGLB(
+                new ArraySegment<byte>(bytes),
+                new ReadSettings { Validation = ValidationMode.Skip });
         }
-
-        if (jsonChunk.IsEmpty || binChunk.IsEmpty)
-            return null;
-
-        using var doc = JsonDocument.Parse(jsonChunk.ToArray());
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("meshes", out var meshesEl) ||
-            !root.TryGetProperty("accessors", out var accessorsEl) ||
-            !root.TryGetProperty("bufferViews", out var bufferViewsEl))
+        catch
         {
             return null;
         }
 
-        var materials = ParseMaterials(root);
         var verts = new List<float>(4096);
         var indices = new List<uint>(2048);
+        var decodedImages = new Dictionary<int, ImageResult?>();
         var bMin = new Vector3(float.PositiveInfinity);
         var bMax = new Vector3(float.NegativeInfinity);
 
-        if (root.TryGetProperty("nodes", out var nodesEl) && nodesEl.GetArrayLength() > 0)
+        if (model.DefaultScene is not null)
         {
-            var rootNodeIndices = GetSceneRootNodes(root, nodesEl.GetArrayLength());
-            foreach (int nodeIdx in rootNodeIndices)
+            foreach (var rootNode in model.DefaultScene.VisualChildren)
             {
-                TraverseNode(nodeIdx, Matrix4x4.Identity, nodesEl, meshesEl, accessorsEl, bufferViewsEl, binChunk, materials, verts, indices, ref bMin, ref bMax);
+                TraverseNode(rootNode, verts, indices, decodedImages, ref bMin, ref bMax);
+            }
+        }
+        else if (model.LogicalScenes.Count > 0)
+        {
+            foreach (var rootNode in model.LogicalScenes[0].VisualChildren)
+            {
+                TraverseNode(rootNode, verts, indices, decodedImages, ref bMin, ref bMax);
             }
         }
         else
         {
-            for (int m = 0; m < meshesEl.GetArrayLength(); m++)
+            foreach (var mesh in model.LogicalMeshes)
             {
-                AppendMesh(meshesEl[m], Matrix4x4.Identity, accessorsEl, bufferViewsEl, binChunk, materials, verts, indices, ref bMin, ref bMax);
+                AppendMesh(mesh, Matrix4x4.Identity, verts, indices, decodedImages, ref bMin, ref bMax);
             }
         }
 
@@ -123,181 +116,73 @@ public static class GlbMeshLoader
         return new GlbMeshData(name, verts.ToArray(), indices.ToArray(), bMin, bMax);
     }
 
-    private readonly record struct MaterialInfo(Vector3 Color, float Metallic, float Roughness);
-
-    private static List<MaterialInfo> ParseMaterials(JsonElement root)
-    {
-        var list = new List<MaterialInfo>();
-        if (!root.TryGetProperty("materials", out var matsEl))
-            return list;
-
-        foreach (var mat in matsEl.EnumerateArray())
-        {
-            var color = new Vector3(0.28f, 0.34f, 0.44f);
-            float metallic = 0.5f;
-            float roughness = 0.45f;
-
-            if (mat.TryGetProperty("pbrMetallicRoughness", out var pbr))
-            {
-                if (pbr.TryGetProperty("baseColorFactor", out var bcf) && bcf.GetArrayLength() >= 3)
-                {
-                    // glTF 2.0 baseColorFactor is linear-space RGB; store directly for physically based shading
-                    color = new Vector3(
-                        Math.Clamp(bcf[0].GetSingle(), 0f, 1f),
-                        Math.Clamp(bcf[1].GetSingle(), 0f, 1f),
-                        Math.Clamp(bcf[2].GetSingle(), 0f, 1f));
-                }
-                if (pbr.TryGetProperty("metallicFactor", out var mf))
-                    metallic = Math.Clamp(mf.GetSingle(), 0f, 1f);
-                if (pbr.TryGetProperty("roughnessFactor", out var rf))
-                    roughness = Math.Clamp(rf.GetSingle(), 0.05f, 1f);
-            }
-
-            list.Add(new MaterialInfo(color, metallic, roughness));
-        }
-
-        return list;
-    }
-
-    private static List<int> GetSceneRootNodes(JsonElement root, int nodeCount)
-    {
-        var roots = new List<int>();
-        if (root.TryGetProperty("scenes", out var scenesEl) && scenesEl.GetArrayLength() > 0)
-        {
-            int sceneIdx = root.TryGetProperty("scene", out var sEl) ? sEl.GetInt32() : 0;
-            if (sceneIdx >= 0 && sceneIdx < scenesEl.GetArrayLength() &&
-                scenesEl[sceneIdx].TryGetProperty("nodes", out var sceneNodes))
-            {
-                foreach (var n in sceneNodes.EnumerateArray())
-                    roots.Add(n.GetInt32());
-                return roots;
-            }
-        }
-
-        for (int i = 0; i < nodeCount; i++)
-            roots.Add(i);
-        return roots;
-    }
-
     private static void TraverseNode(
-        int nodeIdx,
-        Matrix4x4 parentTransform,
-        JsonElement nodesEl,
-        JsonElement meshesEl,
-        JsonElement accessorsEl,
-        JsonElement bufferViewsEl,
-        ReadOnlySpan<byte> bin,
-        List<MaterialInfo> materials,
+        Node node,
         List<float> verts,
         List<uint> indices,
+        Dictionary<int, ImageResult?> decodedImages,
         ref Vector3 bMin,
         ref Vector3 bMax)
     {
-        if (nodeIdx < 0 || nodeIdx >= nodesEl.GetArrayLength())
-            return;
-
-        var node = nodesEl[nodeIdx];
-        var local = ReadNodeTransform(node);
-        var world = local * parentTransform;
-
-        if (node.TryGetProperty("mesh", out var meshIdxEl))
+        if (node.Mesh is not null)
         {
-            int meshIdx = meshIdxEl.GetInt32();
-            if (meshIdx >= 0 && meshIdx < meshesEl.GetArrayLength())
-            {
-                AppendMesh(meshesEl[meshIdx], world, accessorsEl, bufferViewsEl, bin, materials, verts, indices, ref bMin, ref bMax);
-            }
+            AppendMesh(node.Mesh, node.WorldMatrix, verts, indices, decodedImages, ref bMin, ref bMax);
         }
 
-        if (node.TryGetProperty("children", out var childrenEl))
+        foreach (var child in node.VisualChildren)
         {
-            foreach (var child in childrenEl.EnumerateArray())
-            {
-                TraverseNode(child.GetInt32(), world, nodesEl, meshesEl, accessorsEl, bufferViewsEl, bin, materials, verts, indices, ref bMin, ref bMax);
-            }
+            TraverseNode(child, verts, indices, decodedImages, ref bMin, ref bMax);
         }
-    }
-
-    private static Matrix4x4 ReadNodeTransform(JsonElement node)
-    {
-        if (node.TryGetProperty("matrix", out var mEl) && mEl.GetArrayLength() == 16)
-        {
-            // glTF stores column-major; System.Numerics.Matrix4x4 is row-major (row-vector convention)
-            return new Matrix4x4(
-                mEl[0].GetSingle(), mEl[1].GetSingle(), mEl[2].GetSingle(), mEl[3].GetSingle(),
-                mEl[4].GetSingle(), mEl[5].GetSingle(), mEl[6].GetSingle(), mEl[7].GetSingle(),
-                mEl[8].GetSingle(), mEl[9].GetSingle(), mEl[10].GetSingle(), mEl[11].GetSingle(),
-                mEl[12].GetSingle(), mEl[13].GetSingle(), mEl[14].GetSingle(), mEl[15].GetSingle());
-        }
-
-        var scale = Vector3.One;
-        var rot = Quaternion.Identity;
-        var trans = Vector3.Zero;
-
-        if (node.TryGetProperty("scale", out var sEl) && sEl.GetArrayLength() == 3)
-            scale = new Vector3(sEl[0].GetSingle(), sEl[1].GetSingle(), sEl[2].GetSingle());
-        if (node.TryGetProperty("rotation", out var rEl) && rEl.GetArrayLength() == 4)
-            rot = new Quaternion(rEl[0].GetSingle(), rEl[1].GetSingle(), rEl[2].GetSingle(), rEl[3].GetSingle());
-        if (node.TryGetProperty("translation", out var tEl) && tEl.GetArrayLength() == 3)
-            trans = new Vector3(tEl[0].GetSingle(), tEl[1].GetSingle(), tEl[2].GetSingle());
-
-        return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rot) * Matrix4x4.CreateTranslation(trans);
     }
 
     private static void AppendMesh(
-        JsonElement meshEl,
+        Mesh mesh,
         Matrix4x4 world,
-        JsonElement accessorsEl,
-        JsonElement bufferViewsEl,
-        ReadOnlySpan<byte> bin,
-        List<MaterialInfo> materials,
         List<float> verts,
         List<uint> indices,
+        Dictionary<int, ImageResult?> decodedImages,
         ref Vector3 bMin,
         ref Vector3 bMax)
     {
-        if (!meshEl.TryGetProperty("primitives", out var primsEl))
-            return;
-
-        Matrix4x4.Invert(world, out var invWorld);
+        if (!Matrix4x4.Invert(world, out var invWorld))
+            invWorld = Matrix4x4.Identity;
         var normalMatrix = Matrix4x4.Transpose(invWorld);
 
-        foreach (var prim in primsEl.EnumerateArray())
+        foreach (var prim in mesh.Primitives)
         {
-            if (prim.TryGetProperty("mode", out var modeEl) && modeEl.GetInt32() != 4)
-                continue; // only TRIANGLES
-
-            if (!prim.TryGetProperty("attributes", out var attrsEl) ||
-                !attrsEl.TryGetProperty("POSITION", out var posAccEl))
+            if (prim.DrawPrimitiveType != PrimitiveType.TRIANGLES)
                 continue;
 
-            var posSlice = GetVec3AccessorSlice(posAccEl.GetInt32(), accessorsEl, bufferViewsEl);
-            if (posSlice.Count <= 0)
+            var posAcc = prim.GetVertexAccessor("POSITION");
+            if (posAcc is null || posAcc.Count <= 0)
                 continue;
 
-            bool hasNormals = attrsEl.TryGetProperty("NORMAL", out var normAccEl);
-            var normSlice = hasNormals
-                ? GetVec3AccessorSlice(normAccEl.GetInt32(), accessorsEl, bufferViewsEl)
-                : default;
+            var positions = posAcc.AsVector3Array();
+            var normAcc = prim.GetVertexAccessor("NORMAL");
+            var normals = normAcc?.AsVector3Array();
+            var uvAcc = prim.GetVertexAccessor("TEXCOORD_0");
+            var uvs = uvAcc?.AsVector2Array();
 
-            var matInfo = new MaterialInfo(new Vector3(0.28f, 0.34f, 0.44f), 0.5f, 0.45f);
-            if (prim.TryGetProperty("material", out var matIdxEl))
-            {
-                int mi = matIdxEl.GetInt32();
-                if (mi >= 0 && mi < materials.Count)
-                    matInfo = materials[mi];
-            }
+            var matInfo = ExtractMaterialInfo(prim.Material, decodedImages);
 
             uint baseVertex = (uint)(verts.Count / GlbMeshData.FloatsPerVertex);
-            verts.EnsureCapacity(verts.Count + posSlice.Count * GlbMeshData.FloatsPerVertex);
+            int vertCount = positions.Count;
+            verts.EnsureCapacity(verts.Count + vertCount * GlbMeshData.FloatsPerVertex);
 
-            for (int i = 0; i < posSlice.Count; i++)
+            for (int i = 0; i < vertCount; i++)
             {
-                var p = Vector3.Transform(ReadVec3At(bin, posSlice, i), world);
-                var n = hasNormals && i < normSlice.Count
-                    ? Vector3.Normalize(Vector3.TransformNormal(ReadVec3At(bin, normSlice, i), normalMatrix))
+                var p = Vector3.Transform(positions[i], world);
+                var n = normals is not null && i < normals.Count
+                    ? Vector3.Normalize(Vector3.TransformNormal(normals[i], normalMatrix))
                     : Vector3.UnitY;
-                if (float.IsNaN(n.X)) n = Vector3.UnitY;
+                if (float.IsNaN(n.X) || float.IsInfinity(n.X))
+                    n = Vector3.UnitY;
+
+                var color = matInfo.Color;
+                if (matInfo.BaseColorImage is not null && uvs is not null && i < uvs.Count)
+                {
+                    color *= SampleLinearRgb(matInfo.BaseColorImage, uvs[i]);
+                }
 
                 bMin = Vector3.Min(bMin, p);
                 bMax = Vector3.Max(bMax, p);
@@ -308,100 +193,122 @@ public static class GlbMeshLoader
                 verts.Add(n.X);
                 verts.Add(n.Y);
                 verts.Add(n.Z);
-                verts.Add(matInfo.Color.X);
-                verts.Add(matInfo.Color.Y);
-                verts.Add(matInfo.Color.Z);
+                verts.Add(color.X);
+                verts.Add(color.Y);
+                verts.Add(color.Z);
                 verts.Add(matInfo.Metallic);
                 verts.Add(matInfo.Roughness);
             }
 
-            if (prim.TryGetProperty("indices", out var idxAccEl))
+            var rawIndices = prim.GetIndices();
+            if (rawIndices is not null && rawIndices.Count > 0)
             {
-                AppendIndexAccessor(idxAccEl.GetInt32(), baseVertex, accessorsEl, bufferViewsEl, bin, indices);
+                indices.EnsureCapacity(indices.Count + rawIndices.Count);
+                for (int i = 0; i < rawIndices.Count; i++)
+                    indices.Add(baseVertex + rawIndices[i]);
             }
             else
             {
-                indices.EnsureCapacity(indices.Count + posSlice.Count);
-                for (uint i = 0; i < (uint)posSlice.Count; i++)
+                indices.EnsureCapacity(indices.Count + vertCount);
+                for (uint i = 0; i < (uint)vertCount; i++)
                     indices.Add(baseVertex + i);
             }
         }
     }
 
-    private readonly record struct Vec3AccessorSlice(int Count, int Start, int Stride);
+    private readonly record struct MaterialInfo(
+        Vector3 Color,
+        float Metallic,
+        float Roughness,
+        ImageResult? BaseColorImage);
 
-    private static Vec3AccessorSlice GetVec3AccessorSlice(int accessorIdx, JsonElement accessorsEl, JsonElement bufferViewsEl)
+    private static MaterialInfo ExtractMaterialInfo(Material? material, Dictionary<int, ImageResult?> decodedImages)
     {
-        var acc = accessorsEl[accessorIdx];
-        int count = acc.GetProperty("count").GetInt32();
-        int bvIdx = acc.GetProperty("bufferView").GetInt32();
-        int accOffset = acc.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0;
+        var color = new Vector3(0.28f, 0.34f, 0.44f);
+        float metallic = 0.5f;
+        float roughness = 0.45f;
+        ImageResult? baseImage = null;
 
-        var bv = bufferViewsEl[bvIdx];
-        int bvOffset = bv.TryGetProperty("byteOffset", out var bo) ? bo.GetInt32() : 0;
-        int stride = bv.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : 12;
-        if (stride < 12) stride = 12;
+        if (material is null)
+            return new MaterialInfo(color, metallic, roughness, baseImage);
 
-        return new Vec3AccessorSlice(count, bvOffset + accOffset, stride);
-    }
-
-    private static Vector3 ReadVec3At(ReadOnlySpan<byte> bin, in Vec3AccessorSlice slice, int index)
-    {
-        int pos = slice.Start + index * slice.Stride;
-        if (pos < 0 || pos + 12 > bin.Length)
-            return Vector3.Zero;
-
-        float x = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos, 4));
-        float y = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 4, 4));
-        float z = BinaryPrimitives.ReadSingleLittleEndian(bin.Slice(pos + 8, 4));
-        return new Vector3(x, y, z);
-    }
-
-    private static void AppendIndexAccessor(
-        int accessorIdx,
-        uint baseVertex,
-        JsonElement accessorsEl,
-        JsonElement bufferViewsEl,
-        ReadOnlySpan<byte> bin,
-        List<uint> indices)
-    {
-        var acc = accessorsEl[accessorIdx];
-        int count = acc.GetProperty("count").GetInt32();
-        if (count <= 0) return;
-
-        int compType = acc.GetProperty("componentType").GetInt32();
-        int bvIdx = acc.GetProperty("bufferView").GetInt32();
-        int accOffset = acc.TryGetProperty("byteOffset", out var ao) ? ao.GetInt32() : 0;
-
-        var bv = bufferViewsEl[bvIdx];
-        int bvOffset = bv.TryGetProperty("byteOffset", out var bo) ? bo.GetInt32() : 0;
-        int elemSize = compType switch
+        if (material.TryGetChannel("BaseColor", out var baseCh))
         {
-            5121 => 1, // UNSIGNED_BYTE
-            5123 => 2, // UNSIGNED_SHORT
-            5125 => 4, // UNSIGNED_INT
-            _ => 2
-        };
-        int stride = bv.TryGetProperty("byteStride", out var bs) ? bs.GetInt32() : elemSize;
-        if (stride < elemSize) stride = elemSize;
-
-        indices.EnsureCapacity(indices.Count + count);
-        int start = bvOffset + accOffset;
-        for (int i = 0; i < count; i++)
-        {
-            int pos = start + i * stride;
-            uint raw = 0;
-            if (pos >= 0 && pos + elemSize <= bin.Length)
+            foreach (var mp in baseCh.Parameters)
             {
-                raw = compType switch
+                if (mp.Value is Vector4 v4)
                 {
-                    5121 => bin[pos],
-                    5123 => BinaryPrimitives.ReadUInt16LittleEndian(bin.Slice(pos, 2)),
-                    5125 => BinaryPrimitives.ReadUInt32LittleEndian(bin.Slice(pos, 4)),
-                    _ => 0
-                };
+                    color = new Vector3(
+                        Math.Clamp(v4.X, 0f, 1f),
+                        Math.Clamp(v4.Y, 0f, 1f),
+                        Math.Clamp(v4.Z, 0f, 1f));
+                    break;
+                }
             }
-            indices.Add(baseVertex + raw);
+
+            var img = baseCh.Texture?.PrimaryImage;
+            if (img is not null)
+            {
+                baseImage = GetOrDecodeImage(img, decodedImages);
+            }
         }
+
+        if (material.TryGetChannel("MetallicRoughness", out var mrCh))
+        {
+            foreach (var mp in mrCh.Parameters)
+            {
+                if (mp.Value is float fVal)
+                {
+                    if (string.Equals(mp.Name, "MetallicFactor", StringComparison.OrdinalIgnoreCase))
+                        metallic = Math.Clamp(fVal, 0f, 1f);
+                    else if (string.Equals(mp.Name, "RoughnessFactor", StringComparison.OrdinalIgnoreCase))
+                        roughness = Math.Clamp(fVal, 0.05f, 1f);
+                }
+            }
+        }
+
+        return new MaterialInfo(color, metallic, roughness, baseImage);
+    }
+
+    private static ImageResult? GetOrDecodeImage(Image img, Dictionary<int, ImageResult?> cache)
+    {
+        if (cache.TryGetValue(img.LogicalIndex, out var cached))
+            return cached;
+
+        ImageResult? decoded = null;
+        try
+        {
+            var mem = img.Content.Content;
+            if (!mem.IsEmpty)
+            {
+                decoded = ImageResult.FromMemory(mem.ToArray(), ColorComponents.RedGreenBlueAlpha);
+            }
+        }
+        catch
+        {
+            decoded = null;
+        }
+
+        cache[img.LogicalIndex] = decoded;
+        return decoded;
+    }
+
+    private static Vector3 SampleLinearRgb(ImageResult image, Vector2 uv)
+    {
+        if (image.Width <= 0 || image.Height <= 0 || image.Data is null || image.Data.Length < 4)
+            return Vector3.One;
+
+        float u = uv.X - MathF.Floor(uv.X);
+        float v = uv.Y - MathF.Floor(uv.Y);
+        int x = Math.Clamp((int)(u * image.Width), 0, image.Width - 1);
+        int y = Math.Clamp((int)(v * image.Height), 0, image.Height - 1);
+        int idx = (y * image.Width + x) * 4;
+        if (idx + 2 >= image.Data.Length)
+            return Vector3.One;
+
+        float r = MathF.Pow(image.Data[idx] / 255f, 2.2f);
+        float g = MathF.Pow(image.Data[idx + 1] / 255f, 2.2f);
+        float b = MathF.Pow(image.Data[idx + 2] / 255f, 2.2f);
+        return new Vector3(r, g, b);
     }
 }

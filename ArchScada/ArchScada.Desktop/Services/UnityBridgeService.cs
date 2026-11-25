@@ -159,10 +159,58 @@ public sealed class UnityBridgeService : IDisposable
 
         if (proc.ExitCode == 0)
         {
-            return (true, $"Generated 3D assets in {AssetsExportDirectory}");
+            var optNote = await TryOptimizeExportedGlbsAsync();
+            return (true, string.IsNullOrEmpty(optNote)
+                ? $"Generated 3D assets in {AssetsExportDirectory}"
+                : $"Generated & optimized 3D assets in {AssetsExportDirectory} ({optNote})");
         }
 
         return (false, string.IsNullOrWhiteSpace(stderr) ? stdout : stderr);
+    }
+
+    private async Task<string?> TryOptimizeExportedGlbsAsync()
+    {
+        try
+        {
+            if (!CommandExists("node"))
+                return null;
+
+            var blenderDir = Path.GetDirectoryName(BlenderScriptPath);
+            var assetRoot = blenderDir is null ? null : Path.GetDirectoryName(blenderDir);
+            if (assetRoot is null)
+                return null;
+
+            var optScript = Path.Combine(assetRoot, "optimize_glbs.mjs");
+            var nodeModules = Path.Combine(assetRoot, "node_modules");
+            if (!File.Exists(optScript) || !Directory.Exists(nodeModules))
+                return null;
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "node",
+                Arguments = $"\"{optScript}\" \"{AssetsExportDirectory}\"",
+                WorkingDirectory = assetRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var optProc = Process.Start(psi);
+            if (optProc is null)
+                return null;
+
+            var optOut = await optProc.StandardOutput.ReadToEndAsync();
+            await optProc.WaitForExitAsync();
+            if (optProc.ExitCode != 0)
+                return null;
+
+            var lastLine = optOut.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim();
+            return string.IsNullOrEmpty(lastLine) ? "glTF-Transform optimized" : lastLine;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool CommandExists(string cmd)

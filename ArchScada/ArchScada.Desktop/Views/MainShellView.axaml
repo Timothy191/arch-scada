@@ -5,6 +5,7 @@
              xmlns:controls="using:ArchScada.Desktop.Controls"
              xmlns:threed="using:ArchScada.Desktop.Controls.ThreeD"
              xmlns:conv="using:ArchScada.Desktop.Converters"
+             xmlns:scott="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
              x:Class="ArchScada.Desktop.Views.MainShellView"
              x:DataType="vm:MainShellViewModel">
 
@@ -827,8 +828,8 @@
                     <!-- Right: Zero-Scroll Side Menu (3 Compact Cards Fit 100% On Screen) -->
                     <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
                         <!-- Card 1: Equipment Identification & Process Flow -->
-                        <Border Grid.Row="0" Classes="scada-card" Padding="12,9">
-                            <StackPanel Spacing="5">
+                        <Border Grid.Row="0" Classes="scada-card" Padding="11,8">
+                            <StackPanel Spacing="4">
                                 <TextBlock Text="EQUIPMENT IDENTIFICATION &amp; PROCESS FLOW" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" />
 
                                 <Grid ColumnDefinitions="*,Auto" DataContext="{Binding Selected3DNode}">
@@ -869,6 +870,16 @@
                                         <TextBlock Grid.Column="2" Text="{Binding PowerKw, StringFormat='{}{0:0.0} kW'}" FontSize="10.5" Foreground="#94A3B8" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="3" Text="{Binding LoadPercent, StringFormat='Load {0:0}%'}" FontSize="10.5" Foreground="#F1F5F9" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </Grid>
+                                </Border>
+
+                                <!-- Live Hardware-Accelerated Telemetry Sparkline (ScottPlot.Avalonia) -->
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,2,0,0">
+                                    <TextBlock Grid.Column="0" Text="LIVE TELEMETRY TREND" FontSize="9" FontWeight="Bold" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Selected3DTrendLabel}" FontSize="9.5" FontWeight="SemiBold" Foreground="#38BDF8"
+                                               HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Background="#0B1220" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="5" Padding="2" Height="52">
+                                    <scott:AvaPlot x:Name="SelectedNodeTrendPlot" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                                 </Border>
                             </StackPanel>
                         </Border>

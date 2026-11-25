@@ -9,6 +9,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ArchScada.Desktop.Controls;
@@ -47,7 +48,10 @@ public partial class App : Application
                     HoldOnSplash = true
                 };
 
-                _splashWindow = new SplashWindow(splashVm, autoStart: false);
+                _splashWindow = new SplashWindow(splashVm, autoStart: false)
+                {
+                    IsAutomatedCaptureMode = true
+                };
                 desktop.MainWindow = _splashWindow;
                 _splashWindow.Show();
 
@@ -113,13 +117,63 @@ public partial class App : Application
 
         var splash = _splashWindow;
         _splashWindow = null;
-        splash?.Close();
 
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
+            splash?.Close();
+            return;
+        }
+
+        // Smooth cross-fade handoff: fade the splash out, then reveal the main HMI.
+        // Reduced-motion / automated contexts fall back to an immediate swap.
+        if (splash is null || splash.IsAutomatedCaptureMode ||
+            splash.Classes.Contains("splash-reduced-motion"))
+        {
+            splash?.Close();
             desktop.MainWindow = _mainWindow;
             _mainWindow?.Show();
+            return;
         }
+
+        _ = CrossFadeToMainAsync(desktop, splash);
+    }
+
+    private async System.Threading.Tasks.Task CrossFadeToMainAsync(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        SplashWindow splash)
+    {
+        var fadeOut = new Avalonia.Animation.Animation
+        {
+            Duration = TimeSpan.FromMilliseconds(300),
+            FillMode = Avalonia.Animation.FillMode.Forward,
+            Easing = new Avalonia.Animation.Easings.CubicEaseIn(),
+            Children =
+            {
+                new Avalonia.Animation.KeyFrame
+                {
+                    Cue = new Avalonia.Animation.Cue(0.0),
+                    Setters = { new Setter(Visual.OpacityProperty, 1.0) }
+                },
+                new Avalonia.Animation.KeyFrame
+                {
+                    Cue = new Avalonia.Animation.Cue(1.0),
+                    Setters = { new Setter(Visual.OpacityProperty, 0.0) }
+                }
+            }
+        };
+
+        try
+        {
+            await fadeOut.RunAsync(splash);
+        }
+        catch
+        {
+            // Animation may be interrupted if the window closes early; ignore.
+        }
+
+        splash.Close();
+        desktop.MainWindow = _mainWindow;
+        _mainWindow?.Show();
     }
 
     private static string? ParseArgValue(string[]? args, string optionName)

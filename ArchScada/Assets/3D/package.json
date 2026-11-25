@@ -1,0 +1,15 @@
+{
+  "name": "archscada-3d-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lossless glTF 2.0 optimization pipeline (glTF-Transform + meshoptimizer vertex-cache reorder) for Arch SCADA 3D Digital Twin assets",
+  "scripts": {
+    "optimize": "node optimize_glbs.mjs ./Exported"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "meshoptimizer": "^0.22.0"
+  }
+}

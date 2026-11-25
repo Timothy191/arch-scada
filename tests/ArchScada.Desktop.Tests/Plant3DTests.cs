@@ -638,4 +638,30 @@ public class Plant3DTests
         Assert.True(Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.SizedFines) >
                     Plant3DSceneData.GetMaterialSubClusterCount(CoalMaterialClass.CrushedRoll));
     }
+
+    [Fact]
+    public void GlbMeshLoader_SharpGltf_LoadsAll16PlantModelsWithValidNormalsAndBounds()
+    {
+        var meshes = Plant3DSceneData.LoadAllGlbMeshes();
+        Assert.Equal(16, meshes.Count);
+
+        foreach (var (fileName, mesh) in meshes)
+        {
+            Assert.True(mesh.VertexCount > 0, $"{fileName} has no vertices");
+            Assert.True(mesh.TriangleCount > 0, $"{fileName} has no triangles");
+            Assert.True(mesh.BoundsMax.X > mesh.BoundsMin.X, $"{fileName} has degenerate X bounds");
+            Assert.True(mesh.BoundsMax.Y > mesh.BoundsMin.Y, $"{fileName} has degenerate Y bounds");
+
+            for (int v = 0; v < mesh.VertexCount; v++)
+            {
+                int o = v * GlbMeshData.FloatsPerVertex;
+                Assert.True(float.IsFinite(mesh.Vertices[o]) && float.IsFinite(mesh.Vertices[o + 1]) && float.IsFinite(mesh.Vertices[o + 2]));
+                float nx = mesh.Vertices[o + 3];
+                float ny = mesh.Vertices[o + 4];
+                float nz = mesh.Vertices[o + 5];
+                float nLen = MathF.Sqrt(nx * nx + ny * ny + nz * nz);
+                Assert.InRange(nLen, 0.90f, 1.10f);
+            }
+        }
+    }
 }

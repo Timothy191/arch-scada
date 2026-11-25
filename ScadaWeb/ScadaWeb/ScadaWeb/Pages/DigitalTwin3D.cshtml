@@ -514,7 +514,9 @@
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+            "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.8/build/index.module.js",
+            "n8ao": "https://cdn.jsdelivr.net/npm/n8ao@1.9.3/dist/N8AO.js"
         }
     }
     </script>
@@ -527,7 +529,7 @@
             <span class="brand-title">ARCH SCADA · CHPP 3D DIGITAL TWIN</span>
             <span class="badge badge-ro" title="Zero PLC Write Path · HTTP GET Only">READ-ONLY · NO PLC WRITE</span>
             <span id="provenance-badge" class="badge badge-demo">SIMULATED DEMO TELEMETRY · READ-ONLY</span>
-            <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES + 73 SUB-ITEMS</span>
+            <span class="badge badge-ro" style="opacity:0.85;">SITE CONFIRMED GA · 29 NODES + 75 SUB-ITEMS</span>
         </div>
 
         <div class="kpi-strip">
@@ -543,6 +545,7 @@
         <div class="toolbar-actions">
             <button type="button" class="btn-hud active" id="btn-labels">Labels</button>
             <button type="button" class="btn-hud active" id="btn-arrows">Flow Chevrons</button>
+            <button type="button" class="btn-hud active" id="btn-postfx">Post FX</button>
             <button type="button" class="btn-hud" id="btn-thermal">Thermal Heatmap</button>
             <button type="button" class="btn-hud" id="btn-pause">Pause</button>
             <button type="button" class="btn-hud" id="btn-theme">Light HUD</button>
@@ -561,7 +564,7 @@
             <strong>Offline Procedural Fallback Active:</strong> Three.js CDN could not be reached from this browser session. Displaying offline interactive GA schematic twin (read-only telemetry &amp; 29-node flow simulation remain active).
         </div>
 
-        <div id="status-pill">PBR · ACES · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click</div>
+        <div id="status-pill">PBR · N8AO · HDR Bloom · ACES · BVH · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click</div>
 
         <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets"></div>
     </main>
@@ -825,6 +828,7 @@ const state = {
     activePreset: "Plant Overview",
     showLabels: true,
     showArrows: true,
+    postFx: true,
     thermalHeatmap: false,
     paused: false,
     simTime: 0,
@@ -972,6 +976,10 @@ function buildUiChrome() {
     document.getElementById("btn-arrows").addEventListener("click", e => {
         state.showArrows = !state.showArrows;
         e.currentTarget.classList.toggle("active", state.showArrows);
+    });
+    document.getElementById("btn-postfx").addEventListener("click", e => {
+        state.postFx = !state.postFx;
+        e.currentTarget.classList.toggle("active", state.postFx);
     });
     document.getElementById("btn-thermal").addEventListener("click", e => {
         state.thermalHeatmap = !state.thermalHeatmap;
@@ -1197,6 +1205,19 @@ try {
     const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
     const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
     const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
+    const { MeshoptDecoder } = await import("three/addons/libs/meshopt_decoder.module.js");
+    const { EffectComposer } = await import("three/addons/postprocessing/EffectComposer.js");
+    const { RenderPass } = await import("three/addons/postprocessing/RenderPass.js");
+    const { UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js");
+    const { OutputPass } = await import("three/addons/postprocessing/OutputPass.js");
+
+    const bvhMod = await import("three-mesh-bvh").catch(() => null);
+    if (bvhMod && bvhMod.computeBoundsTree && bvhMod.disposeBoundsTree && bvhMod.acceleratedRaycast) {
+        THREE.BufferGeometry.prototype.computeBoundsTree = bvhMod.computeBoundsTree;
+        THREE.BufferGeometry.prototype.disposeBoundsTree = bvhMod.disposeBoundsTree;
+        THREE.Mesh.prototype.raycast = bvhMod.acceleratedRaycast;
+    }
+    const n8aoMod = await import("n8ao").catch(() => null);
 
     const container = document.getElementById("gl-container");
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -1217,6 +1238,34 @@ try {
 
     const camera = new THREE.PerspectiveCamera(42, container.clientWidth / Math.max(1, container.clientHeight), 0.2, 160);
     const controls = new OrbitControls(camera, renderer.domElement);
+
+    let composer = null;
+    let n8aoPass = null;
+    try {
+        const cw = Math.max(1, container.clientWidth);
+        const ch = Math.max(1, container.clientHeight);
+        composer = new EffectComposer(renderer);
+        composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        composer.setSize(cw, ch);
+        composer.addPass(new RenderPass(scene, camera));
+        if (n8aoMod && n8aoMod.N8AOPass) {
+            n8aoPass = new n8aoMod.N8AOPass(scene, camera, cw, ch);
+            n8aoPass.setQualityMode("Medium");
+            if (n8aoPass.configuration) {
+                n8aoPass.configuration.aoRadius = 1.4;
+                n8aoPass.configuration.distanceFalloff = 1.0;
+                n8aoPass.configuration.intensity = 1.5;
+                n8aoPass.configuration.halfRes = false;
+            }
+            composer.addPass(n8aoPass);
+        }
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(cw, ch), 0.22, 0.35, 1.05);
+        composer.addPass(bloomPass);
+        composer.addPass(new OutputPass());
+    } catch {
+        composer = null;
+        n8aoPass = null;
+    }
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI * 0.485;
@@ -2028,11 +2077,17 @@ try {
 
     // Load all 16 .glb models from /models3d/{fileName}
     const gltfLoader = new GLTFLoader();
+    if (MeshoptDecoder) gltfLoader.setMeshoptDecoder(MeshoptDecoder);
     const glbCache = new Map();
     const loadGlb = (fileName) => {
         if (glbCache.has(fileName)) return glbCache.get(fileName);
         const p = new Promise((resolve, reject) => {
             gltfLoader.load(`/models3d/${encodeURIComponent(fileName)}`, gltf => {
+                gltf.scene.traverse(ch => {
+                    if (ch.isMesh && ch.geometry?.computeBoundsTree && !ch.geometry.boundsTree) {
+                        try { ch.geometry.computeBoundsTree(); } catch {}
+                    }
+                });
                 state.loadedGlbSet.add(fileName);
                 document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/16`;
                 resolve(gltf.scene);
@@ -2201,6 +2256,10 @@ try {
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
+        if (composer) {
+            composer.setSize(w, h);
+            n8aoPass?.setSize?.(w, h);
+        }
     });
 
     // Main Render Loop
@@ -2540,7 +2599,11 @@ try {
         }
 
         controls.update();
-        renderer.render(scene, camera);
+        if (state.postFx && composer) {
+            composer.render();
+        } else {
+            renderer.render(scene, camera);
+        }
     }
 
     requestAnimationFrame(animate);

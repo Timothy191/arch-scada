@@ -150,6 +150,18 @@ public partial class MainShellViewModel : ViewModelBase
     public partial IReadOnlyList<double> SelectedTrendValues { get; set; } = Array.Empty<double>();
 
     [ObservableProperty]
+    public partial string Selected3DTrendLabel { get; set; } = "Live telemetry";
+
+    [ObservableProperty]
+    public partial IReadOnlyList<double> Selected3DTrendValues { get; set; } = Array.Empty<double>();
+
+    [ObservableProperty]
+    public partial double? Selected3DTrendMinLimit { get; set; }
+
+    [ObservableProperty]
+    public partial double? Selected3DTrendMaxLimit { get; set; }
+
+    [ObservableProperty]
     public partial string UnityStreamStatus { get; set; } = "Ready (UDP 127.0.0.1:17850)";
 
     [ObservableProperty]
@@ -364,13 +376,54 @@ public partial class MainShellViewModel : ViewModelBase
 
     partial void OnSelected3DNodeChanged(Plant3DNode? value)
     {
-        if (value is null) return;
-        var linked = _telemetry.Equipment.FirstOrDefault(e =>
-            string.Equals(e.Id, value.LinkedScadaId, StringComparison.OrdinalIgnoreCase));
-        if (linked is not null)
+        if (value is not null)
         {
-            SelectedEquipment = linked;
+            var linked = _telemetry.Equipment.FirstOrDefault(e =>
+                string.Equals(e.Id, value.LinkedScadaId, StringComparison.OrdinalIgnoreCase));
+            if (linked is not null)
+            {
+                SelectedEquipment = linked;
+            }
         }
+        UpdateSelected3DTrend();
+    }
+
+    partial void OnSelectedEquipmentChanged(EquipmentItem? value)
+    {
+        UpdateSelected3DTrend();
+    }
+
+    private void UpdateSelected3DTrend()
+    {
+        var tags = SelectedEquipment?.Tags;
+        if (tags is null || tags.Count == 0)
+        {
+            Selected3DTrendLabel = "No live tag mapped";
+            Selected3DTrendValues = Array.Empty<double>();
+            Selected3DTrendMinLimit = null;
+            Selected3DTrendMaxLimit = null;
+            return;
+        }
+
+        string nodeId = Selected3DNode?.Id ?? string.Empty;
+        TelemetryTag? bestTag = null;
+        if (nodeId.StartsWith("PT-", StringComparison.OrdinalIgnoreCase))
+            bestTag = tags.FirstOrDefault(t => t.Name.Contains("Press", StringComparison.OrdinalIgnoreCase) || t.Unit.Contains("kPa", StringComparison.OrdinalIgnoreCase) || t.Unit.Contains("bar", StringComparison.OrdinalIgnoreCase));
+        else if (nodeId.StartsWith("DT-", StringComparison.OrdinalIgnoreCase))
+            bestTag = tags.FirstOrDefault(t => t.Name.Contains("Density", StringComparison.OrdinalIgnoreCase) || t.Unit.Contains("SG", StringComparison.OrdinalIgnoreCase));
+        else if (nodeId.StartsWith("VT-", StringComparison.OrdinalIgnoreCase))
+            bestTag = tags.FirstOrDefault(t => t.Name.Contains("Vib", StringComparison.OrdinalIgnoreCase) || t.Unit.Contains("mm/s", StringComparison.OrdinalIgnoreCase));
+        else if (nodeId.StartsWith("LT-", StringComparison.OrdinalIgnoreCase))
+            bestTag = tags.FirstOrDefault(t => t.Name.Contains("Level", StringComparison.OrdinalIgnoreCase) || t.Unit == "%");
+        else if (nodeId.StartsWith("BW-", StringComparison.OrdinalIgnoreCase))
+            bestTag = tags.FirstOrDefault(t => t.Name.Contains("Rate", StringComparison.OrdinalIgnoreCase) || t.Name.Contains("Ton", StringComparison.OrdinalIgnoreCase) || t.Unit.Contains("t/h", StringComparison.OrdinalIgnoreCase));
+
+        bestTag ??= tags[0];
+
+        Selected3DTrendLabel = $"{bestTag.Name}: {bestTag.Value:0.##} {bestTag.Unit}";
+        Selected3DTrendMinLimit = bestTag.MinLimit;
+        Selected3DTrendMaxLimit = bestTag.MaxLimit;
+        Selected3DTrendValues = _telemetry.GetTagHistory(bestTag.TagId).ToList();
     }
 
     [RelayCommand]
@@ -559,6 +612,7 @@ public partial class MainShellViewModel : ViewModelBase
         {
             SelectedTrendValues = _telemetry.GetTagHistory(SelectedTrendTag.TagId).ToList();
         }
+        UpdateSelected3DTrend();
 
         _unityBridge.PublishFrame(_telemetry.Equipment, UnityEffects);
         UnityStreamStatus = $"Streaming {_unityBridge.Endpoint} · {_unityBridge.PacketsSent} frames";

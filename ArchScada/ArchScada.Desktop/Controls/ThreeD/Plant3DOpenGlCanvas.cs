@@ -56,6 +56,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_TEXTURE_2D = 0x0DE1;
     private const int GL_TEXTURE0 = 0x84C0;
     private const int GL_TEXTURE1 = 0x84C1;
+    private const int GL_TEXTURE2 = 0x84C2;
     private const int GL_TEXTURE_MAG_FILTER = 0x2800;
     private const int GL_TEXTURE_MIN_FILTER = 0x2801;
     private const int GL_TEXTURE_WRAP_S = 0x2802;
@@ -281,6 +282,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private int _uApplyToneMap = -1;
     private int _uEnableClearcoat = -1;
     private int _uSimTime = -1;
+    private int _uBrdfLut = -1;
+    private uint _brdfLutTex;
 
     private uint _msaaFbo;
     private uint _msaaColorRbo;
@@ -466,6 +469,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _uApplyToneMap = GetUniformLoc(_program, "uApplyToneMap");
             _uEnableClearcoat = GetUniformLoc(_program, "uEnableClearcoat");
             _uSimTime = GetUniformLoc(_program, "uSimTime");
+            _uBrdfLut = GetUniformLoc(_program, "uBrdfLut");
 
             _shadowProgram = BuildShadowProgram(isEs);
             if (_shadowProgram != 0)
@@ -515,6 +519,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _conveyorStructureMesh = BuildConveyorStructuresMesh();
             _coalLumpMesh = BuildCoalLumpMesh();
 
+            InitBrdfLutTexture();
             InitShadowFbo();
 
             IsHardwareActive = true;
@@ -555,6 +560,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _postVao = 0;
         }
 
+        DeleteBrdfLutTexture();
         DeleteShadowFbo();
         DeleteOffscreenFbos();
 
@@ -571,7 +577,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         IsHardwareActive = false;
         _glbGpuMeshes.Clear();
         _unitBox = _unitCylinder = _unitRing = _unitCone = _groundTerrainQuad = _pipesMesh = _conveyorStructureMesh = _coalLumpMesh = null;
-        _instanceVbo = _postVao = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
+        _instanceVbo = _postVao = _brdfLutTex = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
         _program = _shadowProgram = _postProgram = 0;
         _offscreenW = _offscreenH = 0;
         _shadowReady = _msaaReady = _postReady = false;
@@ -650,6 +656,104 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         {
             System.Diagnostics.Debug.WriteLine($"[Plant3D] Shadow FBO incomplete (status=0x{status:X}); disabling shadow map.");
             DeleteShadowFbo();
+        }
+    }
+
+    private void InitBrdfLutTexture()
+    {
+        DeleteBrdfLutTexture();
+        if (_glGenTextures is null || _glBindTexture is null || _glTexImage2D is null || _glTexParameteri is null)
+            return;
+
+        const int size = 128;
+        const int sampleCount = 32;
+        var data = new byte[size * size * 4];
+
+        static float RadicalInverseVdC(uint bits)
+        {
+            bits = (bits << 16) | (bits >> 16);
+            bits = ((bits & 0x55555555u) << 1) | ((bits & 0xAAAAAAAAu) >> 1);
+            bits = ((bits & 0x33333333u) << 2) | ((bits & 0xCCCCCCCCu) >> 2);
+            bits = ((bits & 0x0F0F0F0Fu) << 4) | ((bits & 0xF0F0F0F0u) >> 4);
+            bits = ((bits & 0x00FF00FFu) << 8) | ((bits & 0xFF00FF00u) >> 8);
+            return bits * 2.3283064365386963e-10f;
+        }
+
+        static float GeometrySchlickIbl(float nDotX, float roughness)
+        {
+            float a = roughness;
+            float k = (a * a) * 0.5f;
+            return nDotX / MathF.Max(nDotX * (1.0f - k) + k, 1e-5f);
+        }
+
+        for (int y = 0; y < size; y++)
+        {
+            float roughness = Math.Clamp((y + 0.5f) / size, 0.02f, 1.0f);
+            float a = roughness * roughness;
+            float a2 = a * a;
+
+            for (int x = 0; x < size; x++)
+            {
+                float nDotV = Math.Clamp((x + 0.5f) / size, 0.002f, 1.0f);
+                var v = new Vector3(MathF.Sqrt(MathF.Max(1.0f - nDotV * nDotV, 0.0f)), 0.0f, nDotV);
+
+                float scale = 0.0f;
+                float bias = 0.0f;
+
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    float xiX = (float)i / sampleCount;
+                    float xiY = RadicalInverseVdC((uint)i);
+                    float phi = 2.0f * MathF.PI * xiX;
+                    float cosTheta = MathF.Sqrt((1.0f - xiY) / (1.0f + (a2 - 1.0f) * xiY));
+                    float sinTheta = MathF.Sqrt(MathF.Max(1.0f - cosTheta * cosTheta, 0.0f));
+
+                    var h = new Vector3(MathF.Cos(phi) * sinTheta, MathF.Sin(phi) * sinTheta, cosTheta);
+                    var l = 2.0f * Vector3.Dot(v, h) * h - v;
+                    float nDotL = MathF.Max(l.Z, 0.0f);
+                    if (nDotL > 0.0f)
+                    {
+                        float nDotH = MathF.Max(h.Z, 0.001f);
+                        float vDotH = MathF.Max(Vector3.Dot(v, h), 0.0f);
+                        float g = GeometrySchlickIbl(nDotV, roughness) * GeometrySchlickIbl(nDotL, roughness);
+                        float gVis = (g * vDotH) / (nDotH * nDotV);
+                        float fc = MathF.Pow(1.0f - vDotH, 5.0f);
+                        scale += (1.0f - fc) * gVis;
+                        bias += fc * gVis;
+                    }
+                }
+
+                int dst = (y * size + x) * 4;
+                data[dst] = (byte)Math.Clamp((int)MathF.Round((scale / sampleCount) * 255.0f), 0, 255);
+                data[dst + 1] = (byte)Math.Clamp((int)MathF.Round((bias / sampleCount) * 255.0f), 0, 255);
+                data[dst + 2] = 0;
+                data[dst + 3] = 255;
+            }
+        }
+
+        uint tex = 0;
+        _glGenTextures(1, &tex);
+        _glActiveTexture?.Invoke(GL_TEXTURE0);
+        _glBindTexture(GL_TEXTURE_2D, tex);
+        fixed (byte* ptr = data)
+        {
+            _glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptr);
+        }
+        _glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        _glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        _glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        _glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        _glBindTexture(GL_TEXTURE_2D, 0);
+        _brdfLutTex = tex;
+    }
+
+    private void DeleteBrdfLutTexture()
+    {
+        if (_brdfLutTex != 0)
+        {
+            uint t = _brdfLutTex;
+            _glDeleteTextures?.Invoke(1, &t);
+            _brdfLutTex = 0;
         }
     }
 
@@ -934,6 +1038,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glActiveTexture(GL_TEXTURE0);
             _glBindTexture(GL_TEXTURE_2D, _shadowDepthTex);
             _glUniform1i?.Invoke(_uShadowMap, 0);
+        }
+        if (_glActiveTexture is not null && _glBindTexture is not null && _brdfLutTex != 0)
+        {
+            _glActiveTexture(GL_TEXTURE2);
+            _glBindTexture(GL_TEXTURE_2D, _brdfLutTex);
+            _glUniform1i?.Invoke(_uBrdfLut, 2);
+            _glActiveTexture(GL_TEXTURE0);
         }
 
         SetMatrix(_uViewProj, viewProj);
@@ -2129,6 +2240,7 @@ uniform float uEncodeHdr;
 uniform float uApplyToneMap;
 uniform float uEnableClearcoat;
 uniform float uSimTime;
+uniform sampler2D uBrdfLut;
 
 out vec4 FragColor;
 
@@ -2437,21 +2549,34 @@ void main() {
             }
         }
 
-        // Procedural industrial IBL (sun lobe, skylight strips, warm ground bounce) + wet clearcoat reflection
+        // Split-Sum BRDF LUT + Fdez-Agüera Multi-Scatter Industrial IBL + wet clearcoat reflection
         vec3 R = reflect(-V, N);
         vec3 envDiff = sampleIndustrialEnv(N, 0.88, L);
         vec3 rawEnvSpec = sampleIndustrialEnv(R, roughness, L);
         vec3 envSpec = mix(rawEnvSpec, envDiff, roughness * roughness * 0.65);
 
-        vec3 F_ibl = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
-        vec3 kD_ibl = (1.0 - F_ibl) * (1.0 - metallic);
-        float specOcc = mix(1.0, 0.28, roughness);
+        vec2 brdf = texture(uBrdfLut, vec2(clamp(NdotV, 0.002, 0.998), clamp(roughness, 0.02, 0.998))).rg;
+        vec3 kS_ibl;
+        if (brdf.x + brdf.y > 1e-4) {
+            vec3 FssEss = F0 * brdf.x + vec3(brdf.y);
+            float Ess = brdf.x + brdf.y;
+            float Ems = max(1.0 - Ess, 0.0);
+            vec3 Favg = F0 + (vec3(1.0) - F0) / 21.0;
+            vec3 Fms = FssEss * Favg / max(vec3(1.0) - Favg * Ems, vec3(0.001));
+            kS_ibl = FssEss + Fms * Ems;
+        } else {
+            kS_ibl = F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
+        }
+        vec3 kD_ibl = max(vec3(1.0) - kS_ibl, vec3(0.0)) * (1.0 - metallic);
         float contactAo = mix(0.68, 1.0, smoothstep(0.0, 0.55, vWorldPos.y)) * groundPadContact;
 
-        vec3 ambient = (kD_ibl * albedo * envDiff * 0.56 + F_ibl * envSpec * specOcc * 0.84) * contactAo;
+        vec3 ambient = (kD_ibl * albedo * envDiff * 0.62 + kS_ibl * envSpec * 0.92) * contactAo;
         if (clearcoatWeight > 0.01) {
-            float Fc_ibl = 0.04 + 0.96 * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
-            ambient += rawEnvSpec * (Fc_ibl * clearcoatWeight * 0.85) * contactAo;
+            vec2 ccBrdf = texture(uBrdfLut, vec2(clamp(NdotV, 0.002, 0.998), 0.12)).rg;
+            float Fc_ibl = (ccBrdf.x + ccBrdf.y > 1e-4)
+                ? (0.04 * ccBrdf.x + ccBrdf.y)
+                : (0.04 + 0.96 * pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0));
+            ambient += rawEnvSpec * (Fc_ibl * clearcoatWeight * 0.90) * contactAo;
         }
 
         // Grazing Fresnel silhouette rim for non-ground machinery & steel
@@ -2606,21 +2731,27 @@ void main() {
         ao = clamp(1.0 - (occSum / 12.0) * 0.72, 0.38, 1.0);
     }
 
-    // Subtle highlight bloom for bright emissive / specular pixels (luminance > 1.05)
+    // 13-tap dual-ring Karis-averaged HDR bloom for silky firefly-free glow (luminance > 1.05)
     vec3 bloom = vec3(0.0);
-    vec2 bOff[8];
-    bOff[0] = vec2(-2.0, -2.0); bOff[1] = vec2( 2.0, -2.0);
-    bOff[2] = vec2(-2.0,  2.0); bOff[3] = vec2( 2.0,  2.0);
-    bOff[4] = vec2(-4.5,  0.0); bOff[5] = vec2( 4.5,  0.0);
-    bOff[6] = vec2( 0.0, -4.5); bOff[7] = vec2( 0.0,  4.5);
-    for (int i = 0; i < 8; i++) {
+    float bloomW = 0.0;
+    vec2 bOff[13];
+    bOff[0]  = vec2( 0.0,  0.0);
+    bOff[1]  = vec2(-1.5, -1.5); bOff[2]  = vec2( 1.5, -1.5);
+    bOff[3]  = vec2(-1.5,  1.5); bOff[4]  = vec2( 1.5,  1.5);
+    bOff[5]  = vec2(-3.0,  0.0); bOff[6]  = vec2( 3.0,  0.0);
+    bOff[7]  = vec2( 0.0, -3.0); bOff[8]  = vec2( 0.0,  3.0);
+    bOff[9]  = vec2(-5.0, -5.0); bOff[10] = vec2( 5.0, -5.0);
+    bOff[11] = vec2(-5.0,  5.0); bOff[12] = vec2( 5.0,  5.0);
+    for (int i = 0; i < 13; i++) {
         vec3 nCol = decodeHdr(texture(uColorTex, vUv + bOff[i] * uTexelSize).rgb);
         float lum = dot(nCol, vec3(0.2126, 0.7152, 0.0722));
-        if (lum > 1.05) {
-            bloom += nCol * ((lum - 1.05) / max(lum, 1e-4));
-        }
+        float karis = 1.0 / (1.0 + lum);
+        float ringW = (i == 0) ? 0.14 : (i <= 4 ? 0.10 : (i <= 8 ? 0.075 : 0.04));
+        float excess = max(lum - 1.05, 0.0) / max(lum, 1e-4);
+        bloom += nCol * (excess * karis * ringW);
+        bloomW += karis * ringW;
     }
-    bloom *= (1.0 / 8.0) * 0.24;
+    bloom = (bloom / max(bloomW, 1e-4)) * 0.34;
 
     vec3 finalHdr = (hdrCol * ao + bloom) * 1.06;
     vec3 mapped = ACESFilm(finalHdr);

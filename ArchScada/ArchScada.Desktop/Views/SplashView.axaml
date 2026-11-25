@@ -16,15 +16,25 @@
 
                 <!-- Header: Brand Badge + Title + Version -->
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                    <Border Width="48" Height="48"
-                            CornerRadius="13"
-                            Background="#0F243C"
-                            BorderBrush="#0284C7"
-                            BorderThickness="1"
-                            VerticalAlignment="Center">
-                        <Ellipse Fill="#38BDF8" Width="18" Height="18"
-                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <Panel Width="48" Height="48" VerticalAlignment="Center">
+                        <!-- Slow ambient outer ring -->
+                        <Arc Classes="splash-brand-ring"
+                             StartAngle="0" SweepAngle="270"
+                             Stroke="#0284C7" StrokeThickness="2"
+                             Width="46" Height="46"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <!-- Pulsing brand badge -->
+                        <Border Classes="splash-brand-badge"
+                                Width="40" Height="40"
+                                CornerRadius="12"
+                                Background="#0F243C"
+                                BorderBrush="#0284C7"
+                                BorderThickness="1"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Ellipse Classes="splash-core-dot" Fill="#38BDF8" Width="16" Height="16"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Panel>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding AppTitle}"
@@ -81,16 +91,29 @@
 
                 <!-- Progress Bar & Active Step Text -->
                 <StackPanel Spacing="4" HorizontalAlignment="Center" Width="560">
-                    <Border Width="560" Height="6"
-                            CornerRadius="3"
-                            Background="#1E293B"
-                            HorizontalAlignment="Center">
-                        <Border Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}, ConverterParameter=5.6}"
-                                Height="6"
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <!-- Indeterminate processing arc, visible only while checks run -->
+                        <Panel Grid.Column="0" Width="18" Height="18" VerticalAlignment="Center"
+                               IsVisible="{Binding IsRunning}">
+                            <Arc Classes="splash-processing-arc"
+                                 StartAngle="0" SweepAngle="270"
+                                 Stroke="#38BDF8" StrokeThickness="2.5"
+                                 Width="18" Height="18"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Panel>
+                        <Border Grid.Column="1" Width="560" Height="6"
                                 CornerRadius="3"
-                                Background="#38BDF8"
-                                HorizontalAlignment="Left" />
-                    </Border>
+                                Background="#1E293B"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center">
+                            <Border Classes="splash-progress-fill"
+                                    Width="{Binding Progress, Converter={x:Static conv:ProgressToWidthConverter.Instance}, ConverterParameter=5.6}"
+                                    Height="6"
+                                    CornerRadius="3"
+                                    Background="#38BDF8"
+                                    HorizontalAlignment="Left" />
+                        </Border>
+                    </Grid>
                     <TextBlock Text="{Binding StatusText}"
                                FontSize="11"
                                FontWeight="Medium"
@@ -104,7 +127,8 @@
                     <ItemsControl ItemsSource="{Binding Checks}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:StartupCheckItem">
-                                <Border Background="#111A2E"
+                                <Border Classes="splash-check-row"
+                                        Background="#111A2E"
                                         BorderBrush="#1E293B"
                                         BorderThickness="1"
                                         CornerRadius="10"
