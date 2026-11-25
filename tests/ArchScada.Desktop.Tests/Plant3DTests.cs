@@ -664,4 +664,156 @@ public class Plant3DTests
             }
         }
     }
+
+    private static string LocateRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "ScadaWeb", "ScadaWeb", "ScadaWeb", "Pages", "DigitalTwin3D.cshtml")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+        throw new DirectoryNotFoundException("Could not locate repository root containing DigitalTwin3D.cshtml");
+    }
+
+    [Fact]
+    public void DigitalTwin3D_WebHtml_MatchesDesktop104InteractiveNodesAndCoordinates()
+    {
+        string repoRoot = LocateRepoRoot();
+        string webPath = Path.Combine(repoRoot, "ScadaWeb", "ScadaWeb", "ScadaWeb", "Pages", "DigitalTwin3D.cshtml");
+        string html = File.ReadAllText(webPath);
+
+        // 1. All 104 interactive IDs from Desktop must exist in Web DigitalTwin3D.cshtml
+        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Count);
+        foreach (var node in Plant3DSceneData.InteractiveNodes)
+        {
+            Assert.Contains($"id: \"{node.Id}\"", html, StringComparison.Ordinal);
+        }
+
+        // 2. All 64 SubEquipmentNodes must match exact GaLabel and 3D coordinates (<= 0.02 m)
+        int start = html.IndexOf("const SUB_EQUIPMENT_NODES = [", StringComparison.Ordinal);
+        Assert.True(start >= 0, "SUB_EQUIPMENT_NODES array not found in DigitalTwin3D.cshtml");
+        int end = html.IndexOf("];", start, StringComparison.Ordinal);
+        string subBlock = html[start..end];
+
+        var entryRegex = new System.Text.RegularExpressions.Regex(
+            @"id:\s*""([^""]+)""[^\n]*?ga:\s*""([^""]+)""[^\n]*?pos:\s*\[\s*([\-0-9.]+)\s*,\s*([\-0-9.]+)\s*,\s*([\-0-9.]+)\s*\]",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        var webSubs = new Dictionary<string, (string Ga, Vector3 Pos)>(StringComparer.Ordinal);
+        foreach (System.Text.RegularExpressions.Match m in entryRegex.Matches(subBlock))
+        {
+            string id = m.Groups[1].Value;
+            string ga = m.Groups[2].Value.Replace("@@", "@", StringComparison.Ordinal);
+            float x = float.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+            float y = float.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture);
+            float z = float.Parse(m.Groups[5].Value, System.Globalization.CultureInfo.InvariantCulture);
+            webSubs[id] = (ga, new Vector3(x, y, z));
+        }
+
+        Assert.Equal(Plant3DSceneData.SubEquipmentNodes.Count, webSubs.Count);
+        foreach (var csSub in Plant3DSceneData.SubEquipmentNodes)
+        {
+            Assert.True(webSubs.TryGetValue(csSub.Id, out var w), $"Web SUB_EQUIPMENT_NODES missing {csSub.Id}");
+            Assert.Equal(csSub.GaLabel, w.Ga);
+            float dist = Vector3.Distance(csSub.Position, w.Pos);
+            Assert.True(dist <= 0.02f, $"Web {csSub.Id} position {w.Pos} drifted {dist:F3} m from Desktop {csSub.Position}");
+        }
+
+        // 3. Live Telemetry Sparkline parity in Web inspector
+        Assert.Contains("id=\"insp-sparkline\"", html, StringComparison.Ordinal);
+        Assert.Contains("renderInspectorSparkline", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DigitalTwin3D_Web3DAssets_Are100PercentOfflineVendored()
+    {
+        string repoRoot = LocateRepoRoot();
+        string webRoot = Path.Combine(repoRoot, "ScadaWeb", "ScadaWeb", "ScadaWeb", "wwwroot");
+        string webPath = Path.Combine(repoRoot, "ScadaWeb", "ScadaWeb", "ScadaWeb", "Pages", "DigitalTwin3D.cshtml");
+        string html = File.ReadAllText(webPath);
+
+        int mapStart = html.IndexOf("<script type=\"importmap\">", StringComparison.Ordinal);
+        int mapEnd = html.IndexOf("</script>", mapStart, StringComparison.Ordinal);
+        string importMap = html[mapStart..mapEnd];
+
+        Assert.DoesNotContain("cdn.jsdelivr.net", importMap, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unpkg.com", importMap, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/lib/three/three.module.min.js", importMap, StringComparison.Ordinal);
+        Assert.Contains("/lib/three-mesh-bvh/index.module.js", importMap, StringComparison.Ordinal);
+        Assert.Contains("/lib/n8ao/N8AO.js", importMap, StringComparison.Ordinal);
+
+        string[] requiredFiles =
+        {
+            "lib/three/three.module.min.js",
+            "lib/three/addons/controls/OrbitControls.js",
+            "lib/three/addons/loaders/GLTFLoader.js",
+            "lib/three/addons/environments/RoomEnvironment.js",
+            "lib/three/addons/libs/meshopt_decoder.module.js",
+            "lib/three/addons/postprocessing/EffectComposer.js",
+            "lib/three/addons/postprocessing/RenderPass.js",
+            "lib/three/addons/postprocessing/UnrealBloomPass.js",
+            "lib/three/addons/postprocessing/OutputPass.js",
+            "lib/three/addons/postprocessing/Pass.js",
+            "lib/three-mesh-bvh/index.module.js",
+            "lib/n8ao/N8AO.js"
+        };
+
+        foreach (string rel in requiredFiles)
+        {
+            string full = Path.Combine(webRoot, rel);
+            Assert.True(File.Exists(full), $"Missing vendored offline 3D asset: {rel}");
+            Assert.True(new FileInfo(full).Length > 100, $"Vendored offline 3D asset is empty: {rel}");
+        }
+    }
+
+    [Fact]
+    public void MainShellViewModel_CrossPageLocateIn3D_AssetDirectory_HistorianAndDiagnostics_WorkEndToEnd()
+    {
+        var telemetry = new ArchScada.Desktop.Services.SimulatedTelemetryService();
+        var bridge = new ArchScada.Desktop.Services.UnityBridgeService();
+        var vm = new ArchScada.Desktop.ViewModels.MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
+
+        // 1. 104-Node Asset Directory filtering & search
+        Assert.Equal(104, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Machines (18)";
+        Assert.Equal(18, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Sub-Equipment (64)";
+        Assert.Equal(64, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Process Piping (11)";
+        Assert.Equal(11, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "All (104)";
+        vm.AssetSearchQuery = "DMC-301";
+        Assert.Contains(vm.Filtered3DAssets, n => n.Id == "DMC-301");
+        vm.AssetSearchQuery = string.Empty;
+        Assert.Equal(104, vm.Filtered3DAssets.Count);
+
+        // 2. Cross-page LocateIn3DCommand for both sub-equipment and SCADA group IDs
+        vm.LocateIn3DCommand.Execute("DMC-301");
+        Assert.Equal(ArchScada.Desktop.Models.PlantSection.DigitalTwin3D, vm.CurrentSection);
+        Assert.Equal("DMC-301", vm.Selected3DNode?.Id);
+        Assert.Equal("DMC-301", vm.FocusTargetId);
+        Assert.Equal("DM-301", vm.SelectedEquipment?.Id);
+        Assert.NotEmpty(vm.SelectedEquipment3DChildren);
+
+        vm.LocateIn3DCommand.Execute("CR-101");
+        Assert.Equal("JC-101", vm.Selected3DNode?.Id);
+
+        // 3. Historian statistics & CSV export
+        Assert.True(vm.TrendSampleCount > 0);
+        Assert.True(vm.TrendStatMax >= vm.TrendStatMin);
+        Assert.True(vm.TrendStatAvg >= vm.TrendStatMin && vm.TrendStatAvg <= vm.TrendStatMax);
+        vm.ExportHistorianCsvCommand.Execute(null);
+        Assert.Contains("Exported", vm.HistorianExportStatus, StringComparison.Ordinal);
+
+        // 4. Circuit instrumentation & 8-Gate Diagnostics
+        Assert.True(vm.DmcInletPressureKpa > 100);
+        Assert.True(vm.DmcCleanOverflowTph > 0);
+        Assert.True(vm.MacsepRecoveryPercent > 80);
+        Assert.True(vm.ProductSiloLevelPercent > 0);
+        Assert.True(vm.PgnaaAshPercent > 0);
+        Assert.True(vm.PgnaaCalorificValueMjKg > 20);
+        Assert.Equal(8, vm.DiagnosticChecks.Count);
+    }
 }
