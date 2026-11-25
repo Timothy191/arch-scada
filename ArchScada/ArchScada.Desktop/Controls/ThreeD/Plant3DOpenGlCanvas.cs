@@ -75,7 +75,6 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private const int GL_FRAMEBUFFER_BINDING = 0x8CA6;
     private const int GL_NONE = 0;
 
-    private const int ShadowMapSize = 2048;
     private const int InstanceFloats = 22; // mat4(16) + vec4 colorAlpha(4) + vec2 pbr(2)
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void GlViewportDel(int x, int y, int w, int h);
@@ -255,14 +254,24 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private readonly List<InstanceItem> _softParticleBoxes = new(96);
     private readonly List<InstanceItem> _ringInstances = new(32);
 
-    // Pass 1: Shadow Map
+    // Pass 1: Dual-Cascade Directional Shadow Atlas (2 cascades packed side-by-side into 2048x2048 depth atlas).
+    // Cascade 0 (left 1024x2048): texel-snapped 18m x 18m high-resolution focus box around camera orbit target.
+    // Cascade 1 (right 1024x2048): 48m x 48m full-plant yard overview box.
+    private const int CascadeCount = 2;
+    private const int ShadowAtlasSize = 2048;
+    private const int CascadeTileWidth = ShadowAtlasSize / 2;
+
     private int _shadowProgram;
     private int _uShadowLightVp = -1;
     private int _uShadowModel = -1;
     private int _uShadowIsInstanced = -1;
-    private uint _shadowFbo;
-    private uint _shadowDepthTex;
-    private bool _shadowReady;
+    private uint _shadowAtlasFbo;
+    private uint _shadowAtlasTex;
+    private bool _shadowAtlasReady;
+
+    // Per-cascade light space view-projection matrices (0 = Near Focus, 1 = Full Yard).
+    private readonly Matrix4x4[] _cascadeLightVp = new Matrix4x4[CascadeCount];
+    private int _uNearLightViewProj = -1;
 
     // Pass 2: Main PBR + MSAA
     private int _program;
@@ -465,6 +474,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _uIsInstanced = GetUniformLoc(_program, "uIsInstanced");
             _uShadowMap = GetUniformLoc(_program, "uShadowMap");
             _uShadowsEnabled = GetUniformLoc(_program, "uShadowsEnabled");
+            _uNearLightViewProj = GetUniformLoc(_program, "uNearLightViewProj");
             _uEncodeHdr = GetUniformLoc(_program, "uEncodeHdr");
             _uApplyToneMap = GetUniformLoc(_program, "uApplyToneMap");
             _uEnableClearcoat = GetUniformLoc(_program, "uEnableClearcoat");
@@ -520,7 +530,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _coalLumpMesh = BuildCoalLumpMesh();
 
             InitBrdfLutTexture();
-            InitShadowFbo();
+            InitShadowAtlas();
 
             IsHardwareActive = true;
         }
@@ -561,7 +571,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         }
 
         DeleteBrdfLutTexture();
-        DeleteShadowFbo();
+        DeleteShadowAtlas();
         DeleteOffscreenFbos();
 
         if (_program != 0) { _glDeleteProgram?.Invoke(_program); _program = 0; }
@@ -577,10 +587,10 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         IsHardwareActive = false;
         _glbGpuMeshes.Clear();
         _unitBox = _unitCylinder = _unitRing = _unitCone = _groundTerrainQuad = _pipesMesh = _conveyorStructureMesh = _coalLumpMesh = null;
-        _instanceVbo = _postVao = _brdfLutTex = _shadowFbo = _shadowDepthTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
+        _instanceVbo = _postVao = _brdfLutTex = _shadowAtlasFbo = _shadowAtlasTex = _msaaFbo = _msaaColorRbo = _msaaDepthRbo = _postFbo = _postColorTex = _postDepthTex = 0;
         _program = _shadowProgram = _postProgram = 0;
         _offscreenW = _offscreenH = 0;
-        _shadowReady = _msaaReady = _postReady = false;
+        _shadowAtlasReady = _msaaReady = _postReady = false;
         base.OnOpenGlLost();
     }
 
@@ -603,9 +613,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _glTexImage2D is not null &&
         _glTexParameteri is not null;
 
-    private void InitShadowFbo()
+    private void InitShadowAtlas()
     {
-        DeleteShadowFbo();
+        DeleteShadowAtlas();
         if (!HasFboSupport() || _shadowProgram == 0)
             return;
 
@@ -615,10 +625,11 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
         }
 
+        // One 2048x2048 depth atlas divided into 2x2 quadrants (1024x1024 per cascade).
         uint tex = 0, fbo = 0;
         _glGenTextures!(1, &tex);
         _glBindTexture!(GL_TEXTURE_2D, tex);
-        _glTexImage2D!(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, ShadowMapSize, ShadowMapSize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, null);
+        _glTexImage2D!(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, ShadowAtlasSize, ShadowAtlasSize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, null);
         _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         _glTexParameteri!(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -649,13 +660,30 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _glBindFramebuffer!(GL_FRAMEBUFFER, (uint)Math.Max(0, prevFbo));
         }
 
-        _shadowDepthTex = tex;
-        _shadowFbo = fbo;
-        _shadowReady = status == GL_FRAMEBUFFER_COMPLETE;
-        if (!_shadowReady)
+        _shadowAtlasTex = tex;
+        _shadowAtlasFbo = fbo;
+        _shadowAtlasReady = status == GL_FRAMEBUFFER_COMPLETE;
+        if (!_shadowAtlasReady)
         {
-            System.Diagnostics.Debug.WriteLine($"[Plant3D] Shadow FBO incomplete (status=0x{status:X}); disabling shadow map.");
-            DeleteShadowFbo();
+            System.Diagnostics.Debug.WriteLine($"[Plant3D] Shadow atlas FBO incomplete (status=0x{status:X}); disabling shadow map.");
+            DeleteShadowAtlas();
+        }
+    }
+
+    private void DeleteShadowAtlas()
+    {
+        _shadowAtlasReady = false;
+        if (_shadowAtlasFbo != 0)
+        {
+            uint f = _shadowAtlasFbo;
+            _glDeleteFramebuffers?.Invoke(1, &f);
+            _shadowAtlasFbo = 0;
+        }
+        if (_shadowAtlasTex != 0)
+        {
+            uint t = _shadowAtlasTex;
+            _glDeleteTextures?.Invoke(1, &t);
+            _shadowAtlasTex = 0;
         }
     }
 
@@ -754,23 +782,6 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             uint t = _brdfLutTex;
             _glDeleteTextures?.Invoke(1, &t);
             _brdfLutTex = 0;
-        }
-    }
-
-    private void DeleteShadowFbo()
-    {
-        _shadowReady = false;
-        if (_shadowFbo != 0)
-        {
-            uint f = _shadowFbo;
-            _glDeleteFramebuffers?.Invoke(1, &f);
-            _shadowFbo = 0;
-        }
-        if (_shadowDepthTex != 0)
-        {
-            uint t = _shadowDepthTex;
-            _glDeleteTextures?.Invoke(1, &t);
-            _shadowDepthTex = 0;
         }
     }
 
@@ -903,6 +914,31 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         _offscreenH = 0;
     }
 
+    // =========================================================================
+    // Dual-Cascade Directional Shadow Atlas helpers
+    // =========================================================================
+
+    /// <summary>
+    /// Computes per-cascade directional light view-projection matrices packed side-by-side into
+    /// a 2048x2048 depth atlas:
+    /// - Cascade 0 (left 1024x2048 tile): texel-snapped 18m x 18m high-resolution focus box centered
+    ///   on the active camera orbit target for sharp equipment/pipe/cyclone shadows.
+    /// - Cascade 1 (right 1024x2048 tile): 48m x 48m full-plant yard box covering all 6 stages & wash plant.
+    /// </summary>
+    private void ComputeCascadeMatrices(Vector3 lightDir)
+    {
+        float snapX = MathF.Round((float)TargetX * 4f) * 0.25f;
+        float snapY = Math.Clamp((float)TargetY, 0.5f, 4.5f);
+        float snapZ = MathF.Round((float)TargetZ * 4f) * 0.25f;
+        var nearCenter = new Vector3(snapX, snapY, snapZ);
+        _cascadeLightVp[0] = Matrix4x4.CreateLookAt(nearCenter + lightDir * 32f, nearCenter, Vector3.UnitY)
+                           * Plant3DSceneData.CreateOpenGlOrthographic(18f, 18f, 2f, 68f);
+
+        var yardCenter = new Vector3(-2.0f, 1.0f, -0.5f);
+        _cascadeLightVp[1] = Matrix4x4.CreateLookAt(yardCenter + lightDir * 32f, yardCenter, Vector3.UnitY)
+                           * Plant3DSceneData.CreateOpenGlOrthographic(48f, 48f, 2f, 68f);
+    }
+
     protected override void OnOpenGlRender(GlInterface gl, int fb)
     {
         if (!IsHardwareActive || _program == 0)
@@ -935,9 +971,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         var viewProj = view * proj;
 
         var lightDir = Vector3.Normalize(new Vector3(0.48f, 0.82f, 0.34f));
-        var shadowCenter = new Vector3(-2.0f, 1.0f, -0.5f);
-        var lightViewProj = Matrix4x4.CreateLookAt(shadowCenter + lightDir * 32f, shadowCenter, Vector3.UnitY)
-                          * Plant3DSceneData.CreateOpenGlOrthographic(48f, 48f, 2f, 68f);
+        ComputeCascadeMatrices(lightDir);
 
         var eqMap = new Dictionary<string, EquipmentItem>(StringComparer.OrdinalIgnoreCase);
         if (Equipment is not null)
@@ -954,50 +988,48 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         BuildInstancedSceneBatches(eqMap, flowMap, loaderPose, fx, activeSelected, HoveredNodeId);
 
         // =====================================================================
-        // PASS 1: 2048x2048 Directional Shadow Map
+        // PASS 1: Dual-Cascade Directional Shadow Map (2048x2048 depth atlas, 2x 1024x2048 tiles)
         // =====================================================================
-        bool useShadows = fx.ShowGroundShadows && _shadowReady && _shadowProgram != 0;
+        bool useShadows = fx.ShowGroundShadows && _shadowAtlasReady && _shadowProgram != 0;
         if (useShadows)
         {
-            _glBindFramebuffer!(GL_FRAMEBUFFER, _shadowFbo);
-            _glViewport!(0, 0, ShadowMapSize, ShadowMapSize);
+            _glBindFramebuffer!(GL_FRAMEBUFFER, _shadowAtlasFbo);
             _glDepthMask!(1);
             _glEnable!(GL_DEPTH_TEST);
             _glDisable!(GL_BLEND);
             _glDisable!(GL_CULL_FACE);
             _glEnable!(GL_POLYGON_OFFSET_FILL);
             _glPolygonOffset?.Invoke(2.2f, 4.0f);
+            _glViewport!(0, 0, ShadowAtlasSize, ShadowAtlasSize);
             _glClear!(GL_DEPTH_BUFFER_BIT);
-
             _glUseProgram!(_shadowProgram);
-            SetMatrix(_uShadowLightVp, lightViewProj);
             _glUniform1f!(_uShadowIsInstanced, 0f);
 
-            if (_conveyorStructureMesh is not null)
+            for (int c = 0; c < CascadeCount; c++)
             {
-                SetMatrix(_uShadowModel, Matrix4x4.Identity);
-                DrawMesh(_conveyorStructureMesh);
-            }
+                _glViewport!(c * CascadeTileWidth, 0, CascadeTileWidth, ShadowAtlasSize);
+                SetMatrix(_uShadowLightVp, _cascadeLightVp[c]);
 
-            if (_pipesMesh is not null)
-            {
-                SetMatrix(_uShadowModel, Matrix4x4.Identity);
-                DrawMesh(_pipesMesh);
-            }
+                if (_conveyorStructureMesh is not null)
+                {
+                    SetMatrix(_uShadowModel, Matrix4x4.Identity);
+                    DrawMesh(_conveyorStructureMesh);
+                }
 
-            DrawMachineNodesShadowPass(loaderPose, eqMap, flowMap, fx);
+                if (_pipesMesh is not null)
+                {
+                    SetMatrix(_uShadowModel, Matrix4x4.Identity);
+                    DrawMesh(_pipesMesh);
+                }
 
-            if (_unitBox is not null && _casterBoxes.Count > 0)
-            {
-                DrawInstancedBatch(_unitBox, _casterBoxes, isShadowPass: true);
-            }
-            if (_unitCylinder is not null && _casterCylinders.Count > 0)
-            {
-                DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: true);
-            }
-            if (_coalLumpMesh is not null && _coalLumps.Count > 0)
-            {
-                DrawInstancedBatch(_coalLumpMesh, _coalLumps, isShadowPass: true);
+                DrawMachineNodesShadowPass(loaderPose, eqMap, flowMap, fx);
+
+                if (_unitBox is not null && _casterBoxes.Count > 0)
+                    DrawInstancedBatch(_unitBox, _casterBoxes, isShadowPass: true);
+                if (_unitCylinder is not null && _casterCylinders.Count > 0)
+                    DrawInstancedBatch(_unitCylinder, _casterCylinders, isShadowPass: true);
+                if (_coalLumpMesh is not null && _coalLumps.Count > 0)
+                    DrawInstancedBatch(_coalLumpMesh, _coalLumps, isShadowPass: true);
             }
 
             _glDisable!(GL_POLYGON_OFFSET_FILL);
@@ -1033,12 +1065,13 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
 
         _glUseProgram!(_program);
 
-        if (_glActiveTexture is not null && _glBindTexture is not null && _shadowDepthTex != 0)
+        if (_glActiveTexture is not null && _glBindTexture is not null && _shadowAtlasTex != 0)
         {
             _glActiveTexture(GL_TEXTURE0);
-            _glBindTexture(GL_TEXTURE_2D, _shadowDepthTex);
+            _glBindTexture(GL_TEXTURE_2D, _shadowAtlasTex);
             _glUniform1i?.Invoke(_uShadowMap, 0);
         }
+
         if (_glActiveTexture is not null && _glBindTexture is not null && _brdfLutTex != 0)
         {
             _glActiveTexture(GL_TEXTURE2);
@@ -1048,7 +1081,8 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
         }
 
         SetMatrix(_uViewProj, viewProj);
-        SetMatrix(_uLightViewProj, lightViewProj);
+        SetMatrix(_uNearLightViewProj, _cascadeLightVp[0]);
+        SetMatrix(_uLightViewProj, _cascadeLightVp[1]);
         _glUniform3f!(_uCamPos, camPos.X, camPos.Y, camPos.Z);
         _glUniform1f!(_uShadowsEnabled, useShadows ? 1f : 0f);
         _glUniform1f!(_uEncodeHdr, encodeSqrtHdr ? 1f : 0f);
@@ -2180,6 +2214,7 @@ uniform mat4 uModel;
 uniform mat3 uNormalMat;
 uniform mat4 uViewProj;
 uniform mat4 uLightViewProj;
+uniform mat4 uNearLightViewProj;
 uniform float uIsInstanced;
 
 out vec3 vWorldPos;
@@ -2187,6 +2222,7 @@ out vec3 vNormal;
 out vec3 vColor;
 out vec2 vPbr;
 out vec4 vShadowCoord;
+out vec4 vNearShadowCoord;
 out vec4 vInstColorAlpha;
 out vec2 vInstPbr;
 out vec3 vLocalPos;
@@ -2214,6 +2250,7 @@ void main() {
     vPbr = aPbr;
     vLocalPos = aPos;
     vShadowCoord = uLightViewProj * wp;
+    vNearShadowCoord = uNearLightViewProj * wp;
     gl_Position = uViewProj * wp;
 }
 ";
@@ -2224,6 +2261,7 @@ in vec3 vNormal;
 in vec3 vColor;
 in vec2 vPbr;
 in vec4 vShadowCoord;
+in vec4 vNearShadowCoord;
 in vec4 vInstColorAlpha;
 in vec2 vInstPbr;
 in vec3 vLocalPos;
@@ -2499,24 +2537,42 @@ void main() {
             ? clamp((0.46 - roughness) * 3.0, 0.25, 0.90)
             : 0.0;
 
-        // Primary directional light + 16-tap Rotated Vogel-Disk Poisson PCSS soft shadows
+        // Primary directional light + Dual-Cascade 16-tap Rotated Vogel-Disk Poisson PCSS soft shadows
         vec3 L = normalize(vec3(0.48, 0.82, 0.34));
         float shadow = 1.0;
-        if (uShadowsEnabled > 0.5 && vShadowCoord.w > 0.001) {
-            vec3 projCoords = vShadowCoord.xyz / vShadowCoord.w;
-            vec3 suv = projCoords * 0.5 + 0.5;
-            if (suv.x > 0.01 && suv.x < 0.99 && suv.y > 0.01 && suv.y < 0.99 && suv.z >= 0.0 && suv.z <= 1.0) {
-                float bias = max(0.0022 * (1.0 - max(dot(N, L), 0.0)), 0.0006);
+        if (uShadowsEnabled > 0.5) {
+            vec3 nearProj = vNearShadowCoord.xyz / max(vNearShadowCoord.w, 0.0001);
+            vec3 nearSuv = nearProj * 0.5 + 0.5;
+            bool useNearCascade = (vNearShadowCoord.w > 0.001 &&
+                                   nearSuv.x > 0.04 && nearSuv.x < 0.96 &&
+                                   nearSuv.y > 0.04 && nearSuv.y < 0.96 &&
+                                   nearSuv.z >= 0.0 && nearSuv.z <= 1.0);
+
+            vec3 farProj = vShadowCoord.xyz / max(vShadowCoord.w, 0.0001);
+            vec3 farSuv = farProj * 0.5 + 0.5;
+            bool useFarCascade = (vShadowCoord.w > 0.001 &&
+                                  farSuv.x > 0.01 && farSuv.x < 0.99 &&
+                                  farSuv.y > 0.01 && farSuv.y < 0.99 &&
+                                  farSuv.z >= 0.0 && farSuv.z <= 1.0);
+
+            if (useNearCascade || useFarCascade) {
+                vec3 suv = useNearCascade ? nearSuv : farSuv;
+                float tileOffsetX = useNearCascade ? 0.0 : 0.5;
+                float tileMinX = tileOffsetX + 0.002;
+                float tileMaxX = tileOffsetX + 0.498;
+                float bias = max((useNearCascade ? 0.0014 : 0.0022) * (1.0 - max(dot(N, L), 0.0)), 0.00045);
                 float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
                 float rotAngle = ign * 6.2831853;
-                vec2 texelSize = vec2(1.0 / 2048.0);
+                vec2 texelSize = vec2(0.5 / 1024.0, 1.0 / 2048.0);
                 float litSum = 0.0;
-                const float spread = 2.6;
+                float spread = useNearCascade ? 2.1 : 2.5;
+                vec2 baseUv = vec2(tileOffsetX + suv.x * 0.5, suv.y);
                 for (int i = 0; i < 16; i++) {
                     float r = sqrt((float(i) + 0.5) / 16.0);
                     float theta = float(i) * 2.3999632 + rotAngle;
                     vec2 offset = vec2(cos(theta), sin(theta)) * (r * spread) * texelSize;
-                    float pcfDepth = texture(uShadowMap, suv.xy + offset).r;
+                    vec2 sampleUv = vec2(clamp(baseUv.x + offset.x, tileMinX, tileMaxX), clamp(baseUv.y + offset.y, 0.002, 0.998));
+                    float pcfDepth = texture(uShadowMap, sampleUv).r;
                     litSum += (suv.z - bias > pcfDepth) ? 0.0 : 1.0;
                 }
                 shadow = litSum / 16.0;
