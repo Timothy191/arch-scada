@@ -511,7 +511,7 @@ public class Plant3DTests
             // Wash Plant & Thickener (20)
             "GATE-201", "SPRAY-201", "PAN-201", "VALVE-204", "RAKE-201", "LAUNDER-201", "LT-201",
             "VALVE-201", "VALVE-202", "VALVE-203", "AGIT-301", "DT-301", "VALVE-303", "AGIT-302",
-            "PIPE-312", "PIPE-313", "VALVE-301", "VALVE-302", "PT-301", "VALVE-305"
+            "PIPE-312", "PIPE-313", "VF-301", "APEX-301", "VALVE-301", "VALVE-302", "PT-301", "VALVE-305"
         };
         string[] pipeIds =
         {
@@ -520,10 +520,10 @@ public class Plant3DTests
         };
 
         Assert.Equal(29, Plant3DSceneData.AllNodes.Count);
-        Assert.Equal(62, Plant3DSceneData.SubEquipmentNodes.Count);
+        Assert.Equal(64, Plant3DSceneData.SubEquipmentNodes.Count);
         Assert.Equal(11, Plant3DSceneData.PipeNodes.Count);
-        Assert.Equal(102, Plant3DSceneData.InteractiveNodes.Count);
-        Assert.Equal(102, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Count);
+        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
         var tempDir = Path.Combine(Path.GetTempPath(), "archscada-sub-test-" + Guid.NewGuid().ToString("N"));
         try
@@ -567,15 +567,19 @@ public class Plant3DTests
             return Plant3DSceneData.PickEquipment(ray, meshes);
         }
 
-        // Elevated pipe riser above everything at (2.30, 4.35) -> picks the riser pipe individually
-        Assert.Equal("PIPE-304", PickTopDown(new Vector3(1.3f, 4.35f, -7.95f)));
-        // Top-mounted cyclone, picked from above (instead of WP-301 frame)
-        Assert.Equal("DMC-301", PickTopDown(new Vector3(-0.9f, 4.0f, -7.6f)));
+        // Elevated sweeping cyclone feed pipe around West/North side -> picks PIPE-304 individually
+        Assert.Equal("PIPE-304", PickTopDown(new Vector3(-5.05f, 5.10f, -9.30f)));
+        // Full-length diamond cyclone, picked from above (instead of WP-301 frame)
+        Assert.Equal("DMC-301", PickTopDown(new Vector3(-1.95f, 4.35f, -7.60f)));
+        // East vortex finder, West apex spigot, and inlet PT-301 picked individually
+        Assert.Equal("VF-301", PickTopDown(new Vector3(0.48f, 4.45f, -7.60f)));
+        Assert.Equal("APEX-301", PickTopDown(new Vector3(-4.30f, 4.20f, -7.60f)));
+        Assert.Equal("PT-301", PickTopDown(new Vector3(-0.85f, 5.38f, -8.22f)));
         // Mixing box picked from the East side (not WP-301)
         Assert.Equal("MX-301", PickSide(new Vector3(2.30f, 0.7f, -8.30f), -Vector3.UnitX));
         // Product & discard screens picked from the West side at screen height
         Assert.Equal("SC-301", PickSide(new Vector3(-3.6f, 2.3f, -6.80f), Vector3.UnitX));
-        Assert.Equal("SC-302", PickTopDown(new Vector3(-3.85f, 3.0f, -8.70f)));
+        Assert.Equal("SC-302", PickTopDown(new Vector3(-3.85f, 2.3f, -8.85f)));
         // Ground-floor drip bucket picked from the West side at ground level
         Assert.Equal("BK-301", PickSide(new Vector3(-3.4f, 0.6f, -7.65f), -Vector3.UnitZ));
         // Magnetite feed pipe on its open run between TK-301 and the wash plant

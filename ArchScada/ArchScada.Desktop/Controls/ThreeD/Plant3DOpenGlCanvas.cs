@@ -1262,7 +1262,7 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             new Vector3(0.25f, 2.58f, 1.38f),
             new Vector3(-0.55f, 2.26f, -15.25f),
             new Vector3(-2.50f, 1.66f, -10.20f),
-            new Vector3(2.30f, 3.28f, -8.30f)
+            new Vector3(-0.85f, 5.58f, -8.22f)
         })
         {
             var lm = Matrix4x4.CreateScale(0.085f, 0.095f, 0.085f) * Matrix4x4.CreateTranslation(sensorPos);
@@ -3142,8 +3142,8 @@ void main() {
         AppendInlineValve(v, idx, new(2.45f, 1.15f, -9.60f), Vector3.UnitZ, 0.075f, isRedHandwheel: false);
         AppendInlineValve(v, idx, new(-0.65f, 3.08f, -9.28f), Vector3.UnitX, 0.065f, isRedHandwheel: true);
 
-        // PT-301 pressure transmitter manifold & gauge on PIPE-304 riser
-        AppendPressureTransmitter(v, idx, new(2.30f, 2.95f, -8.30f), Vector3.UnitY);
+        // PT-301 pressure transmitter manifold & gauge on PIPE-304 top-side inlet manifold
+        AppendPressureTransmitter(v, idx, new(-0.85f, 5.20f, -8.22f), Vector3.UnitX);
 
         return UploadIndexedMesh(v.ToArray(), idx.ToArray(), withInstancing: false);
     }

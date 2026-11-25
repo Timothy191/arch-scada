@@ -922,11 +922,29 @@ def build_wash_plant_module_wp301(output_dir):
     # Side Water & Magnetite Feed Inlets into Mixing Box
     add_pipe_between("WP301_MixWaterInlet", (mx + 0.15, my + 1.55, 1.15), (mx + 0.15, my + 0.98, 1.15), 0.09, p["motor_blue"], flange=True, mat_flange=p["safety_yellow"])
     add_pipe_between("WP301_MixMagInlet", (mx - 0.25, my + 1.55, 1.45), (mx - 0.25, my + 0.98, 1.45), 0.095, p["manganese"], flange=True, mat_flange=p["safety_yellow"])
-    # Cyclone Feed Pump at Mixing Box bottom + Top-Riser Pipe up above screens into Top Cyclone
+    # Cyclone Feed Pump at Mixing Box bottom + Sweeping PIPE-304 around North/West past conveyors up to DMC-301 top-side inlet
     add_cyl("WP301_CycloneFeedPump", (mx, my - 1.25, 0.52), 0.34, 0.40, p["motor_blue"], verts=20, rot=(0, math.pi / 2, 0), bevel=0.015)
     add_pipe_between("WP301_PumpSuction", (mx, my - 0.95, 0.52), (mx, my - 1.22, 0.52), 0.15, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
-    add_pipe_between("WP301_CycloneRiserV", (mx, my - 1.25, 0.72), (mx, my - 1.25, 4.35), 0.16, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
-    add_pipe_between("WP301_CycloneRiserH", (mx, my - 1.25, 4.35), (1.05, -0.15, 4.30), 0.16, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
+    pipe304_pts = [
+        (mx, my - 1.25, 0.72),
+        (mx, my - 1.25, 1.35),
+        (mx, 2.55, 1.35),
+        (-4.25, 2.55, 1.35),
+        (-4.25, 2.55, 5.10),
+        (-4.25, 0.42, 5.10),
+        (0.55, 0.42, 5.10),
+        (0.55, 0.42, 4.92),
+    ]
+    for pi in range(len(pipe304_pts) - 1):
+        add_pipe_between(f"WP301_PIPE304_Seg{pi}", pipe304_pts[pi], pipe304_pts[pi + 1], 0.15, p["motor_blue"], flange=True, mat_flange=p["dark_steel"])
+    # Pipe-rack stanchions supporting North & West run of PIPE-304
+    for sx_st in (1.50, -1.20, -4.25):
+        add_h_column(f"WP301_PipeRack_{sx_st:.1f}", sx_st, 2.55, 0.0, 1.35, 0.12, p["dark_steel"])
+    add_h_column("WP301_WestRiserSupport", -4.25, 2.55, 1.35, 5.10, 0.14, p["dark_steel"], baseplate=False)
+    # PT-301 Pressure Transmitter manifold & gauge just before DMC-301 tangential inlet
+    add_cyl("WP301_PT301_Stem", (-0.05, 0.42, 5.30), 0.04, 0.24, p["chrome"], verts=12)
+    add_cyl("WP301_PT301_Dial", (-0.05, 0.42, 5.48), 0.12, 0.07, p["safety_yellow"], verts=18, rot=(math.pi / 2, 0, 0), bevel=0.008)
+    add_box("WP301_PT301_Valve", (-0.05, 0.42, 5.20), (0.14, 0.14, 0.10), p["dark_steel"], bevel=0.008)
 
     # 4. Middle Level Screen Walkway Deck (Z=1.95m, single story over tanks) & Stairs
     add_walkway_deck("WP301_ScreenDeckS", -1.10, -2.18, 4.80, 0.85, 1.95, p["walkway_steel"], p["safety_yellow"], rails="SW")
@@ -959,27 +977,88 @@ def build_wash_plant_module_wp301(output_dir):
         for sy_noz in (-1.35, -1.00, -0.65, 0.25, 0.60, 0.95):
             add_cone(f"WP301_Nozzle_{mi}_{sy_noz:.2f}", (mx_bar, sy_noz, bar_z - 0.09), 0.028, 0.012, 0.10, p["safety_yellow"], verts=10, rot=(math.pi, 0, 0))
 
-    # 7. Open-Top Dense-Medium Cyclone Cradle & Large Cyclone Laying on Top (Z=3.95..4.75m, NO ROOF)
-    for lx, ly in [(1.20, -1.15), (1.20, 0.75), (-0.70, -1.15), (-0.70, 0.75)]:
-        add_h_column(f"WP301_CycCol_{lx:.1f}_{ly:.1f}", lx, ly, 1.95, 3.92, 0.14, p["dark_steel"], baseplate=False)
-    add_box("WP301_CycCradleS", (0.25, -1.15, 3.88), (2.10, 0.16, 0.16), p["dark_steel"], bevel=0.01)
-    add_box("WP301_CycCradleN", (0.25, 0.75, 3.88), (2.10, 0.16, 0.16), p["dark_steel"], bevel=0.01)
-    add_box("WP301_CycCrossA", (0.85, -0.20, 3.88), (0.16, 2.05, 0.16), p["dark_steel"], bevel=0.01)
-    add_box("WP301_CycCrossB", (-0.45, -0.20, 3.88), (0.16, 2.05, 0.16), p["dark_steel"], bevel=0.01)
+    # 7. Open-Top Full-Length Asymmetric Diamond Dense-Medium Cyclone (DMC-301, 4.30 m span, NO ROOF)
+    # Gantry columns & longitudinal cradle girders spanning full screen length (X = -3.30 to +1.20)
+    for lx, ly in [(1.20, -1.15), (1.20, 0.75), (-1.10, -1.15), (-1.10, 0.75), (-3.30, -1.15), (-3.30, 0.75)]:
+        add_h_column(f"WP301_CycCol_{lx:.1f}_{ly:.1f}", lx, ly, 1.95, 3.72, 0.14, p["dark_steel"], baseplate=False)
+    add_box("WP301_CycCradleS", (-1.05, -1.15, 3.68), (4.68, 0.16, 0.18), p["dark_steel"], bevel=0.01)
+    add_box("WP301_CycCradleN", (-1.05, 0.75, 3.68), (4.68, 0.16, 0.18), p["dark_steel"], bevel=0.01)
+    for cx_sad in (1.00, 0.05, -1.10, -2.20, -3.25):
+        add_box(f"WP301_CycSaddle_{cx_sad:.1f}", (cx_sad, -0.20, 3.74), (0.18, 2.04, 0.16), p["dark_steel"], bevel=0.01)
+    # Elevated cyclone inspection catwalk along South side + access ladder
+    add_walkway_deck("WP301_CycCatwalkS", -1.05, -1.62, 4.65, 0.72, 3.65, p["walkway_steel"], p["safety_yellow"], rails="SEW")
+    add_beam_between("WP301_CycLadderL", (1.20, -1.96, 1.95), (1.20, -1.96, 3.65), 0.05, 0.05, p["safety_yellow"])
+    add_beam_between("WP301_CycLadderR", (1.20, -1.52, 1.95), (1.20, -1.52, 3.65), 0.05, 0.05, p["safety_yellow"])
+    for r_i in range(6):
+        rz = 2.15 + r_i * 0.28
+        add_beam_between(f"WP301_CycRung_{r_i}", (1.20, -1.96, rz), (1.20, -1.52, rz), 0.03, 0.03, p["safety_yellow"])
 
-    # Large inclined Dense-Medium Cyclone barrel & cone laying on top, aligned with wash screens below
-    dmc_rot = (0, 1.32, 0)  # ~14 deg shallow cyclone lay angle on top cradle
-    add_cyl("WP301_DMC_Body", (0.05, -0.20, 4.28), 0.54, 1.35, p["manganese"], verts=24, rot=dmc_rot, bevel=0.018)
-    add_cone("WP301_DMC_Cone", (1.28, -0.20, 3.96), 0.54, 0.16, 1.25, p["manganese"], verts=24, rot=dmc_rot, bevel=0.012)
-    add_cyl("WP301_DMC_FeedScroll", (0.45, -0.20, 4.22), 0.60, 0.24, p["motor_blue"], verts=24, rot=dmc_rot)
-    # Tangential feed elbow from riser into DMC
-    add_pipe_between("WP301_DMC_TangentialIn", (1.05, -0.15, 4.30), (0.55, 0.18, 4.28), 0.16, p["motor_blue"], flange=True, mat_flange=p["safety_yellow"])
-    # Clean Coal Overflow Pipe -> Product Wash Screen feed box (Y=-1.00)
-    add_pipe_between("WP301_DMC_OverflowA", (-0.65, -0.20, 4.46), (-0.85, -1.00, 4.10), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
-    add_pipe_between("WP301_DMC_OverflowB", (-0.85, -1.00, 4.10), (0.75, -1.00, 2.95), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
-    # Discard Sinks Underflow Pipe -> Discard Wash Screen feed box (Y=+0.60)
-    add_pipe_between("WP301_DMC_UnderflowA", (1.88, -0.20, 3.80), (1.35, 0.60, 3.45), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
-    add_pipe_between("WP301_DMC_UnderflowB", (1.35, 0.60, 3.45), (0.85, 0.60, 2.95), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    # Asymmetric Diamond DMC-301 Loft: East Large Flat End (X=+1.00) -> West Small Flat End (X=-3.30)
+    # Cross-section stations: (x, y_center, z_center, half_w, half_h, flat_frac)
+    dmc_stations = [
+        (1.00, -0.20, 4.45, 0.74, 0.71, 0.46),   # Large East flat head
+        (0.45, -0.20, 4.45, 0.78, 0.74, 0.46),   # Involute feed crest
+        (-0.55, -0.20, 4.38, 0.64, 0.62, 0.44),
+        (-1.65, -0.20, 4.30, 0.48, 0.46, 0.42),
+        (-2.65, -0.20, 4.23, 0.35, 0.34, 0.40),
+        (-3.30, -0.20, 4.20, 0.29, 0.28, 0.40),  # Small West flat tail
+    ]
+    dmc_verts = []
+    dmc_faces = []
+    ring_n = 8
+    for sx_d, sy_d, sz_d, hw, hh, ff in dmc_stations:
+        fw = hw * ff
+        fh = hh * ff
+        # 8-facet diamond profile with flat top, flat bottom, and flat vertical side bands
+        pts = [
+            (sx_d, sy_d - fw, sz_d + hh),  # top-left
+            (sx_d, sy_d + fw, sz_d + hh),  # top-right
+            (sx_d, sy_d + hw, sz_d + fh),  # upper-right
+            (sx_d, sy_d + hw, sz_d - fh),  # lower-right
+            (sx_d, sy_d + fw, sz_d - hh),  # bottom-right
+            (sx_d, sy_d - fw, sz_d - hh),  # bottom-left
+            (sx_d, sy_d - hw, sz_d - fh),  # lower-left
+            (sx_d, sy_d - hw, sz_d + fh),  # upper-left
+        ]
+        dmc_verts.extend(pts)
+    for si in range(len(dmc_stations) - 1):
+        b0 = si * ring_n
+        b1 = (si + 1) * ring_n
+        for k in range(ring_n):
+            kn = (k + 1) % ring_n
+            dmc_faces.append([b0 + k, b0 + kn, b1 + kn, b1 + k])
+    # Flat East & West end caps
+    dmc_faces.append(list(range(ring_n - 1, -1, -1)))
+    last_b = (len(dmc_stations) - 1) * ring_n
+    dmc_faces.append([last_b + k for k in range(ring_n)])
+    add_pydata_mesh("WP301_DMC_DiamondShell", dmc_verts, dmc_faces, p["manganese"], bevel=0.014)
+
+    # Bolted Flat End-Plates + Circumferential Stiffener Flange Ribs
+    add_box("WP301_DMC_EastFlatPlate", (1.04, -0.20, 4.45), (0.08, 1.56, 1.50), p["dark_steel"], bevel=0.015)
+    add_box("WP301_DMC_WestFlatPlate", (-3.34, -0.20, 4.20), (0.07, 0.64, 0.62), p["dark_steel"], bevel=0.012)
+    for rx, ry, rz, rw, rh in [
+        (0.45, -0.20, 4.45, 1.62, 1.54),
+        (-0.55, -0.20, 4.38, 1.34, 1.30),
+        (-1.65, -0.20, 4.30, 1.02, 0.98),
+        (-2.65, -0.20, 4.23, 0.76, 0.74),
+    ]:
+        add_box(f"WP301_DMC_Rib_{rx:.1f}", (rx, ry, rz), (0.07, rw, rh), p["safety_yellow"], bevel=0.008)
+
+    # Top-Side Tangential Involute Feed Scroll Box (receiving PIPE-304) + Air-Core Vent + Sight Glass
+    add_box("WP301_DMC_FeedScrollBox", (0.55, 0.34, 4.86), (0.58, 0.44, 0.46), p["motor_blue"], bevel=0.015)
+    add_cyl("WP301_DMC_AirCoreVent", (0.90, -0.20, 5.42), 0.06, 0.56, p["chrome"], verts=14)
+    add_cyl("WP301_DMC_SightPort", (0.65, -0.95, 4.45), 0.12, 0.10, p["tinted_glass"], verts=16, rot=(math.pi / 2, 0, 0))
+
+    # Vortex Finder (VF-301) & Clean Coal Overflow Return -> SC-301 Product Screen Feed Box
+    add_cyl("WP301_DMC_VortexFinder", (1.28, -0.20, 4.45), 0.24, 0.42, p["safety_yellow"], verts=20, rot=(0, math.pi / 2, 0), bevel=0.01)
+    add_pipe_between("WP301_DMC_OverflowA", (1.46, -0.20, 4.45), (1.46, -1.00, 4.45), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
+    add_pipe_between("WP301_DMC_OverflowB", (1.46, -1.00, 4.45), (0.95, -1.00, 2.95), 0.16, p["safety_yellow"], flange=True, mat_flange=p["dark_steel"])
+
+    # West Small-End Apex Spigot (APEX-301) & Discard Underflow Return -> SC-302 Discard Screen Feed Box
+    add_cyl("WP301_DMC_ApexSpigot", (-3.50, -0.20, 4.20), 0.16, 0.30, p["dark_steel"], verts=18, rot=(0, math.pi / 2, 0), bevel=0.008)
+    add_pipe_between("WP301_DMC_UnderflowA", (-3.62, -0.20, 4.20), (-3.62, 0.60, 3.62), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    add_pipe_between("WP301_DMC_UnderflowB", (-3.62, 0.60, 3.62), (0.95, 0.60, 3.45), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
+    add_pipe_between("WP301_DMC_UnderflowC", (0.95, 0.60, 3.45), (0.95, 0.60, 2.95), 0.13, p["dark_steel"], flange=True, mat_flange=p["safety_yellow"])
 
     export_glb(output_dir, "wash_plant_module_wp301.glb")
 
