@@ -61,10 +61,10 @@ public sealed class TrendChartControl : Control
             max += 1;
         }
 
-        double pad = 12;
+        double pad = Math.Min(10.0, Math.Max(4.0, rect.Height * 0.16));
         double w = rect.Width - pad * 2;
         double h = rect.Height - pad * 2;
-        var pen = new Pen(LineBrush, 2.2);
+        var pen = new Pen(LineBrush, rect.Height < 60 ? 1.7 : 2.2);
 
         for (int i = 1; i < data.Count; i++)
         {

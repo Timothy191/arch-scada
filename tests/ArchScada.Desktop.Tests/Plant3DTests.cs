@@ -721,9 +721,11 @@ public class Plant3DTests
             Assert.True(dist <= 0.02f, $"Web {csSub.Id} position {w.Pos} drifted {dist:F3} m from Desktop {csSub.Position}");
         }
 
-        // 3. Live Telemetry Sparkline parity in Web inspector
+        // 3. Live Telemetry Sparkline & 2D Circuits/Historian drawer parity in Web
         Assert.Contains("id=\"insp-sparkline\"", html, StringComparison.Ordinal);
         Assert.Contains("renderInspectorSparkline", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"circuits-drawer\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"web-historian-canvas\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -807,7 +809,7 @@ public class Plant3DTests
         vm.ExportHistorianCsvCommand.Execute(null);
         Assert.Contains("Exported", vm.HistorianExportStatus, StringComparison.Ordinal);
 
-        // 4. Circuit instrumentation & 8-Gate Diagnostics
+        // 4. Circuit instrumentation, 2D card sparklines, RBAC role buttons & 8-Gate Diagnostics
         Assert.True(vm.DmcInletPressureKpa > 100);
         Assert.True(vm.DmcCleanOverflowTph > 0);
         Assert.True(vm.MacsepRecoveryPercent > 80);
@@ -815,5 +817,13 @@ public class Plant3DTests
         Assert.True(vm.PgnaaAshPercent > 0);
         Assert.True(vm.PgnaaCalorificValueMjKg > 20);
         Assert.Equal(8, vm.DiagnosticChecks.Count);
+        Assert.All(vm.Equipment, eq => Assert.NotEmpty(eq.SparklineValues));
+
+        vm.SwitchOperatorCommand.Execute("supervisor1");
+        Assert.Equal(ArchScada.Desktop.Services.OperatorRole.ShiftSupervisor, vm.OperatorAuth.CurrentRole);
+        vm.SwitchOperatorCommand.Execute("engineer1:9999");
+        Assert.Equal(ArchScada.Desktop.Services.OperatorRole.MaintenanceEngineer, vm.OperatorAuth.CurrentRole);
+        vm.SwitchOperatorCommand.Execute("operator1:1234");
+        Assert.Equal(ArchScada.Desktop.Services.OperatorRole.Operator, vm.OperatorAuth.CurrentRole);
     }
 }

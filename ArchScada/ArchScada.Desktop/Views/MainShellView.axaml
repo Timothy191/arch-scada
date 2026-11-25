@@ -330,6 +330,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                             <Border IsVisible="{Binding HasConveyorSafety}" Classes="scada-panel" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
                                                 <StackPanel Spacing="3">
                                                     <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="10" FontWeight="Bold" Foreground="#38BDF8" />
@@ -407,6 +408,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#22C55E" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -523,6 +525,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#F59E0B" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -569,6 +572,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#38BDF8" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -615,6 +619,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#A855F7" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                             <Border IsVisible="{Binding HasConveyorSafety}" Classes="scada-panel" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8,6">
                                                 <StackPanel Spacing="3">
                                                     <TextBlock Text="CONVEYOR SAFETY &amp; TRIP CASCADE" FontSize="10" FontWeight="Bold" Foreground="#38BDF8" />
@@ -716,6 +721,7 @@
                                             </Grid>
                                             <ProgressBar Minimum="0" Maximum="100" Value="{Binding LoadPercent}" Height="6" Foreground="#10B981" />
                                             <TextBlock Text="{Binding LoadPercent, StringFormat='Load: {0:0.0}%'}" FontSize="11" Foreground="#94A3B8" />
+                                            <controls:TrendChartControl Values="{Binding SparklineValues}" Height="42" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -996,10 +1002,10 @@
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Operator Authentication, RBAC &amp; Electronic Shift Handover" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Operator (J. Mokoena)" Command="{Binding SwitchOperatorCommand}" CommandParameter="operator1" Classes="secondary-action" Padding="10,6" FontSize="11" />
-                                    <Button Content="Shift Supervisor (S. Nkosi)" Command="{Binding SwitchOperatorCommand}" CommandParameter="supervisor1" Classes="secondary-action" Padding="10,6" FontSize="11" />
-                                    <Button Content="C&amp;I Engineer (T. van Wyk)" Command="{Binding SwitchOperatorCommand}" CommandParameter="engineer1" Classes="secondary-action" Padding="10,6" FontSize="11" />
-                                    <Button Content="Observer (Read-Only)" Command="{Binding SwitchOperatorCommand}" CommandParameter="viewer1" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="Operator (J. Mokoena)" Command="{Binding SwitchOperatorCommand}" CommandParameter="operator1:1234" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="Shift Supervisor (S. Nkosi)" Command="{Binding SwitchOperatorCommand}" CommandParameter="supervisor1:2468" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="C&amp;I Engineer (T. van Wyk)" Command="{Binding SwitchOperatorCommand}" CommandParameter="engineer1:9999" Classes="secondary-action" Padding="10,6" FontSize="11" />
+                                    <Button Content="Observer (Read-Only)" Command="{Binding SwitchOperatorCommand}" CommandParameter="viewer1:0000" Classes="secondary-action" Padding="10,6" FontSize="11" />
                                 </StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                     <TextBox Text="{Binding HandoverNoteDraft}" PlaceholderText="Enter shift handover log note..." />

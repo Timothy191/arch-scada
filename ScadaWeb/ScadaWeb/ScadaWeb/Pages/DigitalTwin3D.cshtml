@@ -545,6 +545,7 @@
         </div>
 
         <div class="toolbar-actions">
+            <button type="button" class="btn-hud" id="btn-circuits">Circuits &amp; Historian</button>
             <button type="button" class="btn-hud active" id="btn-labels">Labels</button>
             <button type="button" class="btn-hud active" id="btn-arrows">Flow Chevrons</button>
             <button type="button" class="btn-hud active" id="btn-postfx">Post FX</button>
@@ -561,6 +562,34 @@
         <canvas id="fallback-canvas" style="display:none;"></canvas>
         <div id="labels-overlay"></div>
         <div id="hover-tooltip" role="status" aria-live="polite"></div>
+
+        <!-- Collapsible 2D Plant Circuits & Multi-Trace Historian Drawer (Web <-> Desktop Parity) -->
+        <section id="circuits-drawer" aria-label="2D Plant Circuits and Multi-Trace Historian" style="display:none; position:absolute; top:12px; left:12px; right:12px; bottom:58px; z-index:26; background:var(--bg-panel); border:1px solid var(--border-strong); border-radius:10px; box-shadow:var(--shadow); backdrop-filter:blur(12px); padding:12px 14px; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px;">
+                <div>
+                    <div style="font-size:14px; font-weight:800; color:var(--accent);">CHPP 2D Process Circuits &amp; Multi-Trace Loop Historian (Read-Only)</div>
+                    <div style="font-size:11px; color:var(--text-secondary);">Click any circuit equipment card to select and focus it in the 3D Digital Twin</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <select id="web-hist-preset" class="btn-hud" aria-label="Process loop overlay preset">
+                        <option value="dmc">DMC-301 Cyclone Loop (DM-301 / TK-301 / MS-301)</option>
+                        <option value="thickener">Thickener Loop (TK-201 / PP-201 / PP-203)</option>
+                        <option value="crushing">Crushing Loop (CR-101 / SC-102 / CV-101)</option>
+                        <option value="quality">ROM &amp; Loadout Loop (AF-001 / SL-601 / CV-501)</option>
+                    </select>
+                    <button type="button" class="btn-hud active" id="btn-web-export-csv">Export CSV</button>
+                    <button type="button" class="btn-hud" id="btn-close-circuits">Close ✕</button>
+                </div>
+            </div>
+            <div class="insp-card" style="margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <h4 style="margin:0;">Multi-Trace Process Loop Historian (60s Rolling Buffer · 1 Hz)</h4>
+                    <span id="web-hist-legend" style="font-size:10.5px; font-weight:700; color:var(--text-secondary);"></span>
+                </div>
+                <canvas id="web-historian-canvas" width="820" height="145" style="width:100%; height:145px; display:block; border-radius:6px; background:#0b1220; border:1px solid var(--border);"></canvas>
+            </div>
+            <div id="web-circuits-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(235px, 1fr)); gap:8px;"></div>
+        </section>
 
         <div id="offline-banner">
             <strong>2D GA Schematic Fallback Active:</strong> WebGL 3D context could not be initialized in this browser session. Displaying interactive 2D GA schematic twin (read-only telemetry &amp; 104-item flow simulation remain active).
@@ -1158,6 +1187,161 @@ function renderInspectorSparkline(node, loadPct) {
     ctx.restore();
 }
 
+const WEB_LOOP_PRESETS = {
+    dmc: { label: "DMC-301 Loop", ids: ["DM-301", "TK-301", "MS-301"], colors: ["#38bdf8", "#f59e0b", "#22c55e"] },
+    thickener: { label: "Thickener Loop", ids: ["TK-201", "PP-201", "PP-203"], colors: ["#38bdf8", "#22c55e", "#a855f7"] },
+    crushing: { label: "Crushing Loop", ids: ["CR-101", "SC-102", "CV-101"], colors: ["#38bdf8", "#f59e0b", "#22c55e"] },
+    quality: { label: "ROM & Loadout Loop", ids: ["AF-001", "SL-601", "CV-501"], colors: ["#38bdf8", "#22c55e", "#f59e0b"] }
+};
+
+const WEB_CIRCUIT_CARDS = [
+    { circuit: "Stage 1–2: ROM & Separation", nodeId: "BN-101", scada: "AF-001", title: "BN-101 / VF-101 ROM Grizzly" },
+    { circuit: "Stage 2–3: Primary Crushing", nodeId: "JC-101", scada: "CR-101", title: "JC-101 Primary Jaw Crusher" },
+    { circuit: "Stage 4–5: Secondary Roll", nodeId: "DRC-101", scada: "CR-101", title: "DRC-101 Double Roll Crusher" },
+    { circuit: "Stage 6: Central Sizing", nodeId: "SS-101", scada: "SC-102", title: "SS-101 Multi-Deck Sizing Screen" },
+    { circuit: "Stage 6: Conveyors", nodeId: "CV-101", scada: "CV-101", title: "CV-101 / CV-201 Feed Conveyors" },
+    { circuit: "Stage 6: Fines & Recirc", nodeId: "CV-102", scada: "CV-102", title: "CV-102 / CV-106 Undersize & Return" },
+    { circuit: "Wash Plant: Desliming", nodeId: "DS-201", scada: "SC-102", title: "DS-201 Wet Desliming Screen" },
+    { circuit: "Wash Plant: Wide Diamond DMC", nodeId: "DMC-301", scada: "DM-301", title: "DMC-301 Wide Diamond Cyclone" },
+    { circuit: "Wash Plant: Medium Sump", nodeId: "TK-301", scada: "TK-301", title: "TK-301 Magnetite Medium Tank" },
+    { circuit: "Wash Plant: Macsep Recovery", nodeId: "MS-301", scada: "MS-301", title: "MS-301 Wet-Drum Macsep" },
+    { circuit: "Thickener: Clarifier", nodeId: "TK-201", scada: "TK-201", title: "TK-201 High-Rate Thickener" },
+    { circuit: "Thickener: Pumps & Dosing", nodeId: "PP-201", scada: "PP-201", title: "PP-201 / PP-203 Underflow & Floc" },
+    { circuit: "Product & Loadout Quality", nodeId: "SP-301", scada: "SL-601", title: "SP-301 Clean Product & PGNAA" },
+    { circuit: "Discard & Tailings", nodeId: "SP-302", scada: "CV-501", title: "SP-302 / CV-302 Discard Circuit" }
+];
+
+function renderWebCircuitsAndHistorian() {
+    const drawer = document.getElementById("circuits-drawer");
+    if (!drawer || drawer.style.display === "none") return;
+
+    const presetSel = document.getElementById("web-hist-preset");
+    const presetKey = presetSel?.value || "dmc";
+    const preset = WEB_LOOP_PRESETS[presetKey] || WEB_LOOP_PRESETS.dmc;
+
+    const legendEl = document.getElementById("web-hist-legend");
+    if (legendEl) {
+        legendEl.textContent = preset.ids.map(id => {
+            const load = state.telemetry?.equipment?.[id]?.loadPct ?? 78.0;
+            return `${id}: ${Number(load).toFixed(1)}%`;
+        }).join("  ·  ");
+    }
+
+    const canvas = document.getElementById("web-historian-canvas");
+    if (canvas) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const cssW = Math.max(320, Math.floor(canvas.clientWidth || 760));
+        const cssH = 145;
+        if (canvas.width !== Math.floor(cssW * dpr) || canvas.height !== Math.floor(cssH * dpr)) {
+            canvas.width = Math.floor(cssW * dpr);
+            canvas.height = Math.floor(cssH * dpr);
+        }
+        const ctx = canvas.getContext("2d");
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+        ctx.fillStyle = isDark ? "#0b1220" : "#f8fafc";
+        ctx.fillRect(0, 0, cssW, cssH);
+
+        const padX = 10, padY = 10;
+        const plotW = cssW - padX * 2, plotH = cssH - padY * 2;
+        ctx.strokeStyle = isDark ? "rgba(148,163,184,0.14)" : "rgba(15,23,42,0.10)";
+        ctx.lineWidth = 1;
+        for (const pct of [25, 50, 75]) {
+            const y = padY + plotH * (1 - pct / 100);
+            ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(cssW - padX, y); ctx.stroke();
+        }
+
+        preset.ids.forEach((scadaId, idx) => {
+            const cur = Number(state.telemetry?.equipment?.[scadaId]?.loadPct ?? (76 - idx * 4));
+            const samples = getOrSeedTrend(scadaId, cur);
+            if (samples.length < 2) return;
+            const stepX = plotW / (samples.length - 1);
+            ctx.beginPath();
+            samples.forEach((v, i) => {
+                const x = padX + i * stepX;
+                const y = padY + plotH * (1 - Math.max(0, Math.min(100, v)) / 100);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.strokeStyle = preset.colors[idx % preset.colors.length];
+            ctx.lineWidth = 2.0;
+            ctx.stroke();
+        });
+        ctx.restore();
+    }
+
+    const grid = document.getElementById("web-circuits-grid");
+    if (grid) {
+        grid.innerHTML = "";
+        for (const card of WEB_CIRCUIT_CARDS) {
+            const eq = state.telemetry?.equipment?.[card.scada];
+            const status = eq?.status || "Running";
+            const load = Number(eq?.loadPct ?? 78.0).toFixed(1);
+            const kw = eq ? `${Number(eq.powerKw).toFixed(1)} kW` : "--";
+            const div = document.createElement("div");
+            div.className = "insp-card";
+            div.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-size:10px;font-weight:700;color:var(--accent);">${card.circuit}</span>
+                    <span class="status-tag st-${status === "Offline" ? "Stopped" : status}">${status}</span>
+                </div>
+                <div style="font-size:12px;font-weight:700;margin-bottom:6px;">${card.title}</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-secondary);">
+                    <span>Load: <strong style="color:var(--text-primary);">${load}%</strong> · ${kw}</span>
+                    <button type="button" class="node-pill" data-focus-node="${card.nodeId}">Locate in 3D ↗</button>
+                </div>`;
+            div.querySelector("button").addEventListener("click", () => {
+                drawer.style.display = "none";
+                document.getElementById("btn-circuits")?.classList.remove("active");
+                selectNode(card.nodeId, true);
+            });
+            grid.appendChild(div);
+        }
+    }
+}
+
+function wireWebCircuitsDrawer() {
+    const btn = document.getElementById("btn-circuits");
+    const closeBtn = document.getElementById("btn-close-circuits");
+    const presetSel = document.getElementById("web-hist-preset");
+    const exportBtn = document.getElementById("btn-web-export-csv");
+    const drawer = document.getElementById("circuits-drawer");
+    if (!btn || !drawer) return;
+
+    btn.addEventListener("click", () => {
+        const open = drawer.style.display === "none";
+        drawer.style.display = open ? "block" : "none";
+        btn.classList.toggle("active", open);
+        if (open) renderWebCircuitsAndHistorian();
+    });
+    closeBtn?.addEventListener("click", () => {
+        drawer.style.display = "none";
+        btn.classList.remove("active");
+    });
+    presetSel?.addEventListener("change", renderWebCircuitsAndHistorian);
+    exportBtn?.addEventListener("click", () => {
+        const presetKey = presetSel?.value || "dmc";
+        const preset = WEB_LOOP_PRESETS[presetKey] || WEB_LOOP_PRESETS.dmc;
+        const rows = ["SampleIndex," + preset.ids.join(",")];
+        const maxLen = Math.max(...preset.ids.map(id => getOrSeedTrend(id, 75).length));
+        for (let i = 0; i < maxLen; i++) {
+            const vals = preset.ids.map(id => {
+                const arr = getOrSeedTrend(id, 75);
+                return (arr[i] ?? arr[arr.length - 1] ?? 0).toFixed(2);
+            });
+            rows.push(`${i},${vals.join(",")}`);
+        }
+        const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `archscada_historian_${presetKey}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+}
+wireWebCircuitsDrawer();
+
 function updateInspector() {
     const n = NODE_BY_ID[state.selectedId] || ALL_NODES[0];
     const eq = state.telemetry?.equipment?.[n.scada];
@@ -1184,6 +1368,7 @@ function updateInspector() {
     provEl.textContent = `[READ-ONLY] [SITE CONFIRMED] · ${isLive ? "LIVE SCADA" : "SIMULATED DEMO"}`;
     provEl.style.color = isLive ? "var(--emerald)" : "var(--amber)";
     renderInspectorSparkline(n, loadPct);
+    renderWebCircuitsAndHistorian();
 
     document.getElementById("insp-spec").textContent = n.spec;
     document.getElementById("insp-principle").textContent = n.principle;

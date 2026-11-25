@@ -143,6 +143,9 @@ public partial class EquipmentItem : ObservableObject
 
     public List<TelemetryTag> Tags { get; init; } = new();
 
+    [ObservableProperty]
+    public partial IReadOnlyList<double> SparklineValues { get; set; } = Array.Empty<double>();
+
     public string PrimaryMetricDisplay => $"{PrimaryMetric:0.#} {PrimaryMetricUnit}".Trim();
 }
 
