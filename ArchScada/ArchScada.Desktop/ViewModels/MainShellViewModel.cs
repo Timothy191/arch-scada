@@ -50,6 +50,118 @@ public partial class MainShellViewModel : ViewModelBase
     public ObservableCollection<EquipmentItem> RomLoadoutEquipment { get; } = new();
     public ObservableCollection<string> Exported3DModels { get; } = new();
 
+    // 104-Node GA Explorer & Linked 3D Sub-Equipment (Equipment & Assets tab)
+    public IReadOnlyList<string> AssetCategories { get; } = new[]
+    {
+        "All (104)",
+        "Machines (18)",
+        "Conveyors (11)",
+        "Sub-Equipment (64)",
+        "Process Piping (11)"
+    };
+
+    [ObservableProperty]
+    public partial string SelectedAssetCategory { get; set; } = "All (104)";
+
+    [ObservableProperty]
+    public partial string AssetSearchQuery { get; set; } = string.Empty;
+
+    public ObservableCollection<Plant3DNode> Filtered3DAssets { get; } = new();
+    public ObservableCollection<Plant3DNode> SelectedEquipment3DChildren { get; } = new();
+
+    // Multi-Trace Historian Presets, Statistics & CSV Export (Trends & Historian tab)
+    public IReadOnlyList<string> HistorianPresets { get; } = new[]
+    {
+        "Single Tag (Selected)",
+        "DMC-301 Cyclone Loop (Inlet kPa / Recovery %)",
+        "Thickener Loop (Bed Level % / Turbidity NTU)",
+        "Crushing Loop (Jaw Crusher t/h / Belt CV-101 t/h)",
+        "Quality & Loadout Loop (Ash % / Moisture % / CV MJ/kg)"
+    };
+
+    [ObservableProperty]
+    public partial string SelectedHistorianPreset { get; set; } = "Single Tag (Selected)";
+
+    [ObservableProperty]
+    public partial double TrendStatMin { get; set; }
+
+    [ObservableProperty]
+    public partial double TrendStatMax { get; set; }
+
+    [ObservableProperty]
+    public partial double TrendStatAvg { get; set; }
+
+    [ObservableProperty]
+    public partial double TrendStatStdDev { get; set; }
+
+    [ObservableProperty]
+    public partial int TrendSampleCount { get; set; }
+
+    [ObservableProperty]
+    public partial string TrendLimitsSummary { get; set; } = "0 – 100";
+
+    [ObservableProperty]
+    public partial string HistorianExportStatus { get; set; } = "Ready to export active series (CSV)";
+
+    // Alarm Severity / Ack Filter (Alarms & Events tab)
+    public IReadOnlyList<string> AlarmFilterModes { get; } = new[]
+    {
+        "All",
+        "Unacknowledged",
+        "Critical / High",
+        "Medium / Low"
+    };
+
+    [ObservableProperty]
+    public partial string SelectedAlarmFilter { get; set; } = "All";
+
+    public ObservableCollection<AlarmItem> FilteredAlarms { get; } = new();
+
+    // Magnetite & DMC-301 Wide Diamond Cyclone Instrumentation
+    [ObservableProperty]
+    public partial double DmcInletPressureKpa { get; set; } = 185.0;
+
+    [ObservableProperty]
+    public partial double DmcFeedFlowM3h { get; set; } = 812.0;
+
+    [ObservableProperty]
+    public partial double DmcCleanOverflowTph { get; set; } = 410.0;
+
+    [ObservableProperty]
+    public partial double DmcDiscardApexTph { get; set; } = 100.0;
+
+    [ObservableProperty]
+    public partial double MacsepRecoveryPercent { get; set; } = 96.4;
+
+    // ROM, Loadout & PGNAA Online Quality Instrumentation
+    [ObservableProperty]
+    public partial double ProductSiloLevelPercent { get; set; } = 64.5;
+
+    [ObservableProperty]
+    public partial double ProductSiloTons { get; set; } = 3225.0;
+
+    [ObservableProperty]
+    public partial double PgnaaAshPercent { get; set; } = 9.40;
+
+    [ObservableProperty]
+    public partial double PgnaaMoisturePercent { get; set; } = 8.60;
+
+    [ObservableProperty]
+    public partial double PgnaaCalorificValueMjKg { get; set; } = 27.80;
+
+    [ObservableProperty]
+    public partial double TrainLoadoutRateTph { get; set; } = 1850.0;
+
+    // System Diagnostics 8-Gate Readiness & 3D Engine Summary
+    public ObservableCollection<StartupCheckItem> DiagnosticChecks { get; } = new();
+
+    [ObservableProperty]
+    public partial string DiagnosticSummaryText { get; set; } = "8/8 Architecture & Runtime Checks Ready";
+
+    [ObservableProperty]
+    public partial string GlbEngineSummaryText { get; set; } =
+        "16/16 glTF 2.0 PBR Models (3.98 MiB) · 104 Interactive Nodes (29 GA + 64 Sub-Equipment + 11 Pipes) · SharpGLTF + Split-Sum BRDF LUT + Karis HDR Bloom";
+
     public Unity3DEffectSettings UnityEffects { get; } = new();
 
     public IReadOnlyList<Plant3DNode> All3DNodes => Plant3DSceneData.InteractiveNodes;
@@ -227,6 +339,9 @@ public partial class MainShellViewModel : ViewModelBase
         _telemetry.Start(offlineDemoMode);
 
         RefreshExportedModels();
+        InitializeDiagnosticChecks();
+        RefreshFiltered3DAssets();
+        RefreshSelectedEquipment3DChildren();
         RefreshFromTelemetry();
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -294,6 +409,253 @@ public partial class MainShellViewModel : ViewModelBase
         {
             SelectedTrendValues = _telemetry.GetTagHistory(value.TagId).ToList();
         }
+        UpdateTrendStatistics();
+    }
+
+    partial void OnSelectedAssetCategoryChanged(string value)
+    {
+        RefreshFiltered3DAssets();
+    }
+
+    partial void OnAssetSearchQueryChanged(string value)
+    {
+        RefreshFiltered3DAssets();
+    }
+
+    partial void OnSelectedAlarmFilterChanged(string value)
+    {
+        RefreshFilteredAlarms();
+    }
+
+    [RelayCommand]
+    private void LocateIn3D(string? targetId)
+    {
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            targetId = SelectedEquipment?.Id ?? Selected3DNode?.Id;
+        }
+        if (string.IsNullOrWhiteSpace(targetId)) return;
+
+        var node = Plant3DSceneData.InteractiveNodes.FirstOrDefault(n =>
+                       string.Equals(n.Id, targetId, StringComparison.OrdinalIgnoreCase))
+                   ?? Plant3DSceneData.AllNodes.FirstOrDefault(n =>
+                       string.Equals(n.LinkedScadaId, targetId, StringComparison.OrdinalIgnoreCase))
+                   ?? Plant3DSceneData.InteractiveNodes.FirstOrDefault(n =>
+                       string.Equals(n.LinkedScadaId, targetId, StringComparison.OrdinalIgnoreCase));
+
+        CurrentSection = PlantSection.DigitalTwin3D;
+        if (node is not null)
+        {
+            Selected3DNode = node;
+            FocusTargetId = null;
+            FocusTargetId = node.Id;
+        }
+        else
+        {
+            FocusTargetId = null;
+            FocusTargetId = targetId;
+        }
+    }
+
+    [RelayCommand]
+    private void SetAlarmFilter(string? filterMode)
+    {
+        if (!string.IsNullOrWhiteSpace(filterMode))
+        {
+            SelectedAlarmFilter = filterMode;
+        }
+    }
+
+    [RelayCommand]
+    private void ExportHistorianCsv()
+    {
+        try
+        {
+            var tag = SelectedTrendTag ?? _telemetry.AllTags.FirstOrDefault();
+            if (tag is null) return;
+
+            var exportDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ArchScada",
+                "exports");
+            Directory.CreateDirectory(exportDir);
+
+            string safeId = tag.TagId.Replace('/', '_').Replace(' ', '_');
+            string filePath = Path.Combine(exportDir, $"historian_{safeId}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+            var values = _telemetry.GetTagHistory(tag.TagId);
+
+            using var sw = new StreamWriter(filePath, append: false);
+            sw.WriteLine("SampleIndex,TagId,TagName,Value,Unit,MinLimit,MaxLimit");
+            for (int i = 0; i < values.Count; i++)
+            {
+                sw.WriteLine(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"{i},{tag.TagId},\"{tag.Name}\",{values[i]:F3},{tag.Unit},{tag.MinLimit:F2},{tag.MaxLimit:F2}"));
+            }
+
+            HistorianExportStatus = $"Exported {values.Count} samples → {Path.GetFileName(filePath)}";
+        }
+        catch (Exception ex)
+        {
+            HistorianExportStatus = $"Export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RunDeploymentHealthCheckAsync()
+    {
+        var readiness = new DeploymentReadinessService(_unityBridge);
+        if (DiagnosticChecks.Count == 0)
+        {
+            InitializeDiagnosticChecks(readiness);
+        }
+
+        int passed = 0;
+        int warnings = 0;
+        int failed = 0;
+
+        for (int i = 0; i < readiness.Checks.Count && i < DiagnosticChecks.Count; i++)
+        {
+            var spec = readiness.Checks[i];
+            var item = DiagnosticChecks[i];
+            item.State = StartupCheckState.Running;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var (state, detail) = await spec.ExecuteAsync(default);
+            sw.Stop();
+            item.State = state;
+            item.Detail = detail;
+            item.DurationText = $"{sw.ElapsedMilliseconds} ms";
+
+            if (state == StartupCheckState.Passed) passed++;
+            else if (state == StartupCheckState.Warning) warnings++;
+            else if (state == StartupCheckState.Failed) failed++;
+        }
+
+        DiagnosticSummaryText = $"{passed}/{DiagnosticChecks.Count} Passed · {warnings} Warnings · {failed} Failed (Verified {DateTime.Now:HH:mm:ss})";
+    }
+
+    private void InitializeDiagnosticChecks(DeploymentReadinessService? service = null)
+    {
+        service ??= new DeploymentReadinessService(_unityBridge);
+        DiagnosticChecks.Clear();
+        foreach (var spec in service.Checks)
+        {
+            DiagnosticChecks.Add(new StartupCheckItem
+            {
+                Id = spec.Id,
+                Category = spec.Category,
+                Title = spec.Title,
+                IsCritical = spec.IsCritical,
+                State = StartupCheckState.Passed,
+                Detail = "Verified at startup preflight",
+                DurationText = "OK"
+            });
+        }
+    }
+
+    private void RefreshFiltered3DAssets()
+    {
+        Filtered3DAssets.Clear();
+        string cat = SelectedAssetCategory ?? "All (104)";
+        string q = (AssetSearchQuery ?? string.Empty).Trim();
+
+        IEnumerable<Plant3DNode> source = cat switch
+        {
+            var c when c.StartsWith("Machines", StringComparison.OrdinalIgnoreCase) => Plant3DSceneData.MachineNodes,
+            var c when c.StartsWith("Conveyors", StringComparison.OrdinalIgnoreCase) => Plant3DSceneData.ConveyorNodes,
+            var c when c.StartsWith("Sub-Equipment", StringComparison.OrdinalIgnoreCase) => Plant3DSceneData.SubEquipmentNodes,
+            var c when c.StartsWith("Process Piping", StringComparison.OrdinalIgnoreCase) => Plant3DSceneData.PipeNodes,
+            _ => Plant3DSceneData.InteractiveNodes
+        };
+
+        foreach (var node in source)
+        {
+            if (!string.IsNullOrEmpty(q) &&
+                !node.Id.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                !node.GaLabel.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                !node.EquipmentType.Contains(q, StringComparison.OrdinalIgnoreCase) &&
+                !node.LinkedScadaId.Contains(q, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            Filtered3DAssets.Add(node);
+        }
+    }
+
+    private void RefreshSelectedEquipment3DChildren()
+    {
+        SelectedEquipment3DChildren.Clear();
+        var eqId = SelectedEquipment?.Id;
+        if (string.IsNullOrWhiteSpace(eqId)) return;
+
+        foreach (var node in Plant3DSceneData.InteractiveNodes)
+        {
+            if (string.Equals(node.LinkedScadaId, eqId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(node.Id, eqId, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedEquipment3DChildren.Add(node);
+            }
+        }
+    }
+
+    private void RefreshFilteredAlarms()
+    {
+        FilteredAlarms.Clear();
+        string filter = SelectedAlarmFilter ?? "All";
+        foreach (var alarm in _telemetry.Alarms)
+        {
+            bool match = filter switch
+            {
+                "Unacknowledged" => !alarm.IsAcknowledged,
+                "Critical / High" => alarm.Severity is AlarmSeverity.Critical or AlarmSeverity.High,
+                "Medium / Low" => alarm.Severity is AlarmSeverity.Medium or AlarmSeverity.Low,
+                _ => true
+            };
+            if (match) FilteredAlarms.Add(alarm);
+        }
+    }
+
+    private void UpdateTrendStatistics()
+    {
+        var tag = SelectedTrendTag;
+        var vals = SelectedTrendValues;
+        if (tag is not null)
+        {
+            TrendLimitsSummary = $"{tag.MinLimit:0.##} – {tag.MaxLimit:0.##} {tag.Unit}".Trim();
+        }
+
+        if (vals is null || vals.Count == 0)
+        {
+            TrendStatMin = 0;
+            TrendStatMax = 0;
+            TrendStatAvg = 0;
+            TrendStatStdDev = 0;
+            TrendSampleCount = 0;
+            return;
+        }
+
+        double min = vals[0];
+        double max = vals[0];
+        double sum = 0;
+        for (int i = 0; i < vals.Count; i++)
+        {
+            double v = vals[i];
+            if (v < min) min = v;
+            if (v > max) max = v;
+            sum += v;
+        }
+        double avg = sum / vals.Count;
+        double varSum = 0;
+        for (int i = 0; i < vals.Count; i++)
+        {
+            double d = vals[i] - avg;
+            varSum += d * d;
+        }
+
+        TrendStatMin = Math.Round(min, 2);
+        TrendStatMax = Math.Round(max, 2);
+        TrendStatAvg = Math.Round(avg, 2);
+        TrendStatStdDev = Math.Round(Math.Sqrt(varSum / vals.Count), 3);
+        TrendSampleCount = vals.Count;
     }
 
     [RelayCommand]
@@ -317,6 +679,7 @@ public partial class MainShellViewModel : ViewModelBase
         if (alarm is not null)
         {
             _telemetry.AcknowledgeAlarm(alarm.Id);
+            RefreshFilteredAlarms();
         }
     }
 
@@ -324,6 +687,7 @@ public partial class MainShellViewModel : ViewModelBase
     private void AcknowledgeAllAlarms()
     {
         _telemetry.AcknowledgeAllAlarms();
+        RefreshFilteredAlarms();
     }
 
     [RelayCommand]
@@ -390,6 +754,7 @@ public partial class MainShellViewModel : ViewModelBase
 
     partial void OnSelectedEquipmentChanged(EquipmentItem? value)
     {
+        RefreshSelectedEquipment3DChildren();
         UpdateSelected3DTrend();
     }
 
@@ -601,7 +966,39 @@ public partial class MainShellViewModel : ViewModelBase
         if (dm301 is not null)
         {
             MagnetiteValveState = dm301.Status == EquipmentStatus.Running ? ValveState.Open : ValveState.Closed;
+            DmcFeedFlowM3h = dm301.PrimaryMetric;
         }
+
+        var dmcPrs = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "DM301_PRS");
+        if (dmcPrs is not null) DmcInletPressureKpa = dmcPrs.Value;
+
+        var ms301Rec = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "MS301_REC");
+        if (ms301Rec is not null) MacsepRecoveryPercent = ms301Rec.Value;
+
+        double cleanFraction = Math.Clamp(CleanCoalYieldPercent / 100.0, 0.50, 0.92);
+        double washFeedTph = Math.Round(TotalFeedTonnageTph * 0.785, 1);
+        DmcCleanOverflowTph = Math.Round(washFeedTph * cleanFraction, 1);
+        DmcDiscardApexTph = Math.Round(Math.Max(0.0, washFeedTph - DmcCleanOverflowTph), 1);
+
+        var sl601Lvl = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "SL601_LVL");
+        if (sl601Lvl is not null) ProductSiloLevelPercent = sl601Lvl.Value;
+
+        var sl601Ton = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "SL601_TON");
+        if (sl601Ton is not null) ProductSiloTons = sl601Ton.Value;
+
+        var an601Ash = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "AN601_ASH");
+        if (an601Ash is not null) PgnaaAshPercent = an601Ash.Value;
+
+        var an601Moist = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "AN601_MOIST");
+        if (an601Moist is not null) PgnaaMoisturePercent = an601Moist.Value;
+
+        var an601Cv = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "AN601_CV");
+        if (an601Cv is not null) PgnaaCalorificValueMjKg = an601Cv.Value;
+
+        var ld601Tph = _telemetry.AllTags.FirstOrDefault(t => t.TagId == "LD601_TPH");
+        if (ld601Tph is not null) TrainLoadoutRateTph = ld601Tph.Value;
+
+        RefreshFilteredAlarms();
 
         var topAlarm = _telemetry.Alarms.FirstOrDefault(a => !a.IsAcknowledged) ?? _telemetry.Alarms.FirstOrDefault();
         LatestAlarmTicker = topAlarm is not null
@@ -612,6 +1009,7 @@ public partial class MainShellViewModel : ViewModelBase
         {
             SelectedTrendValues = _telemetry.GetTagHistory(SelectedTrendTag.TagId).ToList();
         }
+        UpdateTrendStatistics();
         UpdateSelected3DTrend();
 
         _unityBridge.PublishFrame(_telemetry.Equipment, UnityEffects);

@@ -767,4 +767,53 @@ public class Plant3DTests
             Assert.True(new FileInfo(full).Length > 100, $"Vendored offline 3D asset is empty: {rel}");
         }
     }
+
+    [Fact]
+    public void MainShellViewModel_CrossPageLocateIn3D_AssetDirectory_HistorianAndDiagnostics_WorkEndToEnd()
+    {
+        var telemetry = new ArchScada.Desktop.Services.SimulatedTelemetryService();
+        var bridge = new ArchScada.Desktop.Services.UnityBridgeService();
+        var vm = new ArchScada.Desktop.ViewModels.MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
+
+        // 1. 104-Node Asset Directory filtering & search
+        Assert.Equal(104, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Machines (18)";
+        Assert.Equal(18, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Sub-Equipment (64)";
+        Assert.Equal(64, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Process Piping (11)";
+        Assert.Equal(11, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "All (104)";
+        vm.AssetSearchQuery = "DMC-301";
+        Assert.Contains(vm.Filtered3DAssets, n => n.Id == "DMC-301");
+        vm.AssetSearchQuery = string.Empty;
+        Assert.Equal(104, vm.Filtered3DAssets.Count);
+
+        // 2. Cross-page LocateIn3DCommand for both sub-equipment and SCADA group IDs
+        vm.LocateIn3DCommand.Execute("DMC-301");
+        Assert.Equal(ArchScada.Desktop.Models.PlantSection.DigitalTwin3D, vm.CurrentSection);
+        Assert.Equal("DMC-301", vm.Selected3DNode?.Id);
+        Assert.Equal("DMC-301", vm.FocusTargetId);
+        Assert.Equal("DM-301", vm.SelectedEquipment?.Id);
+        Assert.NotEmpty(vm.SelectedEquipment3DChildren);
+
+        vm.LocateIn3DCommand.Execute("CR-101");
+        Assert.Equal("JC-101", vm.Selected3DNode?.Id);
+
+        // 3. Historian statistics & CSV export
+        Assert.True(vm.TrendSampleCount > 0);
+        Assert.True(vm.TrendStatMax >= vm.TrendStatMin);
+        Assert.True(vm.TrendStatAvg >= vm.TrendStatMin && vm.TrendStatAvg <= vm.TrendStatMax);
+        vm.ExportHistorianCsvCommand.Execute(null);
+        Assert.Contains("Exported", vm.HistorianExportStatus, StringComparison.Ordinal);
+
+        // 4. Circuit instrumentation & 8-Gate Diagnostics
+        Assert.True(vm.DmcInletPressureKpa > 100);
+        Assert.True(vm.DmcCleanOverflowTph > 0);
+        Assert.True(vm.MacsepRecoveryPercent > 80);
+        Assert.True(vm.ProductSiloLevelPercent > 0);
+        Assert.True(vm.PgnaaAshPercent > 0);
+        Assert.True(vm.PgnaaCalorificValueMjKg > 20);
+        Assert.Equal(8, vm.DiagnosticChecks.Count);
+    }
 }

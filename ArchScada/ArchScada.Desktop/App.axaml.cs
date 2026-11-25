@@ -138,7 +138,7 @@ public partial class App : Application
 
     private async System.Threading.Tasks.Task FadeOutSplashAsync(
         IClassicDesktopStyleApplicationLifetime desktop,
-        SplashWindow splash)
+        SplashWindow? splash)
     {
         if (splash is null || splash.IsAutomatedCaptureMode ||
             splash.Classes.Contains("splash-reduced-motion"))

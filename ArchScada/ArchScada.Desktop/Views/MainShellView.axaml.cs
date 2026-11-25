@@ -12,6 +12,7 @@ public partial class MainShellView : UserControl
 {
     private MainShellViewModel? _vm;
     private bool _plotConfigured;
+    private bool _historianPlotConfigured;
 
     public MainShellView()
     {
@@ -22,9 +23,10 @@ public partial class MainShellView : UserControl
 
     private void OnControlPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == BoundsProperty && Bounds.Width > 0 && Bounds.Height > 0 && _vm is not null && _vm.IsDigitalTwin3D)
+        if (e.Property == BoundsProperty && Bounds.Width > 0 && Bounds.Height > 0 && _vm is not null)
         {
-            RefreshSparkline();
+            if (_vm.IsDigitalTwin3D) RefreshSparkline();
+            if (_vm.IsTrends) RefreshHistorianPlot();
         }
     }
 
@@ -40,6 +42,7 @@ public partial class MainShellView : UserControl
         {
             _vm.PropertyChanged += OnViewModelPropertyChanged;
             RefreshSparkline();
+            RefreshHistorianPlot();
         }
     }
 
@@ -53,6 +56,108 @@ public partial class MainShellView : UserControl
                 RefreshSparkline();
             else
                 Dispatcher.UIThread.Post(RefreshSparkline);
+        }
+
+        if (e.PropertyName is nameof(MainShellViewModel.SelectedTrendValues)
+            or nameof(MainShellViewModel.SelectedTrendTag)
+            or nameof(MainShellViewModel.SelectedHistorianPreset)
+            or nameof(MainShellViewModel.IsTrends))
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+                RefreshHistorianPlot();
+            else
+                Dispatcher.UIThread.Post(RefreshHistorianPlot);
+        }
+    }
+
+    private void EnsureHistorianPlotConfigured()
+    {
+        if (_historianPlotConfigured || HistorianAvaPlot is null)
+            return;
+
+        _historianPlotConfigured = true;
+        var plt = HistorianAvaPlot.Plot;
+        plt.FigureBackground.Color = new ScottPlot.Color(11, 18, 32);
+        plt.DataBackground.Color = new ScottPlot.Color(15, 23, 42);
+        plt.Axes.Color(new ScottPlot.Color(148, 163, 184));
+        plt.Grid.MajorLineColor = new ScottPlot.Color(30, 41, 59);
+    }
+
+    private void RefreshHistorianPlot()
+    {
+        if (_vm is null || !_vm.IsTrends || HistorianAvaPlot is null)
+            return;
+
+        try
+        {
+            EnsureHistorianPlotConfigured();
+            var plt = HistorianAvaPlot.Plot;
+            plt.Clear();
+
+            string preset = _vm.SelectedHistorianPreset ?? "Single Tag (Selected)";
+            string[]? overlayIds = preset switch
+            {
+                var p when p.StartsWith("DMC-301", StringComparison.OrdinalIgnoreCase) => new[] { "DM301_PRS", "MS301_REC" },
+                var p when p.StartsWith("Thickener", StringComparison.OrdinalIgnoreCase) => new[] { "TK201_LVL", "TK201_TRB" },
+                var p when p.StartsWith("Crushing", StringComparison.OrdinalIgnoreCase) => new[] { "CR101_TPH", "CV101_TPH" },
+                var p when p.StartsWith("Quality", StringComparison.OrdinalIgnoreCase) => new[] { "AN601_ASH", "AN601_MOIST", "AN601_CV" },
+                _ => null
+            };
+
+            if (overlayIds is not null)
+            {
+                ScottPlot.Color[] palette =
+                {
+                    new(56, 189, 248),
+                    new(34, 197, 94),
+                    new(245, 158, 11)
+                };
+
+                for (int i = 0; i < overlayIds.Length; i++)
+                {
+                    var history = _vm.Telemetry.GetTagHistory(overlayIds[i]);
+                    if (history.Count < 2) continue;
+                    double[] ys = history is double[] a ? a : history.ToArray();
+                    var sig = plt.Add.Signal(ys);
+                    sig.Color = palette[i % palette.Length];
+                    sig.LineWidth = 2.0f;
+                    sig.LegendText = overlayIds[i];
+                }
+                plt.ShowLegend();
+                plt.Axes.AutoScale();
+            }
+            else
+            {
+                var values = _vm.SelectedTrendValues;
+                if (values is not null && values.Count >= 2)
+                {
+                    double[] ys = values is double[] arr ? arr : values.ToArray();
+                    var sig = plt.Add.Signal(ys);
+                    sig.Color = new ScottPlot.Color(56, 189, 248);
+                    sig.LineWidth = 2.2f;
+
+                    double minVal = ys.Min();
+                    double maxVal = ys.Max();
+                    double pad = Math.Max((maxVal - minVal) * 0.22, 0.5);
+
+                    if (_vm.SelectedTrendTag is { } tag)
+                    {
+                        var hi = plt.Add.HorizontalLine(tag.MaxLimit * 0.85);
+                        hi.Color = new ScottPlot.Color(245, 158, 11, 150);
+                        hi.LineWidth = 1.1f;
+                        hi.LinePattern = ScottPlot.LinePattern.Dashed;
+                    }
+
+                    plt.Axes.AutoScale();
+                    plt.Axes.SetLimitsY(minVal - pad, maxVal + pad);
+                }
+            }
+
+            HistorianAvaPlot.Refresh();
+        }
+        catch
+        {
+            // Keep UI resilient during headless/teardown passes
         }
     }
 
