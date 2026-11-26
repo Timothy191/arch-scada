@@ -1558,12 +1558,6 @@ try {
     scene.background = new THREE.Color(0x070d1a);
     scene.fog = new THREE.FogExp2(0x070d1a, 0.011);
 
-    // LOD (Level of Detail) system for performance
-    // Tuned for camera maxDistance of 65 units
-    // Distances: full detail < 20m, medium detail 20-50m, low detail > 50m
-    const lodManager = new THREE.LODManager();
-    lodManager.setMargin(30); // pixels before switching LOD
-
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -1572,6 +1566,7 @@ try {
 
     let composer = null;
     let n8aoPass = null;
+    let bloomPass = null;
     try {
         const cw = Math.max(1, container.clientWidth);
         const ch = Math.max(1, container.clientHeight);
@@ -1590,47 +1585,19 @@ try {
             }
             composer.addPass(n8aoPass);
         }
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(cw, ch), 0.22, 0.35, 1.05);
+        bloomPass = new UnrealBloomPass(new THREE.Vector2(cw, ch), 0.22, 0.35, 1.05);
         composer.addPass(bloomPass);
         composer.addPass(new OutputPass());
     } catch {
         composer = null;
         n8aoPass = null;
+        bloomPass = null;
     }
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI * 0.485;
     controls.minDistance = 4;
     controls.maxDistance = 65;
-
-    // Camera preset positions
-    const camPresets = {
-        overview: { pos: [-8, 8, 20], target: [-1, 0.5, -1] },
-        crusher: { pos: [-14, 3, -1], target: [-13.9, 2.5, -0.6] },
-        screen: { pos: [2, 3, 10], target: [0, 0.5, 0] },
-        wash: { pos: [-2, 3, -12], target: [-1, 0.5, -10] }
-    };
-
-    // Camera preset button handlers
-    const camBar = document.getElementById("camera-bar");
-    if (camBar) {
-        camBar.addEventListener("click", (e) => {
-            const btn = e.target.closest(".preset-btn");
-            if (!btn) return;
-            
-            // Update active state
-            camBar.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            
-            const preset = btn.dataset.preset;
-            if (camPresets[preset]) {
-                const p = camPresets[preset];
-                camera.position.set(p.pos[0], p.pos[1], p.pos[2]);
-                controls.target.set(p.target[0], p.target[1], p.target[2]);
-                controls.update();
-            }
-        });
-    }
 
     // Lighting: Hemisphere + 2048² PCFSoftShadowMap Sun + Cool Industrial Rim
     const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x1a2436, 0.72);
@@ -1649,10 +1616,6 @@ try {
     sun.shadow.bias = -0.00045;
     sun.shadow.radius = 4; // Soft shadow radius
     scene.add(sun);
-
-    // Contact shadow enhancement: add small downward shadows for ground-contact objects
-    const contactShadowMap = new THREE.WebGLShadowMap();
-    contactShadowMap.needsUpdate = true;
 
     const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.55);
     rimLight.position.set(-18, 12, -18);
@@ -2298,28 +2261,28 @@ try {
     let rakeGroup = null;
     {
         // Enhanced materials with clearcoat for polished metal effects
-        const darkSteelMat = new THREE.MeshStandardMaterial({ 
+        const darkSteelMat = new THREE.MeshPhysicalMaterial({ 
             color: 0x242b35, 
             roughness: 0.35, 
             metalness: 0.85,
             clearcoat: 0.4,
             clearcoatRoughness: 0.1
         });
-        const mnMat = new THREE.MeshStandardMaterial({ 
+        const mnMat = new THREE.MeshPhysicalMaterial({ 
             color: 0x3a4048, 
             roughness: 0.30, 
             metalness: 0.85,
             clearcoat: 0.2,
             clearcoatRoughness: 0.05
         });
-        const chromeMat = new THREE.MeshStandardMaterial({ 
+        const chromeMat = new THREE.MeshPhysicalMaterial({ 
             color: 0xb8c0c8, 
             roughness: 0.15, 
             metalness: 0.95,
             clearcoat: 0.5,
             clearcoatRoughness: 0.02
         });
-        const sensorMat = new THREE.MeshStandardMaterial({ 
+        const sensorMat = new THREE.MeshPhysicalMaterial({ 
             color: 0x06b6d4, 
             roughness: 0.25, 
             metalness: 0.60,
@@ -2331,9 +2294,7 @@ try {
         const tripRedMat = new THREE.MeshStandardMaterial({ 
             color: 0xef4444, 
             roughness: 0.40, 
-            metalness: 0.45,
-            clearcoat: 0.0,
-            clearcoatRoughness: 0.3
+            metalness: 0.45
         });
         const addSubMesh = (geo, mat, pos, rot, nodeId) => {
             const m = new THREE.Mesh(geo, mat);
@@ -2538,16 +2499,16 @@ try {
             const clone = template.clone(true);
             tagNodeHierarchy(clone, m.id);
             entry.root.remove(entry.proxy);
-            entry.root.add(clone);
             entry.glbRoot = clone;
 
             // Create LOD for each machine (full detail at 0m, medium at 20m, low at 50m)
+            // Coordinates are local to entry.root (which already applies m.pos, m.yaw, and m.scale)
             const lod = new THREE.LOD();
             
             // Full detail - original clone
             lod.add(clone, 0);
             
-            // Medium detail - simplified box approximation
+            // Medium detail - simplified box approximation in local space
             const simplifiedGeo = new THREE.BoxGeometry(
                 m.half[0] * 2, 
                 m.half[1] * 2, 
@@ -2559,22 +2520,24 @@ try {
                 metalness: 0.4
             });
             const simplifiedMesh = new THREE.Mesh(simplifiedGeo, simplifiedMat);
-            simplifiedMesh.position.set(...m.pos);
-            simplifiedMesh.rotation.set(0, m.yaw * Math.PI / 180, 0);
-            simplifiedMesh.scale.set(...m.scale);
+            simplifiedMesh.position.set(0, m.half[1], 0);
+            simplifiedMesh.castShadow = true;
+            simplifiedMesh.receiveShadow = true;
+            simplifiedMesh.userData.nodeId = m.id;
             lod.add(simplifiedMesh, 20);
             
-            // Low detail - small sphere
+            // Low detail - small sphere in local space
             const lowDetail = new THREE.Mesh(
                 new THREE.SphereGeometry(1, 8, 8),
                 new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.8, metalness: 0.1 })
             );
-            lowDetail.position.set(...m.pos);
+            lowDetail.position.set(0, m.half[1], 0);
             lowDetail.scale.set(
                 m.half[0] / 1.5,
                 m.half[1] / 1.5,
                 m.half[2] / 1.5
             );
+            lowDetail.userData.nodeId = m.id;
             lod.add(lowDetail, 50);
             
             entry.root.add(lod);
@@ -2740,26 +2703,7 @@ try {
     const labelWorldPos = new THREE.Vector3();
     let lastTime = performance.now(), fpsFrames = 0, fpsTimer = 0;
 
-    // Contact shadow enhancement: update shadow intensity based on object height from ground
-function updateContactShadows() {
-    // Adjust shadow bias for objects near ground level
-    const groundY = -0.02; // ground plane Y position
-    
-    // Loop through objects that cast shadows and adjust their contact shadow intensity
-    // Higher objects get normal shadow, lower objects get reduced contact shadow
-    scene.traverse(obj => {
-        if (obj.type === 'Mesh' && obj.castShadow && obj.userData.nodeId) {
-            const heightFromGround = Math.max(0, obj.position.y - groundY);
-            // Contact shadow factor: 1.0 for tall objects, decreases as object approaches ground
-            const contactFactor = Math.max(0.3, 1.0 - heightFromGround / 2.0);
-            if (obj.material && obj.material.shadowBias) {
-                obj.material.shadowBias = -0.0001 * contactFactor;
-            }
-        }
-    });
-}
-
-function animate(now) {
+    function animate(now) {
         requestAnimationFrame(animate);
         const dt = Math.min(0.1, (now - lastTime) / 1000);
         lastTime = now;
@@ -2844,8 +2788,6 @@ function animate(now) {
             } else if (st === "Running" || !!flow) {
                 beaconHex = 0x22c55e;
                 bScale = pulse * 1.0;
-            }
-                bScale = 1.0 + 0.16 * Math.sin(t * 4.5);
             } else if (st === "Stopped" || st === "Offline" || !running) {
                 beaconHex = 0x64748b;
                 bScale = 0.85;
@@ -3124,11 +3066,6 @@ function animate(now) {
         if (state.postFx && composer) {
             composer.render();
         } else {
-            lodManager.update();
-            
-            // Update contact shadow intensities for ground-contact objects
-            updateContactShadows();
-            
             renderer.render(scene, camera);
         }
     }

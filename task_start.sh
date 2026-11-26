@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 SPECIALIST="${1:-}"
@@ -19,10 +19,10 @@ fi
 # run the pre‑context script
 PRE=$(bash deliver_precontext.sh)
 
-# helper to extract a line after a marker
+# helper to extract value from a matching marker line
 extract() {
   local marker="$1"
-  echo "$PRE" | grep -A1 "$marker" | tail -1
+  echo "$PRE" | grep -m1 "$marker:" | sed -E "s/^.*${marker}:[[:space:]]*//"
 }
 
 # map specialist to pre‑context extraction

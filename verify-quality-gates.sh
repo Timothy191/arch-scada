@@ -134,6 +134,11 @@ if web_refs != exported_names:
 glb_count = len(glb_paths)
 print(f"Verified {glb_count}/24 glTF v2 .glb files (>8 KB) matching Plant3DSceneData.cs and DigitalTwin3D.cshtml.")
 PY
+if [[ -f "./deploy/scripts/shader_polyhaven_mcp.py" ]]; then
+  MCP_PY="${BLENDER_MCP_PYTHON:-$HOME/.local/share/uv/tools/blender-mcp/bin/python}"
+  [[ -x "$MCP_PY" ]] || MCP_PY="python3"
+  "$MCP_PY" ./deploy/scripts/shader_polyhaven_mcp.py --self-test
+fi
 echo "[GATE 3/6] 3D GLB Binary Header & Topology Gate PASS"
 
 # ==============================================================================
@@ -158,6 +163,23 @@ echo "[GATE 4/6] Backup & Tamper-Evident Audit Self-Test Gate PASS"
 # ==============================================================================
 echo
 echo "=== [GATE 5/6] ScadaWeb Read-Only Security & /DigitalTwin3D HTTP Gate ==="
+python3 - <<'PY'
+import json, os, re, subprocess, tempfile
+html = open("ScadaWeb/ScadaWeb/ScadaWeb/Pages/DigitalTwin3D.cshtml", encoding="utf-8").read()
+scripts = re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S)
+for attrs, body in scripts:
+    if "importmap" in attrs:
+        json.loads(body)
+    else:
+        with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False) as f:
+            f.write(body)
+            fname = f.name
+        try:
+            subprocess.run(["node", "--check", fname], check=True)
+        finally:
+            os.unlink(fname)
+print(f"Verified DigitalTwin3D.cshtml inline scripts ({len(scripts)} blocks) pass JSON & node --check syntax validation.")
+PY
 WEB_TMP="$(mktemp -d -t archscada-gate5-web-XXXXXX)"
 dotnet publish ScadaWeb/ScadaWeb/ScadaWeb/ScadaWeb.csproj -c Release -o "$WEB_TMP" --nologo -v quiet -p:AllowMissingPrunePackageData=true
 

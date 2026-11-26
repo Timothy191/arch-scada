@@ -99,31 +99,68 @@ public sealed class ThreeDSyncTests
             .Where(c => !string.IsNullOrEmpty(c))
             .ToList();
 
-        var sceneLinkedIds = Plant3DSceneData.AllNodes
-            .Select(n => n.LinkedScadaId?.Replace("-", ""))
+        var sceneLinkedIds = Plant3DSceneData.InteractiveNodes
+            .SelectMany(n => new[] { n.Id?.Replace("-", ""), n.LinkedScadaId?.Replace("-", "") })
             .Where(id => !string.IsNullOrEmpty(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        static string MapDeviceCodeToScadaId(string deviceCode)
+        {
+            return deviceCode.ToUpperInvariant() switch
+            {
+                "ROM101" => "AF001",
+                "CR101" or "DRC101" => "CR101",
+                "SC102" => "SC102",
+                "CV101" => "CV101",
+                "CV102" => "CV102",
+                "CV_DRY" => "SL601",
+                "DS_WASH" => "CV501",
+                "TK201" => "TK201",
+                "PP201" => "PP201",
+                "PP202" => "PP202",
+                "PP203" => "PP203",
+                "TK301" => "TK301",
+                "CF501" => "CF501",
+                "FP501" => "FP501",
+                "LD601" => "SL601",
+                _ => deviceCode
+            };
+        }
 
         var missingInScene = new List<string>();
         foreach (var code in deviceCodes)
         {
-            // Skip environmental sensors and special devices for now if they don't need 3D representation
-            if (code.StartsWith("ENV") || code.StartsWith("BELT_RIP") || code == "AN601")
-                continue;
-
-            if (!sceneLinkedIds.Contains(code))
+            if (code.StartsWith("ENV", StringComparison.OrdinalIgnoreCase) ||
+                code.StartsWith("BELT_RIP", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(code, "AN601", StringComparison.OrdinalIgnoreCase))
             {
-                missingInScene.Add(code);
+                continue;
+            }
+
+            string mapped = MapDeviceCodeToScadaId(code);
+            if (!sceneLinkedIds.Contains(mapped) && !sceneLinkedIds.Contains(code))
+            {
+                missingInScene.Add($"{code} (Mapped: {mapped})");
             }
         }
 
-        // We allow some missing for now, but report them. 
-        // In a strict environment, this would be an error.
-        if (missingInScene.Count > 0)
+        Assert.True(missingInScene.Count == 0,
+            $"Found Device.xml codes with no corresponding 3D node representation:\n{string.Join("\n", missingInScene)}");
+    }
+
+    [Fact]
+    public void ExportedGlbModels_MustAllLoadViaSharpGltfWithValidGeometry()
+    {
+        var meshes = Plant3DSceneData.LoadAllGlbMeshes();
+        Assert.True(meshes.Count >= 24, $"Expected at least 24 loaded GLB models, found {meshes.Count}");
+
+        foreach (var (fileName, mesh) in meshes)
         {
-            // Assert.Fail is not in Xunit, use Assert.True(false, ...)
-            // For now, let's just log it or allow it if it's not critical.
-            // Assert.Empty(missingInScene); 
+            Assert.True(mesh.VertexCount > 0, $"GLB {fileName} loaded with 0 vertices.");
+            Assert.True(mesh.TriangleCount > 0, $"GLB {fileName} loaded with 0 triangles.");
+            Assert.True(mesh.BoundsMax.X > mesh.BoundsMin.X, $"GLB {fileName} has invalid X bounding box.");
+            Assert.True(mesh.BoundsMax.Y > mesh.BoundsMin.Y, $"GLB {fileName} has invalid Y bounding box.");
+            Assert.True(mesh.BoundsMax.Z > mesh.BoundsMin.Z, $"GLB {fileName} has invalid Z bounding box.");
         }
     }
 }

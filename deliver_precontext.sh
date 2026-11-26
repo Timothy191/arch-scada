@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
