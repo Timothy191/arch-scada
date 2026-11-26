@@ -20,7 +20,7 @@
  * 
  * Author   : Mikhail Shiryaev
  * Created  : 2020
- * Modified : 2025
+ * Modified : 2026
  */
 
 using Scada.Config;
@@ -245,12 +245,19 @@ namespace Scada.Server.Engine
                 // process acknowledgment command that can only be sent by module
                 if (command.CmdCode == ServerCmdCode.AckEvent)
                 {
-                    coreLogic.AckEvent(new EventAck
+                    IDictionary<string, string> args = command.GetCmdDataArgs();
+
+                    if (long.TryParse(args.GetValueAsString("eventID"), out long eventID) &&
+                       long.TryParse(args.GetValueAsString("noteEventID"), out long noteEventID))
                     {
-                        EventID = BitConverter.DoubleToInt64Bits(command.CmdVal),
-                        Timestamp = command.CreationTime,
-                        UserID = command.UserID
-                    }, false, false);
+                        coreLogic.AckEvent(new EventAck
+                        {
+                            EventID = eventID,
+                            Timestamp = command.CreationTime,
+                            UserID = command.UserID,
+                            NoteEventID = noteEventID
+                        }, false, false);
+                    }
                 }
 
                 // set command ID and creation time

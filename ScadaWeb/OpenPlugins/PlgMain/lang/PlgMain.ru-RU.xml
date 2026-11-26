@@ -31,6 +31,29 @@
     <Phrase key="AckYes">Да</Phrase>
     <Phrase key="AckNo">Нет</Phrase>
     <Phrase key="AckTip">Нажмите кнопку OK, чтобы квитировать событие.</Phrase>
+    <Phrase key="lblAckNote">Комментарий</Phrase>
+  </Dictionary>
+  <Dictionary key="Scada.Web.Plugins.PlgMain.Areas.Main.Pages.EventLogModel">
+    <Phrase key="PageTitle">Журнал событий</Phrase>
+    <Phrase key="optAllObjects">-- Все объекты --</Phrase>
+    <Phrase key="optAnySeverity">Серьёзность любая</Phrase>
+    <Phrase key="optAnyAck">Квитирование любое</Phrase>
+    <Phrase key="optUnack">Не квитированные</Phrase>
+    <Phrase key="optAck">Квитированные</Phrase>
+    <Phrase key="btnAckSelected">Квитировать</Phrase>
+    <Phrase key="btnRefreshEvents">Обновить</Phrase>
+    <Phrase key="btnExportEvents">Экспорт</Phrase>
+    <Phrase key="InvalidPeriod">Дата начала должна быть меньше или равна дате окончания.</Phrase>
+    <Phrase key="PeriodTooLong">Максимальная продолжительность периода {0} дн.</Phrase>
+  </Dictionary>
+  <Dictionary key="Scada.Web.Plugins.PlgMain.Areas.Main.Pages.EventLogModel.EventLogTable">
+    <Phrase key="TimeCol">Дата и время</Phrase>
+    <Phrase key="ObjCol">Объект</Phrase>
+    <Phrase key="DevCol">Устройство</Phrase>
+    <Phrase key="CnlCol">Канал</Phrase>
+    <Phrase key="DescrCol">Описание</Phrase>
+    <Phrase key="SevCol">Серьёзность</Phrase>
+    <Phrase key="AckCol">Квитирование</Phrase>
   </Dictionary>
   <Dictionary key="Scada.Web.Plugins.PlgMain.Areas.Main.Pages.EventReport">
     <Phrase key="PageTitle">Отчёт по событиям</Phrase>
@@ -95,6 +118,7 @@
     <Phrase key="EventWindowTitle">События</Phrase>
   </Dictionary>
   <Dictionary key="Scada.Web.Plugins.PlgMain.PlgMainLogic">
+    <Phrase key="EventLogMenuItem">Журнал событий</Phrase>
     <Phrase key="ReportGroup">Основные отчёты</Phrase>
     <Phrase key="HistDataReport">Отчёт по историческим данным</Phrase>
     <Phrase key="EventReport">Отчёт по событиям</Phrase>
@@ -106,7 +130,7 @@
   </Dictionary>
   <Dictionary key="Scada.Web.Plugins.PlgMain.Report.Js">
     <Phrase key="InvalidPeriod">Дата начала должна быть меньше или равна дате окончания.</Phrase>
-    <Phrase key="PeriodTooLong">Максимальная длина периода {0} дн.</Phrase>
+    <Phrase key="PeriodTooLong">Максимальная продолжительность периода {0} дн.</Phrase>
     <Phrase key="InvalidChannels">Некорректные номера каналов.</Phrase>
     <Phrase key="NoSeverity">Серьёзность не выбрана.</Phrase>
   </Dictionary>

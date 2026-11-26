@@ -11,6 +11,9 @@
   color: #0dcaf0;
 }
 
+#tblEvent {
+  margin-bottom: 5px;
+}
 #tblEvent th {
   font-weight: normal;
   padding: 0 10px 5px 0;
