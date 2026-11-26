@@ -85,6 +85,7 @@ namespace ArchScada.Unity
         private double _cr101LoadPercent;
         private bool _animateConveyors = true;
         private bool _showFlowParticles = true;
+        private bool _reducedMotion = false;
 
         private void Awake()
         {
@@ -248,6 +249,21 @@ namespace ArchScada.Unity
 
         private void UpdateConveyorUvScrolling(float dt)
         {
+            // Respect reduced motion preference
+            if (_reducedMotion)
+            {
+                // In reduced motion mode, stop UV animation but keep last known offset
+                for (int i = 0; i < conveyorBelts.Count; i++)
+                {
+                    var belt = conveyorBelts[i];
+                    if (belt == null || belt.beltRenderer == null) continue;
+                    // Just ensure property block is set without animation
+                    belt.beltRenderer.GetPropertyBlock(_propertyBlock, belt.materialIndex);
+                    belt.beltRenderer.SetPropertyBlock(_propertyBlock, belt.materialIndex);
+                }
+                return;
+            }
+
             for (int i = 0; i < conveyorBelts.Count; i++)
             {
                 var belt = conveyorBelts[i];
@@ -275,6 +291,19 @@ namespace ArchScada.Unity
 
         private void UpdateVibrationTransforms(float dt)
         {
+            // Respect reduced motion preference
+            if (_reducedMotion)
+            {
+                // In reduced motion, reset transforms to rest position
+                if (_hasSc102RestPos && sc102Transform != null)
+                    sc102Transform.localPosition = _sc102RestLocalPos;
+                if (_hasCf501RestPos && cf501Transform != null)
+                    cf501Transform.localPosition = _cf501RestLocalPos;
+                _sc102Intensity = 0f;
+                _cf501Intensity = 0f;
+                return;
+            }
+
             _sc102Intensity = UpdateSingleVibration(
                 sc102Transform,
                 _hasSc102RestPos,
@@ -341,6 +370,14 @@ namespace ArchScada.Unity
 
         private void UpdateCrusherDustEmission()
         {
+            // Respect reduced motion preference
+            if (_reducedMotion)
+            {
+                if (cr101DustParticles == null) return;
+                cr101DustParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                return;
+            }
+
             if (cr101DustParticles == null)
             {
                 return;
@@ -370,6 +407,17 @@ namespace ArchScada.Unity
         {
             return string.Equals(status, "Running", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(status, "Warning", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Sets the reduced motion preference. When enabled, all animated effects
+        /// (conveyor belt UV scrolling, vibration, particle systems) are disabled
+        /// and replaced with static states, respecting accessibility preferences.
+        /// </summary>
+        public void SetReducedMotion(bool enabled)
+        {
+            _reducedMotion = enabled;
+            // If just disabled, allow animations to resume on next update
         }
     }
 }

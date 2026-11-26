@@ -37,8 +37,10 @@ public sealed class PlcSimulatorHost : IAsyncDisposable
     private readonly List<Task> _backgroundTasks = [];
     private long _nextSessionId = 1000;
     private long _nextCnlListId;
+    private readonly Random _random = new();
 
     public ChppTelemetryModel Model { get; } = new();
+    public FaultSimulationOptions Faults { get; } = new();
 
     public int HttpPort { get; private set; }
     public int TcpPort { get; private set; }
@@ -160,8 +162,36 @@ public sealed class PlcSimulatorHost : IAsyncDisposable
         }
     }
 
+    private async Task<bool> ApplyFaultsAsync(CancellationToken ct)
+    {
+        if (!Faults.HasFaults) return false;
+
+        if (Faults.ConnectionDrop && _random.NextDouble() < 0.05)
+        {
+            throw new SocketException((int)SocketError.ConnectionReset);
+        }
+
+        if (Faults.PacketDropProbability > 0 && _random.NextDouble() < Faults.PacketDropProbability)
+        {
+            return true; // Drop packet
+        }
+
+        if (Faults.MaxJitterMs > 0)
+        {
+            int delay = _random.Next(Faults.MinJitterMs, Faults.MaxJitterMs);
+            if (delay > 0)
+            {
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+        }
+
+        return false;
+    }
+
     private async Task HandleHttpClientAsync(TcpClient client, CancellationToken ct)
     {
+        if (await ApplyFaultsAsync(ct).ConfigureAwait(false)) return;
+
         using var stream = client.GetStream();
         var buffer = new byte[16384];
         int totalRead = 0;
@@ -245,6 +275,8 @@ public sealed class PlcSimulatorHost : IAsyncDisposable
 
     private async Task HandleNativeScadaClientAsync(TcpClient client, CancellationToken ct)
     {
+        if (await ApplyFaultsAsync(ct).ConfigureAwait(false)) return;
+
         using var stream = client.GetStream();
         var inBuf = new byte[65536];
         var outBuf = new byte[65536];
@@ -402,6 +434,8 @@ public sealed class PlcSimulatorHost : IAsyncDisposable
 
     private async Task HandleModbusClientAsync(TcpClient client, CancellationToken ct)
     {
+        if (await ApplyFaultsAsync(ct).ConfigureAwait(false)) return;
+
         using var stream = client.GetStream();
         var mbap = new byte[7];
         var pduBuf = new byte[260];

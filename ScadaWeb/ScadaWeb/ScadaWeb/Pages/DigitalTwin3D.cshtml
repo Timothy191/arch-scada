@@ -541,7 +541,7 @@
             <div class="kpi-chip"><span class="k">Med SG</span><span class="v" id="kpi-sg">1.52</span></div>
             <div class="kpi-chip"><span class="k">Water</span><span class="v" id="kpi-water">87.4%</span></div>
             <div class="kpi-chip"><span class="k">Ash</span><span class="v" id="kpi-ash">9.40%</span></div>
-            <div class="kpi-chip"><span class="k">GLB</span><span class="v" id="kpi-glb">0/16</span></div>
+            <div class="kpi-chip"><span class="k">GLB</span><span class="v" id="kpi-glb">0/24</span></div>
             <div class="kpi-chip"><span class="k">FPS</span><span class="v" id="kpi-fps">--</span></div>
         </div>
 
@@ -593,12 +593,19 @@
         </section>
 
         <div id="offline-banner">
-            <strong>2D GA Schematic Fallback Active:</strong> WebGL 3D context could not be initialized in this browser session. Displaying interactive 2D GA schematic twin (read-only telemetry &amp; 104-item flow simulation remain active).
+            <strong>2D GA Schematic Fallback Active:</strong> WebGL 3D context could not be initialized in this browser session. Displaying interactive 2D GA schematic twin (read-only telemetry &amp; 111-item flow simulation remain active).
         </div>
 
         <div id="status-pill">PBR · N8AO · HDR Bloom · ACES · BVH · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click</div>
 
-        <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets"></div>
+        <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets">
+        <button class="preset-btn active" data-preset="overview" title="Overview View">Overview</button>
+        <button class="preset-btn" data-preset="crusher" title="Jaw Crusher View">Crusher</button>
+        <button class="preset-btn" data-preset="screen" title="Sizing Screen View">Screen</button>
+        <button class="preset-btn" data-preset="wash" title="Wash Plant View">Wash Plant</button>
+        <button class="preset-btn active" data-toggles="bloom" title="Bloom Effect">Bloom</button>
+        <button class="preset-btn" data-toggles="n8ao" title="Ambient Occlusion">AO</button>
+    </div>
     </main>
 
     <!-- Equipment Identification & Process Flow Inspector -->
@@ -650,7 +657,7 @@
             </div>
 
             <div class="insp-card">
-                <h4>All 104 Interactive Items (18 Machines · 11 Conveyors · 64 Sub-Equipment · 11 Pipes)</h4>
+                <h4>All 111 Interactive Items (18 Machines · 11 Conveyors · 71 Sub-Equipment · 11 Pipes · 24 GLBs)</h4>
                 <div class="node-directory" id="node-directory"></div>
             </div>
         </div>
@@ -714,7 +721,7 @@ const PIPE_ROUTES = [
 const SUB_EQUIPMENT_NODES = [
     { id: "MX-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Massive Dense-Medium Mixing Box", type: "Mixing Box (Agitated)", pos: [2.3, 0, -8.3], half: [1.12, 1.15, 1.12], labelH: 2.75, color: "#1A5C96", spec: "2.1 m × 2.1 m × 2.15 m · agitated · open top", principle: "Receives deslimed coal from CV-203, magnetite medium (PIPE-303) and process water (PIPE-307) and blends them into a homogeneous dense-medium slurry.", desc: "East massive mixing box with agitator bridge, water and magnetite inlets.", up: ["CV-203","PIPE-303","PIPE-307"], down: ["PP-301"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
     { id: "PP-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Cyclone Feed Slurry Pump", type: "Centrifugal Slurry Pump", pos: [2.3, 0, -7.05], half: [0.6, 0.55, 0.6], labelH: 1.35, color: "#1A5C96", spec: "DN250 · 450 m³/h @@ 2.8 bar · 160 kW", principle: "Centrifugal pump at the mixing box base that lifts the coal-magnetite slurry up the PIPE-304 riser into DMC-301.", desc: "Cyclone feed pump below the mixing box.", up: ["MX-301"], down: ["PIPE-304"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
-    { id: "DMC-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Full-Length Wide Diamond Dense-Medium Cyclone", type: "Dense-Medium Cyclone", pos: [-1.95, 3.72, -7.6], half: [2.2, 0.96, 1.32], labelH: 2.15, color: "#3A4048", spec: "4.30 m × 2.58 m wide asymmetric diamond · 1.84 m tall East flat → 0.96 m West flat · SG 1.52", principle: "Full-length flat-ended asymmetric diamond cyclone spanning across both 4.3 m wash screens: PIPE-304 enters the West side; clean coal (VF-301/PIPE-312) and discard (APEX-301/PIPE-313) are thrown from the East side into SC-301 and SC-302 underneath to be washed.", desc: "Full-length wide asymmetric diamond cyclone with flat East/West ends on open-top gantry above the wash screens.", up: ["PIPE-304","PT-301"], down: ["VF-301","APEX-301","PIPE-312","PIPE-313"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
+    { id: "DMC-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Full-Length Wide Diamond Dense-Medium Cyclone", type: "Dense-Medium Cyclone", glb: "dmc_cyclone_dmc301.glb", pos: [-1.95, 3.72, -7.6], half: [2.2, 0.96, 1.32], labelH: 2.15, color: "#D97706", spec: "4.30 m × 2.58 m wide asymmetric diamond · 1.84 m tall East flat → 0.96 m West flat · SG 1.52", principle: "Full-length flat-ended asymmetric diamond cyclone spanning across both 4.3 m wash screens: PIPE-304 enters the West side; clean coal (VF-301/PIPE-312) and discard (APEX-301/PIPE-313) are thrown from the East side into SC-301 and SC-302 underneath to be washed.", desc: "Full-length wide asymmetric diamond cyclone with flat East/West ends on open-top gantry above the wash screens.", up: ["PIPE-304","PT-301"], down: ["VF-301","APEX-301","PIPE-312","PIPE-313"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
     { id: "SC-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Clean Coal Product Drain & Rinse Screen", type: "Product Wash Screen", pos: [-1.95, 1.95, -6.8], half: [2.15, 0.55, 0.62], labelH: 1.25, color: "#1A5C96", spec: "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW", principle: "Drains and rinses magnetite off cyclone overflow clean coal before discharge onto CV-301.", desc: "Product wash screen fed by DMC-301 overflow.", up: ["DMC-301","SPRAY-301"], down: ["CV-301","BK-301"], scada: "DM-301", nomTph: 410, plc: "Direct PLC: DS_WASH (Modbus 10.10.3.32:502 · Cnl 315–316)" },
     { id: "SC-302", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Discard / Refuse Drain & Rinse Screen", type: "Discard Wash Screen", pos: [-1.95, 1.95, -8.4], half: [2.15, 0.55, 0.62], labelH: 1.25, color: "#1A5C96", spec: "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW", principle: "Drains and rinses magnetite off cyclone underflow discard before discharge onto CV-302.", desc: "Discard wash screen fed by DMC-301 underflow.", up: ["DMC-301","SPRAY-301"], down: ["CV-302","BK-301"], scada: "CV-501", nomTph: 100, plc: "Direct PLC: DS_WASH (Modbus 10.10.3.32:502 · Cnl 315–316)" },
     { id: "SPRAY-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "Overhead Magnetite-Reclaim Water Sprayer Manifold", type: "Spray Bar Manifold", pos: [-2.15, 2.85, -7.6], half: [1.45, 0.3, 1.55], labelH: 0.75, color: "#B8C0C8", spec: "5 spray bars · 30 nozzles · 3.5 bar", principle: "Clarified water sprays wash adhering magnetite off product and discard so it drips into BK-301 for reclaim.", desc: "Overhead spray bars spanning both wash screens.", up: ["PIPE-307"], down: ["SC-301","SC-302","BK-301"], scada: "PP-203", nomTph: 320, plc: "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)" },
@@ -775,7 +782,14 @@ const SUB_EQUIPMENT_NODES = [
     { id: "VALVE-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "SC-301 Under-Screen Product Medium Drain Valve", type: "Medium Drain Valve", pos: [0.15, 1.05, -6.55], half: [0.24, 0.24, 0.24], labelH: 0.68, color: "#14B8A6", spec: "DN150 rubber-lined pinch/knife valve", principle: "Balances drained medium partitioning from the SC-301 product under-tank into the BK-301 drip bucket.", desc: "Drain control valve on the SC-301 under-screen collection tank.", up: ["SC-301"], down: ["BK-301"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
     { id: "VALVE-302", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "SC-302 Under-Screen Discard Medium Drain Valve", type: "Medium Drain Valve", pos: [0.15, 1.05, -8.75], half: [0.24, 0.24, 0.24], labelH: 0.68, color: "#14B8A6", spec: "DN150 rubber-lined pinch/knife valve", principle: "Balances drained medium partitioning from the SC-302 discard under-tank into the BK-301 drip bucket.", desc: "Drain control valve on the SC-302 under-screen collection tank.", up: ["SC-302"], down: ["BK-301"], scada: "CV-501", nomTph: 320, plc: "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)" },
     { id: "PT-301", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "DMC-301 West Feed Inlet Pressure Transmitter", type: "Pressure Transmitter", pos: [-4.6, 5.18, -8.05], half: [0.24, 0.24, 0.24], labelH: 0.72, color: "#10B981", spec: "0–400 kPa diaphragm seal · target 185 kPa", principle: "Monitors tangential cyclone inlet head pressure on the PIPE-304 top-side inlet manifold just ahead of DMC-301 to ensure sharp SG 1.52 separation cutpoint.", desc: "Diaphragm-isolated pressure transmitter mounted on PIPE-304 right before the DMC-301 inlet.", up: ["PP-301","PIPE-304"], down: ["DMC-301"], scada: "DM-301", nomTph: 510, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 304–305)" },
-    { id: "VALVE-305", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "WP-301 Clarified Spray Header Isolation Valve", type: "Actuated Butterfly Valve", pos: [-0.65, 2.92, -9.28], half: [0.24, 0.24, 0.24], labelH: 0.68, color: "#38BDF8", spec: "DN100 actuated butterfly valve", principle: "Shuts off clarified rinse water to the 5 overhead WP-301 spray bars when wash screens are stopped.", desc: "Isolation valve feeding the overhead SPRAY-301 manifold.", up: ["PIPE-307"], down: ["SPRAY-301"], scada: "PP-203", nomTph: 180, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" }
+    { id: "VALVE-305", parentId: "WP-301", stage: "Wash Plant & Medium Recovery (WP-301)", ga: "WP-301 Clarified Spray Header Isolation Valve", type: "Actuated Butterfly Valve", pos: [-0.65, 2.92, -9.28], half: [0.24, 0.24, 0.24], labelH: 0.68, color: "#38BDF8", spec: "DN100 actuated butterfly valve", principle: "Shuts off clarified rinse water to the 5 overhead WP-301 spray bars when wash screens are stopped.", desc: "Isolation valve feeding the overhead SPRAY-301 manifold.", up: ["PIPE-307"], down: ["SPRAY-301"], scada: "PP-203", nomTph: 180, plc: "Direct PLC: TK301/DMC (Modbus 10.10.3.31:502 · Cnl 303)" },
+    { id: "OM-101", parentId: "CV-101", stage: "Stage 2 — Initial Separation", ga: "CV-101 Cross-Belt Self-Cleaning Tramp Iron Magnet", type: "Overband Tramp Magnet", glb: "overband_magnet_om101.glb", pos: [-13.8, 3.35, 1.35], half: [0.85, 0.85, 0.75], labelH: 2.1, color: "#DC2626", spec: "1.4 m × 2.0 m cross-belt · 950 Gauss · self-cleaning", principle: "Extracts ferromagnetic roof bolts, drill steel and bucket teeth from +75 mm ROM lumps on CV-101 ahead of Primary Jaw Crusher JC-101.", desc: "Gantry-suspended self-cleaning overband magnet straddling CV-101 with tramp-iron discard chute.", up: ["VF-101","CV-101"], down: ["JC-101"], scada: "CV-101", nomTph: 420, plc: "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122)" },
+    { id: "DC-101", parentId: "SS-101", stage: "Stage 6 — Central Sizing Screen", ga: "Crushing & Screening Pulse-Jet Baghouse Dust Collector", type: "Baghouse Dust Collector", glb: "dust_collector_dc101.glb", pos: [-9.8, 0, 3.6], half: [1.25, 1.85, 1.15], labelH: 4.05, color: "#F59E0B", spec: "24,000 Nm³/h · 144 PTFE filter bags · <10 mg/Nm³", principle: "Draws fugitive coal dust from JC-101, DRC-101 and SS-101 transfer hoods through pulse-jet filter bags with rotary airlock fines return.", desc: "Pulse-jet baghouse dust extraction unit with twin pyramidal hoppers, ID fan and clean-air stack.", up: ["JC-101","DRC-101","SS-101"], down: ["CV-105"], scada: "SC-102", nomTph: 140, plc: "Direct PLC: SC102 (Modbus 10.10.1.12:502 · Cnl 111–112)" },
+    { id: "CF-501", parentId: "WP-301", stage: "Wash Plant & Medium Recovery", ga: "Clean Coal Vibratory Screen-Bowl Centrifuge", type: "Screen-Bowl Centrifuge", glb: "centrifuge_dryer_cf501.glb", pos: [-5.4, 0, -4.1], half: [1.4, 1.15, 1.05], labelH: 2.55, color: "#D97706", spec: "Ø 1100 × 2200 mm bowl · 195 kW · 650 G centrifugal", principle: "Mechanically dewaters washed clean coal from WP-301 / SC-301 down to 8.6% surface moisture prior to CV-301 product stacking.", desc: "High-G vibratory screen-bowl dewatering centrifuge on spring-isolated inertia skid.", up: ["WP-301","SC-301"], down: ["CV-301"], scada: "CF-501", nomTph: 410, plc: "Direct PLC: CF501 (Modbus 10.10.5.51:502 · Cnl 501–503)" },
+    { id: "AN-601", parentId: "CV-301", stage: "Wash Plant & Medium Recovery", ga: "CV-301 Cross-Belt PGNAA Online Coal Quality Analyzer", type: "PGNAA Elemental Analyzer", glb: "pgnaa_analyzer_an601.glb", pos: [-6.8, 0.65, -5.2], half: [1.15, 1.35, 1.15], labelH: 2.85, color: "#F59E0B", spec: "Cf-252 / BGO detector · real-time Ash %, Moisture % & CV", principle: "Continuously scans the full cross-section of clean product coal on CV-301 via Prompt Gamma Neutron Activation Analysis every 60 seconds.", desc: "Straddle-mounted radiation-shielded PGNAA analyzer bridge over Clean Product Conveyor CV-301.", up: ["CV-301","CF-501"], down: ["TLS-401","SP-301"], scada: "AN-601", nomTph: 410, plc: "Direct PLC: AN601 (Modbus 10.10.6.61:502 · Cnl 601–603)" },
+    { id: "FP-501", parentId: "TK-201", stage: "Wash Plant & Medium Recovery", ga: "Tailings Recessed-Plate High-Pressure Filter Press", type: "Tailings Filter Press", glb: "filter_press_fp501.glb", pos: [-8.8, 0, -14.8], half: [2.15, 1.38, 1.15], labelH: 2.95, color: "#38BDF8", spec: "120 recessed plates · 1500 × 1500 mm · 16 bar squeeze", principle: "Dewaters thickened TK-201 underflow slurry from PP-201/PP-202 into dry handleable filter cake (<19% moisture) while returning filtrate water.", desc: "Automatic recessed-plate tailings filter press closing the zero-liquid-discharge water loop.", up: ["TK-201","PP-201","PP-202"], down: ["CV-302","SP-302"], scada: "FP-501", nomTph: 100, plc: "Direct PLC: FP501 (Modbus 10.10.5.52:502 · Cnl 511–512)" },
+    { id: "TLS-401", parentId: "SP-301", stage: "Wash Plant & Medium Recovery", ga: "Rapid Rail & Haul-Truck Flood-Loading Loadout Silo", type: "Rapid Loadout Silo", glb: "train_loadout_silo_tls401.glb", pos: [-12.6, 0, -4.8], half: [1.6, 2.75, 1.6], labelH: 5.75, color: "#F59E0B", spec: "1,850 t/h batch weigh-bin · telescopic flood chute", principle: "Buffers certified clean product coal from SP-301 / CV-301 and flood-loads unit-train wagons and highway haul trucks via dual load-cell batch gates.", desc: "Drive-through steel portal rapid loadout tower with conical mass-flow surge silo and telescopic chute.", up: ["CV-301","SP-301","AN-601"], down: [], scada: "LD-601", nomTph: 410, plc: "Direct PLC: LD601 (Modbus 10.10.6.62:502 · Cnl 611–612)" },
+    { id: "MCC-101", parentId: "SS-101", stage: "Stage 6 — Central Sizing Screen", ga: "CHPP Containerized E-House Substation & 3.3 MVA Transformer", type: "MCC E-House & Substation", glb: "mcc_substation_mcc101.glb", pos: [6.8, 0, 4.2], half: [2.35, 1.45, 1.45], labelH: 3.15, color: "#D97706", spec: "11 kV / 690 V · 3.3 MVA oil transformer · VFD & PLC lineup", principle: "Supplies 690 V/400 V motor control centers, VFD regenerative drives and dual-redundant Modbus TCP PLC racks across all 6 CHPP stages.", desc: "Pressurized E-House electrical substation with HVAC units and bunded outdoor step-down transformer.", up: [], down: ["JC-101","DRC-101","SS-101","WP-301","TK-201"], scada: "CR-101", nomTph: 650, plc: "Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)" }
 ];
 
 function polylineMid(pts) {
@@ -1544,6 +1558,12 @@ try {
     scene.background = new THREE.Color(0x070d1a);
     scene.fog = new THREE.FogExp2(0x070d1a, 0.011);
 
+    // LOD (Level of Detail) system for performance
+    // Tuned for camera maxDistance of 65 units
+    // Distances: full detail < 20m, medium detail 20-50m, low detail > 50m
+    const lodManager = new THREE.LODManager();
+    lodManager.setMargin(30); // pixels before switching LOD
+
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -1583,6 +1603,35 @@ try {
     controls.minDistance = 4;
     controls.maxDistance = 65;
 
+    // Camera preset positions
+    const camPresets = {
+        overview: { pos: [-8, 8, 20], target: [-1, 0.5, -1] },
+        crusher: { pos: [-14, 3, -1], target: [-13.9, 2.5, -0.6] },
+        screen: { pos: [2, 3, 10], target: [0, 0.5, 0] },
+        wash: { pos: [-2, 3, -12], target: [-1, 0.5, -10] }
+    };
+
+    // Camera preset button handlers
+    const camBar = document.getElementById("camera-bar");
+    if (camBar) {
+        camBar.addEventListener("click", (e) => {
+            const btn = e.target.closest(".preset-btn");
+            if (!btn) return;
+            
+            // Update active state
+            camBar.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            const preset = btn.dataset.preset;
+            if (camPresets[preset]) {
+                const p = camPresets[preset];
+                camera.position.set(p.pos[0], p.pos[1], p.pos[2]);
+                controls.target.set(p.target[0], p.target[1], p.target[2]);
+                controls.update();
+            }
+        });
+    }
+
     // Lighting: Hemisphere + 2048² PCFSoftShadowMap Sun + Cool Industrial Rim
     const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x1a2436, 0.72);
     scene.add(hemi);
@@ -1598,15 +1647,21 @@ try {
     sun.shadow.camera.top = 24;
     sun.shadow.camera.bottom = -24;
     sun.shadow.bias = -0.00045;
+    sun.shadow.radius = 4; // Soft shadow radius
     scene.add(sun);
+
+    // Contact shadow enhancement: add small downward shadows for ground-contact objects
+    const contactShadowMap = new THREE.WebGLShadowMap();
+    contactShadowMap.needsUpdate = true;
 
     const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.55);
     rimLight.position.set(-18, 12, -18);
     scene.add(rimLight);
 
-    // Ground Plane & Grid
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x0b1324, roughness: 0.92, metalness: 0.08 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(76, 76), groundMat);
+    // Ground Plane & Landscape
+    // Black ground the plant stands on
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1.0, metalness: 0.0 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(-1, -0.02, -1);
     ground.receiveShadow = true;
@@ -1615,6 +1670,30 @@ try {
     const grid = new THREE.GridHelper(52, 26, 0x1e3a5f, 0x11223a);
     grid.position.set(-2, -0.005, -1);
     scene.add(grid);
+
+// Coal spill piles under conveyors - small black piles
+    const coalPileMat = new THREE.MeshStandardMaterial({ color: 0x232323, roughness: 0.6, metalness: 0.1 });
+    const pilePositions = [
+        // Under conveyors - small black coal spill piles
+        { x: -13.8, y: 0.05, z: 5.4, width: 1.5, depth: 1.5, height: 0.5 },     // under CV-101
+        { x: -1.9, y: 0.05, z: 1.15, width: 1.2, depth: 1.2, height: 0.4 },     // under CV-102
+        { x: -8.3, y: 0.05, z: -0.6, width: 1.0, depth: 1.0, height: 0.3 },     // under CV-103
+        { x: -7.2, y: 0.05, z: -0.6, width: 1.2, depth: 1.2, height: 0.4 },     // under DRC-101
+        { x: 0.2, y: 0.05, z: 0.5, width: 1.0, depth: 1.0, height: 0.3 },      // under SS-101
+        { x: 10.6, y: 0.05, z: -0.8, width: 1.0, depth: 1.0, height: 0.3 },    // under BN-201
+        { x: 8.8, y: 0.05, z: -9.8, width: 1.0, depth: 1.0, height: 0.3 },     // under DS-201
+        { x: -0.8, y: 0.05, z: -7.8, width: 1.5, depth: 1.5, height: 0.5 },    // under WP-301
+    ];
+    for (const pos of pilePositions) {
+        const pile = new THREE.Mesh(
+            new THREE.BoxGeometry(pos.width, pos.height, pos.depth),
+            coalPileMat
+        );
+        pile.position.set(pos.x, pos.y, pos.z);
+        pile.castShadow = true;
+        pile.receiveShadow = true;
+        scene.add(pile);
+    }
 
     // 6 Concrete Foundation Pads
     const padMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.12 });
@@ -2218,11 +2297,44 @@ try {
     // Procedural 3D details for Stage 1-6 & Wash Plant sub-equipment
     let rakeGroup = null;
     {
-        const darkSteelMat = new THREE.MeshStandardMaterial({ color: 0x242b35, roughness: 0.42, metalness: 0.78 });
-        const mnMat = new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: 0.36, metalness: 0.82 });
-        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, roughness: 0.20, metalness: 0.90 });
-        const sensorMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.30, metalness: 0.55, emissive: 0x0284c7, emissiveIntensity: 0.35 });
-        const tripRedMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.38, metalness: 0.40 });
+        // Enhanced materials with clearcoat for polished metal effects
+        const darkSteelMat = new THREE.MeshStandardMaterial({ 
+            color: 0x242b35, 
+            roughness: 0.35, 
+            metalness: 0.85,
+            clearcoat: 0.4,
+            clearcoatRoughness: 0.1
+        });
+        const mnMat = new THREE.MeshStandardMaterial({ 
+            color: 0x3a4048, 
+            roughness: 0.30, 
+            metalness: 0.85,
+            clearcoat: 0.2,
+            clearcoatRoughness: 0.05
+        });
+        const chromeMat = new THREE.MeshStandardMaterial({ 
+            color: 0xb8c0c8, 
+            roughness: 0.15, 
+            metalness: 0.95,
+            clearcoat: 0.5,
+            clearcoatRoughness: 0.02
+        });
+        const sensorMat = new THREE.MeshStandardMaterial({ 
+            color: 0x06b6d4, 
+            roughness: 0.25, 
+            metalness: 0.60,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.4,
+            clearcoat: 0.1,
+            clearcoatRoughness: 0.2
+        });
+        const tripRedMat = new THREE.MeshStandardMaterial({ 
+            color: 0xef4444, 
+            roughness: 0.40, 
+            metalness: 0.45,
+            clearcoat: 0.0,
+            clearcoatRoughness: 0.3
+        });
         const addSubMesh = (geo, mat, pos, rot, nodeId) => {
             const m = new THREE.Mesh(geo, mat);
             m.position.set(...pos);
@@ -2386,7 +2498,7 @@ try {
         drc.extras = { rolls };
     }
 
-    // Load all 16 .glb models from /models3d/{fileName}
+    // Load all 24 .glb models from /models3d/{fileName}
     const gltfLoader = new GLTFLoader();
     if (MeshoptDecoder) gltfLoader.setMeshoptDecoder(MeshoptDecoder);
     const glbCache = new Map();
@@ -2400,7 +2512,7 @@ try {
                     }
                 });
                 state.loadedGlbSet.add(fileName);
-                document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/16`;
+                document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/24`;
                 resolve(gltf.scene);
             }, undefined, reject);
         });
@@ -2429,6 +2541,45 @@ try {
             entry.root.add(clone);
             entry.glbRoot = clone;
 
+            // Create LOD for each machine (full detail at 0m, medium at 20m, low at 50m)
+            const lod = new THREE.LOD();
+            
+            // Full detail - original clone
+            lod.add(clone, 0);
+            
+            // Medium detail - simplified box approximation
+            const simplifiedGeo = new THREE.BoxGeometry(
+                m.half[0] * 2, 
+                m.half[1] * 2, 
+                m.half[2] * 2
+            );
+            const simplifiedMat = new THREE.MeshStandardMaterial({
+                color: m.color,
+                roughness: 0.6,
+                metalness: 0.4
+            });
+            const simplifiedMesh = new THREE.Mesh(simplifiedGeo, simplifiedMat);
+            simplifiedMesh.position.set(...m.pos);
+            simplifiedMesh.rotation.set(0, m.yaw * Math.PI / 180, 0);
+            simplifiedMesh.scale.set(...m.scale);
+            lod.add(simplifiedMesh, 20);
+            
+            // Low detail - small sphere
+            const lowDetail = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 8, 8),
+                new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.8, metalness: 0.1 })
+            );
+            lowDetail.position.set(...m.pos);
+            lowDetail.scale.set(
+                m.half[0] / 1.5,
+                m.half[1] / 1.5,
+                m.half[2] / 1.5
+            );
+            lod.add(lowDetail, 50);
+            
+            entry.root.add(lod);
+            entry.lod = lod;
+
             if (m.id === "FEL-101") {
                 loadGlb("wheel_loader_bucket.glb").then(bTemplate => {
                     const pivot = new THREE.Group();
@@ -2443,8 +2594,18 @@ try {
         }).catch(() => {});
     }
 
-    // Preload conveyor_segment.glb so all 16 GLB assets are counted & available
+    // Preload conveyor_segment.glb and load standalone sub-equipment GLB models so all 24 GLB assets are active
     loadGlb("conveyor_segment.glb").catch(() => {});
+    for (const sn of SUB_EQUIPMENT_NODES) {
+        if (!sn.glb) continue;
+        loadGlb(sn.glb).then(template => {
+            if (sn.id === "DMC-301") return; // DMC-301 is embedded in WP-301 frame
+            const clone = template.clone(true);
+            clone.position.set(...sn.pos);
+            tagNodeHierarchy(clone, sn.id);
+            scene.add(clone);
+        }).catch(() => {});
+    }
 
     // Camera Rig Bridge + Smooth Damped camAnim Interpolation
     let camAnim = null;
@@ -2579,15 +2740,40 @@ try {
     const labelWorldPos = new THREE.Vector3();
     let lastTime = performance.now(), fpsFrames = 0, fpsTimer = 0;
 
-    function animate(now) {
+    // Contact shadow enhancement: update shadow intensity based on object height from ground
+function updateContactShadows() {
+    // Adjust shadow bias for objects near ground level
+    const groundY = -0.02; // ground plane Y position
+    
+    // Loop through objects that cast shadows and adjust their contact shadow intensity
+    // Higher objects get normal shadow, lower objects get reduced contact shadow
+    scene.traverse(obj => {
+        if (obj.type === 'Mesh' && obj.castShadow && obj.userData.nodeId) {
+            const heightFromGround = Math.max(0, obj.position.y - groundY);
+            // Contact shadow factor: 1.0 for tall objects, decreases as object approaches ground
+            const contactFactor = Math.max(0.3, 1.0 - heightFromGround / 2.0);
+            if (obj.material && obj.material.shadowBias) {
+                obj.material.shadowBias = -0.0001 * contactFactor;
+            }
+        }
+    });
+}
+
+function animate(now) {
         requestAnimationFrame(animate);
         const dt = Math.min(0.1, (now - lastTime) / 1000);
         lastTime = now;
+        
+        // Check for reduced motion preference
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         fpsFrames++;
         fpsTimer += dt;
         if (fpsTimer >= 0.5) {
-            document.getElementById("kpi-fps").textContent = Math.round(fpsFrames / fpsTimer).toString();
+            const fpsAvg = Math.round(fpsFrames / fpsTimer);
+            document.getElementById("kpi-fps").textContent = fpsAvg.toString();
+            // Log frame time for debugging (optional)
+            // console.log(`FPS: ${fpsAvg}, Frame time: ${(fpsTimer / fpsFrames).toFixed(2)}s`);
             fpsFrames = 0; fpsTimer = 0;
         }
 
@@ -2640,18 +2826,25 @@ try {
                 entry.root.position.set(m.pos[0], m.pos[1], m.pos[2]);
             }
 
-            // Status Beacon instance
+            // Status Beacon instance with pulsating glow
             const bx = m.id === "FEL-101" ? lp.x : m.pos[0];
             const by = m.id === "FEL-101" ? (lp.y + 3.12) : (m.pos[1] + m.labelH - 0.28);
             const bz = m.id === "FEL-101" ? lp.z : m.pos[2];
             const st = eq?.status;
             let beaconHex = 0x22c55e;
             let bScale = 1.0;
+            // Pulsating glow based on status and simulation time
+            const pulse = 1.0 + 0.15 * Math.sin(t * 4.0);
             if (st === "Fault") {
                 beaconHex = 0xef4444;
-                bScale = 1.0 + 0.28 * Math.sin(t * 6.5);
+                bScale = pulse * 1.28;
             } else if (st === "Warning" || flow?.starved) {
                 beaconHex = 0xf59e0b;
+                bScale = pulse * 1.15;
+            } else if (st === "Running" || !!flow) {
+                beaconHex = 0x22c55e;
+                bScale = pulse * 1.0;
+            }
                 bScale = 1.0 + 0.16 * Math.sin(t * 4.5);
             } else if (st === "Stopped" || st === "Offline" || !running) {
                 beaconHex = 0x64748b;
@@ -2713,15 +2906,26 @@ try {
 
             // JC-101 & DRC-101 mechanical sub-animations
             if (m.id === "JC-101" && entry.extras && running && !state.paused) {
-                const ang = t * 6.5;
-                entry.extras.wheels.forEach(w => { w.rotation.z = ang; });
-                const swing = Math.sin(t * 28.27) * 0.08;
+                // Mechanical animations (skip if reduced motion preference)
+                const animFactor = reducedMotion ? 0 : 1;
+                
+                // Flywheel rotation
+                const flywheelAng = t * 8.2 * animFactor;
+                entry.extras.wheels.forEach(w => { w.rotation.z = flywheelAng; });
+                
+                // Jaw reciprocating motion (eccentric shaft simulation)
+                const swing = Math.sin(t * 28.27) * 0.06 * animFactor;
                 entry.extras.jaw.position.x = -13.92 + swing;
-                entry.extras.jaw.rotation.z = -0.20 + swing * 1.4;
+                entry.extras.jaw.rotation.z = -0.20 + swing * 1.2;
+                
+                // Add subtle vibration to simulate crushing action
+                entry.root.position.y = m.pos[1] + Math.sin(t * 12.0) * 0.002 * animFactor;
             }
             if (m.id === "DRC-101" && entry.extras && running && !state.paused) {
-                entry.extras.rolls[0].rotation.z = t * 5.2;
-                entry.extras.rolls[1].rotation.z = -t * 5.2;
+                // Counter-rotating rolls with slight speed variation
+                const rollFactor = reducedMotion ? 0 : 1;
+                entry.extras.rolls[0].rotation.z = t * 5.2 * rollFactor + Math.sin(t * 0.7) * 0.3 * rollFactor;
+                entry.extras.rolls[1].rotation.z = -t * 5.2 * rollFactor + Math.sin(t * 0.7) * 0.3 * rollFactor;
             }
         });
         machineBeacons.instanceMatrix.needsUpdate = true;
@@ -2746,7 +2950,14 @@ try {
             }
 
             for (const p of cd.pulleys) {
-                if (spd > 0) p.rotation.z -= dt * spd * 4.5;
+                if (spd > 0) {
+                    p.rotation.z -= dt * spd * 4.5;
+                    // Move texture to simulate belt motion
+                    if (p.material && p.material.map) {
+                        p.material.map.offset.x += dt * spd * 0.1;
+                        p.material.map.offset.y += dt * spd * 0.1;
+                    }
+                }
             }
 
             const lumpSize = cd.spec.lump;
@@ -2913,6 +3124,11 @@ try {
         if (state.postFx && composer) {
             composer.render();
         } else {
+            lodManager.update();
+            
+            // Update contact shadow intensities for ground-contact objects
+            updateContactShadows();
+            
             renderer.render(scene, camera);
         }
     }
@@ -2920,6 +3136,27 @@ try {
     requestAnimationFrame(animate);
 } catch (err) {
     startOfflineFallback(err?.message || err);
+}
+
+// Post-processing toggles
+const ppBars = document.querySelectorAll('[data-toggles]');
+if (ppBars.length > 0) {
+    ppBars.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const toggle = btn.dataset.toggles;
+            const isActive = btn.classList.toggle('active');
+            
+            if (toggle === 'bloom' && composer && bloomPass) {
+                bloomPass.enabled = isActive;
+            }
+            if (toggle === 'n8ao' && composer && n8aoPass) {
+                n8aoPass.enabled = isActive;
+                if (n8aoPass.configuration) {
+                    n8aoPass.configuration.halfRes = !isActive;
+                }
+            }
+        });
+    });
 }
 </script>
 </body>

@@ -370,7 +370,7 @@
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <StackPanel>
                                 <TextBlock Text="Crushing, Screening &amp; Conveyor Circuit (Stages 1–6 &amp; Wash Plant Conveyors)" Classes="section-title" />
-                                <TextBlock Text="18 Monitored Assets (Crushers, Screens, Hoppers, Grizzly Feeder &amp; All 11 Conveyors) · Live Status Belt Animation &amp; 3D GLB Turntable Previews" FontSize="12" Foreground="#A1A1AA" />
+                                <TextBlock Text="21 Monitored Assets (Crushers, Screens, Hoppers, Grizzly Feeder, Magnet, Dust Collector, Substation &amp; All 11 Conveyors) · Live Belt Animation &amp; Interactive 3D GLB Previews" FontSize="12" Foreground="#A1A1AA" />
                             </StackPanel>
                             <Button Grid.Column="1" Content="Open Full 3D Plant Twin ↗"
                                     Command="{Binding LocateIn3DCommand}" CommandParameter="JC-101"
@@ -850,7 +850,7 @@
 
                     <!-- 6. EQUIPMENT & ASSETS INSPECTOR -->
                     <StackPanel IsVisible="{Binding IsEquipmentAssets}" Spacing="14">
-                        <TextBlock Text="Equipment &amp; 104-Node 3D GA Assets Inspector" Classes="section-title" />
+                        <TextBlock Text="Equipment &amp; 111-Node 3D GA Assets Inspector" Classes="section-title" />
                         <Grid ColumnDefinitions="*,1.35*" ColumnSpacing="16">
                             <ListBox Grid.Column="0" ItemsSource="{Binding Equipment}" SelectedItem="{Binding SelectedEquipment}"
                                      Background="#111113" BorderBrush="#27272A" BorderThickness="1" CornerRadius="8" MaxHeight="520">
@@ -880,6 +880,12 @@
                                                 CommandParameter="{Binding Id}"
                                                 Classes="primary-action" Padding="12,6" FontSize="11" VerticalAlignment="Top" />
                                     </Grid>
+
+                                    <controls:Equipment3DPreviewControl
+                                        EquipmentId="{Binding SelectedEquipment.Id}"
+                                        Status="{Binding SelectedEquipment.Status}"
+                                        LoadPercent="{Binding SelectedEquipment.LoadPercent}"
+                                        Height="128" />
 
                                     <TextBlock Text="Live SCADA Telemetry Tags" FontSize="13" FontWeight="SemiBold" Foreground="#A1A1AA" />
                                     <ItemsControl ItemsSource="{Binding SelectedEquipment.Tags}">
@@ -919,12 +925,12 @@
                             </Border>
                         </Grid>
 
-                        <!-- Full 104-Item Searchable 3D GA Asset Directory -->
+                        <!-- Full 111-Item Searchable 3D GA Asset Directory -->
                         <Border Classes="scada-card">
                             <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,220,240" ColumnSpacing="10">
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="104-Node 3D GA Interactive Asset Directory (18 Machines · 11 Conveyors · 64 Sub-Equipment · 11 Pipes)" FontSize="14" FontWeight="SemiBold" Foreground="#FAFAFA" />
+                                        <TextBlock Text="111-Node 3D GA Interactive Asset Directory (18 Machines · 11 Conveyors · 71 Sub-Equipment · 11 Pipes · 24 GLB Models)" FontSize="14" FontWeight="SemiBold" Foreground="#FAFAFA" />
                                         <TextBlock Text="{Binding Filtered3DAssets.Count, StringFormat='Showing {0} matching 3D plant items — click 3D ↗ to inspect in hardware PBR viewport'}" FontSize="11" Foreground="#A1A1AA" />
                                     </StackPanel>
                                     <ComboBox Grid.Column="1" ItemsSource="{Binding AssetCategories}" SelectedItem="{Binding SelectedAssetCategory}" HorizontalAlignment="Stretch" />

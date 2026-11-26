@@ -3763,5 +3763,38 @@ void main() {
             0.22f, 0.28f, 0.36f, 0.80f, 0.34f, convertSrgbToLinear: true);
         AppendSegmentTube(v, idx, new(-2.68f, 1.45f, -10.20f), new(-2.32f, 1.45f, -10.20f), 0.16f, 12,
             SrgbToLinear(0.14f), SrgbToLinear(0.65f), SrgbToLinear(0.62f), 0.78f, 0.32f, capEnds: true);
+
+        // Merge standalone 3D GLB sub-equipment meshes (OM-101, DC-101, CF-501, AN-601, FP-501, TLS-401, MCC-101)
+        // directly into the static VBO so they render with zero extra draw calls
+        var allMeshes = Plant3DSceneData.LoadAllGlbMeshes();
+        const float deg = MathF.PI / 180f;
+        foreach (var sub in Plant3DSceneData.SubEquipmentNodes)
+        {
+            if (string.IsNullOrWhiteSpace(sub.GlbFileName) ||
+                string.Equals(sub.Id, "DMC-301", StringComparison.OrdinalIgnoreCase) ||
+                !allMeshes.TryGetValue(sub.GlbFileName, out var subGlb))
+            {
+                continue;
+            }
+
+            var world = Matrix4x4.CreateScale(sub.Scale)
+                      * Matrix4x4.CreateRotationY(sub.YawDegrees * deg)
+                      * Matrix4x4.CreateTranslation(sub.Position);
+            uint baseVert = (uint)(v.Count / GlbMeshData.FloatsPerVertex);
+            var sv = subGlb.Vertices;
+            for (int vi = 0; vi < subGlb.VertexCount; vi++)
+            {
+                int o = vi * GlbMeshData.FloatsPerVertex;
+                var pos = Vector3.Transform(new Vector3(sv[o], sv[o + 1], sv[o + 2]), world);
+                var norm = Vector3.TransformNormal(new Vector3(sv[o + 3], sv[o + 4], sv[o + 5]), world);
+                if (norm.LengthSquared() > 1e-6f) norm = Vector3.Normalize(norm);
+                AddVert(v, pos, norm, sv[o + 6], sv[o + 7], sv[o + 8], sv[o + 9], sv[o + 10]);
+            }
+            var si = subGlb.Indices;
+            for (int ii = 0; ii < si.Length; ii++)
+            {
+                idx.Add(baseVert + si[ii]);
+            }
+        }
     }
 }

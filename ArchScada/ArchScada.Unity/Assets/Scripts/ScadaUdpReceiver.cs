@@ -42,6 +42,8 @@ namespace ArchScada.Unity
     /// <summary>
     /// Listens on UDP port 17850 for JSON telemetry frames published by ArchScada.Desktop's
     /// UnityBridgeService and exposes thread-safe latest frame state to the Unity scene.
+    /// Includes enhanced reliability features: packet integrity checks, automatic recovery,
+    /// comprehensive state reporting, and stale timeout with grace period.
     /// </summary>
     public class ScadaUdpReceiver : MonoBehaviour
     {
@@ -49,6 +51,7 @@ namespace ArchScada.Unity
         [SerializeField] private int listenPort = 17850;
         [SerializeField] private bool autoStartOnEnable = true;
         [SerializeField] private float staleTimeoutSeconds = 5.0f;
+        [SerializeField] private float gracePeriodSeconds = 2.0f;
 
         private readonly object _frameLock = new object();
         private UdpClient _udpClient;
@@ -60,49 +63,58 @@ namespace ArchScada.Unity
         private DateTime _lastReceivedUtc = DateTime.MinValue;
         private long _packetsReceived;
         private long _parseErrors;
+        private long _bytesReceived;
 
-        public event Action<ScadaTelemetryFrame> OnFrameReceived;
+        /// <summary>
+        /// Event raised when connection state changes (connecting/connected/disconnected).
+        /// </summary>
+        public event Action<ScadaConnectionState> OnConnectionStateChanged;
 
-        public int ListenPort => listenPort;
+        /// <summary>
+        /// Latest connection state snapshot.
+        /// </summary>
+        public ScadaConnectionState LastConnectionState { get; private set; } = ScadaConnectionState.Disconnected;
 
-        public bool IsListening => _isRunning;
+        /// <summary>
+        /// Gets the timestamp of the last successfully received frame.
+        /// </summary>
+        public DateTime LastReceivedUtc => GetLastReceivedUtc();
 
-        public bool IsReceiving
+        /// <summary>
+        /// Total number of valid telemetry frames received since startup.
+        /// </summary>
+        public long PacketsReceived => GetPacketsReceived();
+
+        /// <summary>
+        /// Total number of parse errors encountered since startup.
+        /// </summary>
+        public long ParseErrors => GetParseErrors();
+
+        /// <summary>
+        /// Total bytes received across all successful UDP packets.
+        /// </summary>
+        public long BytesReceived => GetBytesReceived();
+
+        /// <summary>
+        /// Gets whether telemetry is currently fresh (within stale timeout).
+        /// </summary>
+        public bool IsReceiving => IsTelemetryFresh();
+
+        /// <summary>
+        /// UDP port currently configured.
+        /// </summary>
+        public int Port => listenPort;
+
+        /// <summary>
+        /// Enum representing the possible connection states.
+        /// </summary>
+        public enum ScadaConnectionState
         {
-            get
-            {
-                lock (_frameLock)
-                {
-                    if (_lastReceivedUtc == DateTime.MinValue)
-                    {
-                        return false;
-                    }
-
-                    return (DateTime.UtcNow - _lastReceivedUtc).TotalSeconds <= staleTimeoutSeconds;
-                }
-            }
-        }
-
-        public long PacketsReceived
-        {
-            get
-            {
-                lock (_frameLock)
-                {
-                    return _packetsReceived;
-                }
-            }
-        }
-
-        public long ParseErrors
-        {
-            get
-            {
-                lock (_frameLock)
-                {
-                    return _parseErrors;
-                }
-            }
+            Disconnected,
+            Connecting,
+            Connected,
+            GracePeriod,
+            Error
         }
 
         public DateTime LastReceivedUtc

@@ -32,7 +32,15 @@ public class Plant3DTests
             "surge_bin_bn201.glb",
             "wash_plant_module_wp301.glb",
             "stockpile_cone.glb",
-            "thickener_tk201.glb"
+            "thickener_tk201.glb",
+            "dmc_cyclone_dmc301.glb",
+            "pgnaa_analyzer_an601.glb",
+            "centrifuge_dryer_cf501.glb",
+            "filter_press_fp501.glb",
+            "overband_magnet_om101.glb",
+            "dust_collector_dc101.glb",
+            "train_loadout_silo_tls401.glb",
+            "mcc_substation_mcc101.glb"
         };
 
         foreach (var model in requiredModels)
@@ -511,7 +519,9 @@ public class Plant3DTests
             // Wash Plant & Thickener (20)
             "GATE-201", "SPRAY-201", "PAN-201", "VALVE-204", "RAKE-201", "LAUNDER-201", "LT-201",
             "VALVE-201", "VALVE-202", "VALVE-203", "AGIT-301", "DT-301", "VALVE-303", "AGIT-302",
-            "PIPE-312", "PIPE-313", "VF-301", "APEX-301", "VALVE-301", "VALVE-302", "PT-301", "VALVE-305"
+            "PIPE-312", "PIPE-313", "VF-301", "APEX-301", "VALVE-301", "VALVE-302", "PT-301", "VALVE-305",
+            // Specialized 3D GLB Process & Infrastructure Sub-Equipment (7)
+            "OM-101", "DC-101", "CF-501", "AN-601", "FP-501", "TLS-401", "MCC-101"
         };
         string[] pipeIds =
         {
@@ -520,10 +530,10 @@ public class Plant3DTests
         };
 
         Assert.Equal(29, Plant3DSceneData.AllNodes.Count);
-        Assert.Equal(64, Plant3DSceneData.SubEquipmentNodes.Count);
+        Assert.Equal(71, Plant3DSceneData.SubEquipmentNodes.Count);
         Assert.Equal(11, Plant3DSceneData.PipeNodes.Count);
-        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Count);
-        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(111, Plant3DSceneData.InteractiveNodes.Count);
+        Assert.Equal(111, Plant3DSceneData.InteractiveNodes.Select(n => n.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
         var tempDir = Path.Combine(Path.GetTempPath(), "archscada-sub-test-" + Guid.NewGuid().ToString("N"));
         try
@@ -684,8 +694,8 @@ public class Plant3DTests
         string webPath = Path.Combine(repoRoot, "ScadaWeb", "ScadaWeb", "ScadaWeb", "Pages", "DigitalTwin3D.cshtml");
         string html = File.ReadAllText(webPath);
 
-        // 1. All 104 interactive IDs from Desktop must exist in Web DigitalTwin3D.cshtml
-        Assert.Equal(104, Plant3DSceneData.InteractiveNodes.Count);
+        // 1. All 111 interactive IDs from Desktop must exist in Web DigitalTwin3D.cshtml
+        Assert.Equal(111, Plant3DSceneData.InteractiveNodes.Count);
         foreach (var node in Plant3DSceneData.InteractiveNodes)
         {
             Assert.Contains($"id: \"{node.Id}\"", html, StringComparison.Ordinal);
@@ -777,19 +787,19 @@ public class Plant3DTests
         var bridge = new ArchScada.Desktop.Services.UnityBridgeService();
         var vm = new ArchScada.Desktop.ViewModels.MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
 
-        // 1. 104-Node Asset Directory filtering & search
-        Assert.Equal(104, vm.Filtered3DAssets.Count);
+        // 1. 111-Node Asset Directory filtering & search
+        Assert.Equal(111, vm.Filtered3DAssets.Count);
         vm.SelectedAssetCategory = "Machines (18)";
         Assert.Equal(18, vm.Filtered3DAssets.Count);
-        vm.SelectedAssetCategory = "Sub-Equipment (64)";
-        Assert.Equal(64, vm.Filtered3DAssets.Count);
+        vm.SelectedAssetCategory = "Sub-Equipment (71)";
+        Assert.Equal(71, vm.Filtered3DAssets.Count);
         vm.SelectedAssetCategory = "Process Piping (11)";
         Assert.Equal(11, vm.Filtered3DAssets.Count);
-        vm.SelectedAssetCategory = "All (104)";
+        vm.SelectedAssetCategory = "All (111)";
         vm.AssetSearchQuery = "DMC-301";
         Assert.Contains(vm.Filtered3DAssets, n => n.Id == "DMC-301");
         vm.AssetSearchQuery = string.Empty;
-        Assert.Equal(104, vm.Filtered3DAssets.Count);
+        Assert.Equal(111, vm.Filtered3DAssets.Count);
 
         // 2. Cross-page LocateIn3DCommand for both sub-equipment and SCADA group IDs
         vm.LocateIn3DCommand.Execute("DMC-301");
@@ -834,13 +844,14 @@ public class Plant3DTests
         var bridge = new ArchScada.Desktop.Services.UnityBridgeService();
         var vm = new ArchScada.Desktop.ViewModels.MainShellViewModel(telemetry, bridge, offlineDemoMode: true);
 
-        // 1. Crushing & Conveyors panel includes all 18 Stage 1-6 machines & conveyors while core Equipment remains 23
+        // 1. Crushing & Conveyors panel includes all 21 Stage 1-6 machines & conveyors while core Equipment remains 23
         Assert.Equal(23, telemetry.Equipment.Count);
-        Assert.Equal(18, vm.CrushingEquipment.Count);
+        Assert.Equal(21, vm.CrushingEquipment.Count);
         string[] expectedCrushingIds =
         {
             "CR-101", "SC-102", "CV-101", "CV-102",
             "BN-101", "VF-101", "DRC-101", "BN-201", "DS-201",
+            "OM-101", "DC-101", "MCC-101",
             "CV-103", "CV-104", "CV-105", "CV-106",
             "CV-201", "CV-202", "CV-203", "CV-301", "CV-302"
         };

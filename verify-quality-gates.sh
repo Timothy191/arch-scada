@@ -93,8 +93,8 @@ import sys
 export_dir = os.path.join("ArchScada", "Assets", "3D", "Exported")
 glb_paths = sorted(glob.glob(os.path.join(export_dir, "*.glb")))
 
-if len(glb_paths) != 16:
-    print(f"ERROR: Expected 16 .glb files in {export_dir}, found {len(glb_paths)}", file=sys.stderr)
+if len(glb_paths) != 24:
+    print(f"ERROR: Expected 24 .glb files in {export_dir}, found {len(glb_paths)}", file=sys.stderr)
     sys.exit(1)
 
 exported_names = sorted(os.path.basename(p) for p in glb_paths)
@@ -131,7 +131,8 @@ if web_refs != exported_names:
     print(f"ERROR: DigitalTwin3D.cshtml GLB mismatch.\n  Expected: {exported_names}\n  Found:    {web_refs}", file=sys.stderr)
     sys.exit(1)
 
-print(f"Verified 16/16 glTF v2 .glb files (>8 KB) matching Plant3DSceneData.cs and DigitalTwin3D.cshtml.")
+glb_count = len(glb_paths)
+print(f"Verified {glb_count}/24 glTF v2 .glb files (>8 KB) matching Plant3DSceneData.cs and DigitalTwin3D.cshtml.")
 PY
 echo "[GATE 3/6] 3D GLB Binary Header & Topology Gate PASS"
 

@@ -4,21 +4,21 @@
     <DeviceNum>1</DeviceNum>
     <Name>CR-101 Primary Jaw Crusher PLC</Name>
     <Code>CR101</Code>
-    <DevTypeID>214</DevTypeID>
-    <NumAddress>1</NumAddress>
-    <StrAddress>10.10.1.11:502</StrAddress>
-    <CommLineNum>1</CommLineNum>
-    <Descr>Modbus TCP PLC for Primary Jaw Crusher CR-101</Descr>
+    <DevTypeID>232</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>opc.tcp://10.10.1.11:4840 [SignAndEncrypt]</StrAddress>
+    <CommLineNum>2</CommLineNum>
+    <Descr>Secure OPC UA (SignAndEncrypt) for Primary Jaw Crusher CR-101</Descr>
   </Device>
   <Device>
     <DeviceNum>2</DeviceNum>
     <Name>SC-102 Vibrating Screen 1 PLC</Name>
     <Code>SC102</Code>
-    <DevTypeID>214</DevTypeID>
-    <NumAddress>2</NumAddress>
-    <StrAddress>10.10.1.12:502</StrAddress>
-    <CommLineNum>1</CommLineNum>
-    <Descr>Modbus TCP PLC for Vibrating Screen SC-102</Descr>
+    <DevTypeID>232</DevTypeID>
+    <NumAddress xsi:nil="true" />
+    <StrAddress>opc.tcp://10.10.1.12:4840 [SignAndEncrypt]</StrAddress>
+    <CommLineNum>2</CommLineNum>
+    <Descr>Secure OPC UA (SignAndEncrypt) for Vibrating Screen SC-102</Descr>
   </Device>
   <Device>
     <DeviceNum>3</DeviceNum>

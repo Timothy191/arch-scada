@@ -50,18 +50,18 @@ public partial class MainShellViewModel : ViewModelBase
     public ObservableCollection<EquipmentItem> RomLoadoutEquipment { get; } = new();
     public ObservableCollection<string> Exported3DModels { get; } = new();
 
-    // 104-Node GA Explorer & Linked 3D Sub-Equipment (Equipment & Assets tab)
+    // 111-Node GA Explorer & Linked 3D Sub-Equipment (Equipment & Assets tab)
     public IReadOnlyList<string> AssetCategories { get; } = new[]
     {
-        "All (104)",
+        "All (111)",
         "Machines (18)",
         "Conveyors (11)",
-        "Sub-Equipment (64)",
+        "Sub-Equipment (71)",
         "Process Piping (11)"
     };
 
     [ObservableProperty]
-    public partial string SelectedAssetCategory { get; set; } = "All (104)";
+    public partial string SelectedAssetCategory { get; set; } = "All (111)";
 
     [ObservableProperty]
     public partial string AssetSearchQuery { get; set; } = string.Empty;
@@ -208,7 +208,7 @@ public partial class MainShellViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string GlbEngineSummaryText { get; set; } =
-        "16/16 glTF 2.0 PBR Models (3.98 MiB) · 104 Interactive Nodes (29 GA + 64 Sub-Equipment + 11 Pipes) · SharpGLTF + Split-Sum BRDF LUT + Karis HDR Bloom";
+        "24/24 glTF 2.0 PBR Models (5.38 MiB) · 111 Interactive Nodes (29 GA + 71 Sub-Equipment + 11 Pipes) · SharpGLTF + Split-Sum BRDF LUT + Karis HDR Bloom";
 
     public Unity3DEffectSettings UnityEffects { get; } = new();
 
@@ -1121,20 +1121,23 @@ public partial class MainShellViewModel : ViewModelBase
     {
         var specs = new (string Id, string Name, string Type, string ParentId, string MetricLabel, string MetricUnit, double BaseKw, double BaseMetric, string CascadeTarget)[]
         {
-            ("BN-101",  "ROM Feeder Receiving Hopper Bin",     "Hopper",   "AF-001", "Surge Level", "t",    12.0,  34.5, "VF-101"),
-            ("VF-101",  "Primary Vibro Grizzly Feeder (75mm)", "Feeder",   "AF-001", "Feed Rate",   "t/h",  30.0, 650.0, "CV-101"),
-            ("DRC-101", "Double Roller Crusher & Hopper",      "Crusher",  "CR-101", "Throughput",  "t/h", 160.0, 530.0, "CV-104"),
-            ("BN-201",  "Plant Feed Surge Bin (60t)",          "Silo",     "SL-601", "Surge Level", "%",    15.0,  68.0, "CV-202"),
-            ("DS-201",  "Wet Desliming Screen (0.5mm)",        "Screen",   "SC-102", "Vibration",   "mm/s", 45.0,  14.2, "CV-203"),
-            ("CV-103",  "Primary Crushed Transfer Conveyor",   "Conveyor", "CV-101", "Belt Speed",  "m/s",  55.0,   2.75, "DRC-101"),
-            ("CV-104",  "Sizing Screen Feed Conveyor",         "Conveyor", "CV-101", "Belt Speed",  "m/s",  75.0,   2.80, "SC-102"),
-            ("CV-105",  "Under-Screen Fines Conveyor (<6mm)",  "Conveyor", "CV-102", "Belt Speed",  "m/s",  30.0,   2.40, "SP-301"),
-            ("CV-106",  "Oversize Recirculation Conveyor",     "Conveyor", "CV-102", "Belt Speed",  "m/s",  45.0,   2.50, "DRC-101"),
-            ("CV-201",  "Plant Feed Conveyor (6-50mm)",        "Conveyor", "CV-101", "Belt Speed",  "m/s", 132.0,   2.85, "BN-201"),
-            ("CV-202",  "Desliming Screen Feed Conveyor",      "Conveyor", "CV-101", "Belt Speed",  "m/s", 110.0,   2.78, "DS-201"),
-            ("CV-203",  "Mixing Box Feed Conveyor",            "Conveyor", "DM-301", "Belt Speed",  "m/s",  90.0,   2.65, "WP-301"),
-            ("CV-301",  "Clean Coal Product Stacker Conveyor", "Conveyor", "CV-102", "Belt Speed",  "m/s",  75.0,   2.60, "SP-301"),
-            ("CV-302",  "Discard / Refuse Stacker Conveyor",   "Conveyor", "CV-501", "Belt Speed",  "m/s",  74.5,   2.15, "SP-302")
+            ("BN-101",  "ROM Feeder Receiving Hopper Bin",     "Hopper",     "AF-001", "Surge Level",  "t",      12.0,    34.5, "VF-101"),
+            ("VF-101",  "Primary Vibro Grizzly Feeder (75mm)", "Feeder",     "AF-001", "Feed Rate",    "t/h",    30.0,   650.0, "CV-101"),
+            ("DRC-101", "Double Roller Crusher & Hopper",      "Crusher",    "CR-101", "Throughput",   "t/h",   160.0,   530.0, "CV-104"),
+            ("BN-201",  "Plant Feed Surge Bin (60t)",          "Silo",       "SL-601", "Surge Level",  "%",      15.0,    68.0, "CV-202"),
+            ("DS-201",  "Wet Desliming Screen (0.5mm)",        "Screen",     "SC-102", "Vibration",    "mm/s",   45.0,    14.2, "CV-203"),
+            ("OM-101",  "Cross-Belt Tramp Iron Magnet",        "Magnet",     "CV-101", "Field Flux",   "Gauss",  18.5,   950.0, "JC-101"),
+            ("DC-101",  "Pulse-Jet Baghouse Dust Collector",   "DustFilter", "SC-102", "Exhaust Flow", "Nm³/h",  55.0, 24000.0, "CV-105"),
+            ("MCC-101", "CHPP E-House Substation (3.3 MVA)",   "Substation", "CR-101", "Bus Load",     "MVA",    22.0,     2.65, "JC-101"),
+            ("CV-103",  "Primary Crushed Transfer Conveyor",   "Conveyor",   "CV-101", "Belt Speed",   "m/s",    55.0,     2.75, "DRC-101"),
+            ("CV-104",  "Sizing Screen Feed Conveyor",         "Conveyor",   "CV-101", "Belt Speed",   "m/s",    75.0,     2.80, "SC-102"),
+            ("CV-105",  "Under-Screen Fines Conveyor (<6mm)",  "Conveyor",   "CV-102", "Belt Speed",   "m/s",    30.0,     2.40, "SP-301"),
+            ("CV-106",  "Oversize Recirculation Conveyor",     "Conveyor",   "CV-102", "Belt Speed",   "m/s",    45.0,     2.50, "DRC-101"),
+            ("CV-201",  "Plant Feed Conveyor (6-50mm)",        "Conveyor",   "CV-101", "Belt Speed",   "m/s",   132.0,     2.85, "BN-201"),
+            ("CV-202",  "Desliming Screen Feed Conveyor",      "Conveyor",   "CV-101", "Belt Speed",   "m/s",   110.0,     2.78, "DS-201"),
+            ("CV-203",  "Mixing Box Feed Conveyor",            "Conveyor",   "DM-301", "Belt Speed",   "m/s",    90.0,     2.65, "WP-301"),
+            ("CV-301",  "Clean Coal Product Stacker Conveyor", "Conveyor",   "CV-102", "Belt Speed",   "m/s",    75.0,     2.60, "SP-301"),
+            ("CV-302",  "Discard / Refuse Stacker Conveyor",   "Conveyor",   "CV-501", "Belt Speed",   "m/s",    74.5,     2.15, "SP-302")
         };
 
         foreach (var s in specs)

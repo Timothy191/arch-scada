@@ -83,6 +83,7 @@ namespace ArchScada.Unity
         private Material _fallbackCoalMaterial;
         private float _spawnTimer;
         private bool _animateConveyors = true;
+        private bool _reducedMotion = false;
         private string _crusherStatus = "Stopped";
         private string _screenStatus = "Stopped";
         private double _crusherLoadPercent = 75.0;
@@ -272,6 +273,23 @@ namespace ArchScada.Unity
             }
 
             _animateConveyors = frame.effects == null || frame.effects.AnimateConveyors;
+
+            // Respect reduced motion preference
+            if (_reducedMotion)
+            {
+                _animateConveyors = false;
+                _crusherStatus = "Stopped";
+                _screenStatus = "Stopped";
+                foreach (var binding in conveyorColliders)
+                {
+                    if (binding != null)
+                    {
+                        binding.currentStatus = "Stopped";
+                        binding.currentSpeedMetersPerSec = 0f;
+                    }
+                }
+                return;
+            }
 
             if (frame.equipment == null)
             {
@@ -530,6 +548,17 @@ namespace ArchScada.Unity
         {
             return string.Equals(status, "Running", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(status, "Warning", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Sets the reduced motion preference. When enabled, all animated effects
+        /// (conveyor belt movement, coal pileup physics) are disabled and replaced
+        /// with static states, respecting accessibility preferences.
+        /// </summary>
+        public void SetReducedMotion(bool enabled)
+        {
+            _reducedMotion = enabled;
+            // If just disabled, allow physics to resume on next update
         }
 
         private sealed class CoalLumpContactRelay : MonoBehaviour

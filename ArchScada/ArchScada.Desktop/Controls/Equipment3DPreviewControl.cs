@@ -61,6 +61,9 @@ public sealed class Equipment3DPreviewControl : Control
 
     private readonly DispatcherTimer _timer;
     private float _yawRadians = 0.55f;
+    private float _pitchRadians = 0.34f;
+    private bool _isDragging;
+    private Point _lastPointerPos;
 
     public string EquipmentId
     {
@@ -95,11 +98,44 @@ public sealed class Equipment3DPreviewControl : Control
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) }; // 25 fps turntable
         _timer.Tick += (_, _) =>
         {
-            if (!IsVisible) return;
+            if (!IsVisible || _isDragging) return;
             AdvanceTurntable(0.04f);
         };
         AttachedToVisualTree += (_, _) => _timer.Start();
         DetachedFromVisualTree += (_, _) => _timer.Stop();
+    }
+
+    protected override void OnPointerPressed(Avalonia.Input.PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        _isDragging = true;
+        _lastPointerPos = e.GetPosition(this);
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    protected override void OnPointerMoved(Avalonia.Input.PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (!_isDragging) return;
+        var pos = e.GetPosition(this);
+        var delta = pos - _lastPointerPos;
+        _lastPointerPos = pos;
+        _yawRadians = (_yawRadians + (float)(delta.X * 0.014)) % (MathF.PI * 2f);
+        _pitchRadians = Math.Clamp(_pitchRadians + (float)(delta.Y * 0.010), -0.35f, 1.05f);
+        InvalidateVisual();
+        e.Handled = true;
+    }
+
+    protected override void OnPointerReleased(Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (_isDragging)
+        {
+            _isDragging = false;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+        }
     }
 
     public void AdvanceTurntable(float dtSeconds)
@@ -134,9 +170,17 @@ public sealed class Equipment3DPreviewControl : Control
             "FEL-101" => "wheel_loader_chassis.glb",
             "TK-201" => "thickener_tk201.glb",
             "PP-201" or "PP-202" or "PP-203" or "PP-401" or "PP-402" or "AB-401" => "centrifugal_pump.glb",
-            "TK-301" => "magnetite_tank_tk301.glb",
-            "MS-301" or "CF-501" => "magnetic_separator_ms301.glb",
-            "DM-301" or "WP-301" or "DMC-301" or "SP-401" or "FC-401" or "FP-501" or "AN-601" or "LD-601" => "wash_plant_module_wp301.glb",
+            "TK-301" or "FC-401" => "magnetite_tank_tk301.glb",
+            "MS-301" => "magnetic_separator_ms301.glb",
+            "CF-501" => "centrifuge_dryer_cf501.glb",
+            "FP-501" => "filter_press_fp501.glb",
+            "AN-601" => "pgnaa_analyzer_an601.glb",
+            "LD-601" or "TLS-401" => "train_loadout_silo_tls401.glb",
+            "DM-301" or "DMC-301" or "SP-401" => "dmc_cyclone_dmc301.glb",
+            "OM-101" => "overband_magnet_om101.glb",
+            "DC-101" => "dust_collector_dc101.glb",
+            "MCC-101" => "mcc_substation_mcc101.glb",
+            "WP-301" => "wash_plant_module_wp301.glb",
             _ => "jaw_crusher_jc101.glb"
         };
     }
@@ -232,7 +276,7 @@ public sealed class Equipment3DPreviewControl : Control
 
         var rot = Matrix4x4.CreateRotationZ(pitchOffset)
                 * Matrix4x4.CreateRotationY(_yawRadians)
-                * Matrix4x4.CreateRotationX(0.34f);
+                * Matrix4x4.CreateRotationX(_pitchRadians);
 
         double cx = w * 0.5;
         double cy = h * 0.56;

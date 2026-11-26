@@ -1015,10 +1015,11 @@ public static class Plant3DSceneData
             "Cyclone feed pump below the mixing box.",
             new[] { "MX-301" }, new[] { "PIPE-304" }, "DM-301"),
         SubNode("DMC-301", "Full-Length Wide Diamond Dense-Medium Cyclone", "Dense-Medium Cyclone", new(-1.95f, 3.72f, -7.60f), new(2.20f, 0.96f, 1.32f), 2.15f,
-            "#3A4048", "4.30 m × 2.58 m wide asymmetric diamond · 1.84 m tall East flat → 0.96 m West flat · SG 1.52",
+            "#D97706", "4.30 m × 2.58 m wide asymmetric diamond · 1.84 m tall East flat → 0.96 m West flat · SG 1.52",
             "Full-length flat-ended asymmetric diamond cyclone spanning across both 4.3 m wash screens: PIPE-304 enters the West side; clean coal (VF-301/PIPE-312) and discard (APEX-301/PIPE-313) are thrown from the East side into SC-301 and SC-302 underneath to be washed.",
             "Full-length wide asymmetric diamond cyclone with flat East/West ends on open-top gantry above the wash screens.",
-            new[] { "PIPE-304", "PT-301" }, new[] { "VF-301", "APEX-301", "PIPE-312", "PIPE-313" }, "DM-301"),
+            new[] { "PIPE-304", "PT-301" }, new[] { "VF-301", "APEX-301", "PIPE-312", "PIPE-313" }, "DM-301",
+            glb: "dmc_cyclone_dmc301.glb"),
         SubNode("SC-301", "Clean Coal Product Drain & Rinse Screen", "Product Wash Screen", new(-1.95f, 1.95f, -6.80f), new(2.15f, 0.55f, 0.62f), 1.25f,
             "#1A5C96", "4.3 m × 1.24 m · 0.5 mm wedge-wire · 2 × 15 kW",
             "Drains and rinses magnetite off cyclone overflow clean coal before discharge onto CV-301.",
@@ -1331,26 +1332,72 @@ public static class Plant3DSceneData
             "#38BDF8", "DN100 actuated butterfly valve",
             "Shuts off clarified rinse water to the 5 overhead WP-301 spray bars when wash screens are stopped.",
             "Isolation valve feeding the overhead SPRAY-301 manifold.",
-            new[] { "PIPE-307" }, new[] { "SPRAY-301" }, "PP-203", "Wash Plant & Medium Recovery (WP-301)")
+            new[] { "PIPE-307" }, new[] { "SPRAY-301" }, "PP-203", "Wash Plant & Medium Recovery (WP-301)"),
+
+        // Specialized 3D GLB Process & Infrastructure Sub-Equipment (7)
+        SubNode("OM-101", "CV-101 Cross-Belt Self-Cleaning Tramp Iron Magnet", "Overband Tramp Magnet", new(-13.80f, 3.35f, 1.35f), new(0.85f, 0.85f, 0.75f), 2.10f,
+            "#DC2626", "1.4 m × 2.0 m cross-belt · 950 Gauss · self-cleaning",
+            "Extracts ferromagnetic roof bolts, drill steel and bucket teeth from +75 mm ROM lumps on CV-101 ahead of Primary Jaw Crusher JC-101.",
+            "Gantry-suspended self-cleaning overband magnet straddling CV-101 with tramp-iron discard chute.",
+            new[] { "VF-101", "CV-101" }, new[] { "JC-101" }, "CV-101", "Stage 2 — Initial Separation",
+            glb: "overband_magnet_om101.glb"),
+        SubNode("DC-101", "Crushing & Screening Pulse-Jet Baghouse Dust Collector", "Baghouse Dust Collector", new(-9.80f, 0.0f, 3.60f), new(1.25f, 1.85f, 1.15f), 4.05f,
+            "#F59E0B", "24,000 Nm³/h · 144 PTFE filter bags · <10 mg/Nm³",
+            "Draws fugitive coal dust from JC-101, DRC-101 and SS-101 transfer hoods through pulse-jet filter bags with rotary airlock fines return.",
+            "Pulse-jet baghouse dust extraction unit with twin pyramidal hoppers, ID fan and clean-air stack.",
+            new[] { "JC-101", "DRC-101", "SS-101" }, new[] { "CV-105" }, "SC-102", "Stage 6 — Central Sizing Screen",
+            glb: "dust_collector_dc101.glb"),
+        SubNode("CF-501", "Clean Coal Vibratory Screen-Bowl Centrifuge", "Screen-Bowl Centrifuge", new(-5.40f, 0.0f, -4.10f), new(1.40f, 1.15f, 1.05f), 2.55f,
+            "#D97706", "Ø 1100 × 2200 mm bowl · 195 kW · 650 G centrifugal",
+            "Mechanically dewaters washed clean coal from WP-301 / SC-301 down to 8.6% surface moisture prior to CV-301 product stacking.",
+            "High-G vibratory screen-bowl dewatering centrifuge on spring-isolated inertia skid.",
+            new[] { "WP-301", "SC-301" }, new[] { "CV-301" }, "CF-501", "Wash Plant & Medium Recovery",
+            glb: "centrifuge_dryer_cf501.glb"),
+        SubNode("AN-601", "CV-301 Cross-Belt PGNAA Online Coal Quality Analyzer", "PGNAA Elemental Analyzer", new(-6.80f, 0.65f, -5.20f), new(1.15f, 1.35f, 1.15f), 2.85f,
+            "#F59E0B", "Cf-252 / BGO detector · real-time Ash %, Moisture % & CV",
+            "Continuously scans the full cross-section of clean product coal on CV-301 via Prompt Gamma Neutron Activation Analysis every 60 seconds.",
+            "Straddle-mounted radiation-shielded PGNAA analyzer bridge over Clean Product Conveyor CV-301.",
+            new[] { "CV-301", "CF-501" }, new[] { "TLS-401", "SP-301" }, "AN-601", "Wash Plant & Medium Recovery",
+            glb: "pgnaa_analyzer_an601.glb"),
+        SubNode("FP-501", "Tailings Recessed-Plate High-Pressure Filter Press", "Tailings Filter Press", new(-8.80f, 0.0f, -14.80f), new(2.15f, 1.38f, 1.15f), 2.95f,
+            "#38BDF8", "120 recessed plates · 1500 × 1500 mm · 16 bar squeeze",
+            "Dewaters thickened TK-201 underflow slurry from PP-201/PP-202 into dry handleable filter cake (<19% moisture) while returning filtrate water.",
+            "Automatic recessed-plate tailings filter press closing the zero-liquid-discharge water loop.",
+            new[] { "TK-201", "PP-201", "PP-202" }, new[] { "CV-302", "SP-302" }, "FP-501", "Wash Plant & Medium Recovery",
+            glb: "filter_press_fp501.glb"),
+        SubNode("TLS-401", "Rapid Rail & Haul-Truck Flood-Loading Loadout Silo", "Rapid Loadout Silo", new(-12.60f, 0.0f, -4.80f), new(1.60f, 2.75f, 1.60f), 5.75f,
+            "#F59E0B", "1,850 t/h batch weigh-bin · telescopic flood chute",
+            "Buffers certified clean product coal from SP-301 / CV-301 and flood-loads unit-train wagons and highway haul trucks via dual load-cell batch gates.",
+            "Drive-through steel portal rapid loadout tower with conical mass-flow surge silo and telescopic chute.",
+            new[] { "CV-301", "SP-301", "AN-601" }, Array.Empty<string>(), "LD-601", "Wash Plant & Medium Recovery",
+            glb: "train_loadout_silo_tls401.glb"),
+        SubNode("MCC-101", "CHPP Containerized E-House Substation & 3.3 MVA Transformer", "MCC E-House & Substation", new(6.80f, 0.0f, 4.20f), new(2.35f, 1.45f, 1.45f), 3.15f,
+            "#D97706", "11 kV / 690 V · 3.3 MVA oil transformer · VFD & PLC lineup",
+            "Supplies 690 V/400 V motor control centers, VFD regenerative drives and dual-redundant Modbus TCP PLC racks across all 6 CHPP stages.",
+            "Pressurized E-House electrical substation with HVAC units and bunded outdoor step-down transformer.",
+            Array.Empty<string>(), new[] { "JC-101", "DRC-101", "SS-101", "WP-301", "TK-201" }, "CR-101", "Stage 6 — Central Sizing Screen",
+            glb: "mcc_substation_mcc101.glb")
     };
 
     public static readonly IReadOnlyList<Plant3DNode> PipeNodes = BuildPipeNodes();
 
-    /// <summary>All individually interactive 3D items: 29 GA nodes + 62 sub-equipment + 11 process pipes.</summary>
+    /// <summary>All individually interactive 3D items: 29 GA nodes + 71 sub-equipment + 11 process pipes (111 total).</summary>
     public static readonly IReadOnlyList<Plant3DNode> InteractiveNodes = AllNodes.Concat(SubEquipmentNodes).Concat(PipeNodes).ToArray();
 
     private static Plant3DNode SubNode(
         string id, string ga, string type, Vector3 pos, Vector3 half, float labelH, string color,
         string spec, string principle, string desc, string[] up, string[] down, string scada,
-        string stage = "Wash Plant & Medium Recovery (WP-301)") =>
+        string stage = "Wash Plant & Medium Recovery (WP-301)",
+        string glb = "",
+        float yaw = 0f) =>
         new(
             Id: id,
             GaLabel: ga,
             StageLabel: stage,
             EquipmentType: type,
-            GlbFileName: string.Empty,
+            GlbFileName: glb,
             Position: pos,
-            YawDegrees: 0f,
+            YawDegrees: yaw,
             Scale: Vector3.One,
             HalfExtents: half,
             LabelHeight: labelH,
@@ -1655,6 +1702,13 @@ public static class Plant3DSceneData
         "PIPE-305" => "Direct PLC: TK201 (Modbus 10.10.2.21:502 · Cnl 201–203)",
         "PIPE-306" => "Direct PLC: PP201 (Modbus 10.10.2.22:502 · Cnl 211–212)",
         "PIPE-307" => "Direct PLC: PP203 (Modbus 10.10.2.24:502 · Cnl 231)",
+        "OM-101" => "Direct PLC: CV101 (Modbus 10.10.1.13:502 · Cnl 121–122)",
+        "DC-101" => "Direct PLC: SC102 (Modbus 10.10.1.12:502 · Cnl 111–112)",
+        "CF-501" => "Direct PLC: CF501 (Modbus 10.10.5.51:502 · Cnl 501–503)",
+        "AN-601" => "Direct PLC: AN601 (Modbus 10.10.6.61:502 · Cnl 601–603)",
+        "FP-501" => "Direct PLC: FP501 (Modbus 10.10.5.52:502 · Cnl 511–512)",
+        "TLS-401" => "Direct PLC: LD601 (Modbus 10.10.6.62:502 · Cnl 611–612)",
+        "MCC-101" => "Direct PLC: CR101 (Modbus 10.10.1.11:502 · Cnl 101–103)",
         _ => $"Derived Process Model (coupled to {linkedScadaId})"
     };
 

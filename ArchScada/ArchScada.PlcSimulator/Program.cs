@@ -14,6 +14,11 @@ public static class Program
         int modbusPort = 1502;
         bool selfTest = false;
 
+        double packetDrop = 0;
+        int maxJitter = 0;
+        double staleProb = 0;
+        bool connDrop = false;
+
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -30,6 +35,21 @@ public static class Program
                     modbusPort = parsedModbus;
                     i++;
                     break;
+                case "--drop" when i + 1 < args.Length && double.TryParse(args[i + 1], out double drop):
+                    packetDrop = drop;
+                    i++;
+                    break;
+                case "--jitter" when i + 1 < args.Length && int.TryParse(args[i + 1], out int jitter):
+                    maxJitter = jitter;
+                    i++;
+                    break;
+                case "--stale" when i + 1 < args.Length && double.TryParse(args[i + 1], out double stale):
+                    staleProb = stale;
+                    i++;
+                    break;
+                case "--conn-drop":
+                    connDrop = true;
+                    break;
                 case "--self-test":
                     selfTest = true;
                     break;
@@ -45,9 +65,18 @@ public static class Program
         }
 
         await using var host = new PlcSimulatorHost(httpPort, tcpPort, modbusPort);
+        host.Faults.PacketDropProbability = packetDrop;
+        host.Faults.MaxJitterMs = maxJitter;
+        host.Faults.StaleDataProbability = staleProb;
+        host.Faults.ConnectionDrop = connDrop;
+
         await host.StartAsync().ConfigureAwait(false);
 
         Console.WriteLine($"ArchScada.PlcSimulator started ({host.Model.ChannelCount} CHPP channels, read-only)");
+        if (host.Faults.HasFaults)
+        {
+            Console.WriteLine($"  [!] FAULT INJECTION ACTIVE: Drop={packetDrop:P1}, Jitter={maxJitter}ms, Stale={staleProb:P1}, ConnDrop={connDrop}");
+        }
         Console.WriteLine($"  HTTP REST:  http://127.0.0.1:{host.HttpPort}/api/v1/health");
         Console.WriteLine($"  Native TCP: 127.0.0.1:{host.TcpPort}");
         Console.WriteLine($"  Modbus TCP: 127.0.0.1:{host.ModbusPort} (Registers 0..99)");
@@ -166,6 +195,14 @@ public static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("ArchScada.PlcSimulator [--http-port 5000] [--tcp-port 10000] [--modbus-port 1502] [--self-test]");
+        Console.WriteLine("ArchScada.PlcSimulator usage:");
+        Console.WriteLine("  --http-port <port>    HTTP REST port (default: 5000)");
+        Console.WriteLine("  --tcp-port <port>     Rapid SCADA Native TCP port (default: 10000)");
+        Console.WriteLine("  --modbus-port <port>  Modbus TCP port (default: 1502)");
+        Console.WriteLine("  --drop <prob>         Probability of packet drop (0.0 - 1.0)");
+        Console.WriteLine("  --jitter <ms>         Maximum network jitter in milliseconds");
+        Console.WriteLine("  --stale <prob>        Probability of stale telemetry data");
+        Console.WriteLine("  --conn-drop           Simulate random connection resets");
+        Console.WriteLine("  --self-test           Run internal diagnostic suite");
     }
 }
