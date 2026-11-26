@@ -3109,8 +3109,6 @@ try {
             const fpsAvg = Math.round(fpsFrames / fpsTimer);
             document.getElementById("kpi-fps").textContent = fpsAvg.toString();
             if (drawsEl) drawsEl.textContent = lastDrawCalls.toString();
-            // Log frame time for debugging (optional)
-            // console.log(`FPS: ${fpsAvg}, Frame time: ${(fpsTimer / fpsFrames).toFixed(2)}s`);
             fpsFrames = 0; fpsTimer = 0;
         }
 

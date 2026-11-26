@@ -47,3 +47,7 @@ NuGet/
 Library/
 # .NET IDE user settings
 *.csproj.user
+
+# Runtime/MCP temp folders
+logs/
+temp/
