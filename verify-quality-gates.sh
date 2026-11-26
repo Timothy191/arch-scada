@@ -133,6 +133,26 @@ if web_refs != exported_names:
 
 glb_count = len(glb_paths)
 print(f"Verified {glb_count}/24 glTF v2 .glb files (>8 KB) matching Plant3DSceneData.cs and DigitalTwin3D.cshtml.")
+
+# Web tier: Meshopt-compressed GLBs served by ScadaWeb (masters above stay uncompressed for SharpGLTF).
+web_dir = os.path.join("ArchScada", "Assets", "3D", "ExportedWeb")
+web_paths = sorted(glob.glob(os.path.join(web_dir, "*.glb")))
+if sorted(os.path.basename(p) for p in web_paths) != exported_names:
+    print(f"ERROR: {web_dir} must contain the same 24 .glb names as {export_dir} (run deploy/scripts/optimize-web-glbs.sh)", file=sys.stderr)
+    sys.exit(1)
+web_total = 0
+for path in web_paths:
+    size = os.path.getsize(path)
+    web_total += size
+    with open(path, "rb") as f:
+        magic, version, length = struct.unpack("<III", f.read(12))
+    if magic != 0x46546C67 or version != 2 or length != size:
+        print(f"ERROR: {path} invalid glTF v2 header (magic=0x{magic:08X}, version={version}, length={length}, size={size})", file=sys.stderr)
+        sys.exit(1)
+if web_total >= 3.5 * 1024 * 1024:
+    print(f"ERROR: {web_dir} total {web_total} bytes >= 3.5 MiB", file=sys.stderr)
+    sys.exit(1)
+print(f"Verified {len(web_paths)}/24 Meshopt web-tier glTF v2 .glb files, total {web_total / 1048576:.2f} MiB (< 3.5 MiB).")
 PY
 if [[ -f "./deploy/scripts/shader_polyhaven_mcp.py" ]]; then
   MCP_PY="${BLENDER_MCP_PYTHON:-$HOME/.local/share/uv/tools/blender-mcp/bin/python}"
@@ -166,7 +186,7 @@ echo "=== [GATE 5/6] ScadaWeb Read-Only Security & /DigitalTwin3D HTTP Gate ==="
 python3 - <<'PY'
 import json, os, re, subprocess, tempfile
 html = open("ScadaWeb/ScadaWeb/ScadaWeb/Pages/DigitalTwin3D.cshtml", encoding="utf-8").read()
-scripts = re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S)
+scripts = re.findall(r"<!?script([^>]*)>(.*?)</!?script>", html, re.S)
 for attrs, body in scripts:
     if "importmap" in attrs:
         json.loads(body)
@@ -224,6 +244,75 @@ fi
 
 STATUS_GLB="$(curl -sS -o /dev/null -w "%{http_code}" "${WEB_URL}/models3d/stockpile_cone.glb")"
 [[ "$STATUS_GLB" == "200" ]] || { echo "ERROR: GET /models3d/stockpile_cone.glb returned HTTP ${STATUS_GLB}" >&2; exit 1; }
+
+WEB_TOTAL_BYTES=0
+GLB_COUNT=0
+for GLB_NAME in $(cd ArchScada/Assets/3D/ExportedWeb && ls *.glb); do
+  GLB_TMP="$(mktemp)"
+  STATUS_GLB_N="$(curl -sS -o "$GLB_TMP" -w "%{http_code}" "${WEB_URL}/models3d/${GLB_NAME}")"
+  [[ "$STATUS_GLB_N" == "200" ]] || { echo "ERROR: GET /models3d/${GLB_NAME} returned HTTP ${STATUS_GLB_N}" >&2; rm -f "$GLB_TMP"; exit 1; }
+  [[ "$(head -c 4 "$GLB_TMP")" == "glTF" ]] || { echo "ERROR: /models3d/${GLB_NAME} missing glTF magic header" >&2; rm -f "$GLB_TMP"; exit 1; }
+  WEB_TOTAL_BYTES=$((WEB_TOTAL_BYTES + $(stat -c %s "$GLB_TMP")))
+  rm -f "$GLB_TMP"
+  GLB_COUNT=$((GLB_COUNT + 1))
+done
+[[ "$GLB_COUNT" -eq 24 ]] || { echo "ERROR: expected 24 /models3d GLB endpoints, checked ${GLB_COUNT}" >&2; exit 1; }
+[[ "$WEB_TOTAL_BYTES" -lt 3500000 ]] || { echo "ERROR: /models3d GLB transfer total ${WEB_TOTAL_BYTES} bytes >= 3500000" >&2; exit 1; }
+echo "Verified ${GLB_COUNT}/24 /models3d/*.glb endpoints (HTTP 200, glTF header), total ${WEB_TOTAL_BYTES} bytes (< 3500000)."
+
+# Headless browser WebGL render assertion (SwiftShader software GL): page loads, no crash,
+# 3D canvas initialises and the 2D fallback banner stays hidden.
+BROWSER_BIN=""
+for CAND in "${ARCHSCADA_GATE5_BROWSER:-}" chromium google-chrome-stable google-chrome chromium-browser; do
+  [[ -n "$CAND" ]] && command -v "$CAND" >/dev/null 2>&1 && { BROWSER_BIN="$(command -v "$CAND")"; break; }
+done
+PW_ROOT="$(npm root -g 2>/dev/null || true)"
+if [[ -n "$BROWSER_BIN" && -d "$PW_ROOT/playwright" ]]; then
+  GATE5_URL="${WEB_URL}/DigitalTwin3D" GATE5_BROWSER_BIN="$BROWSER_BIN" NODE_PATH="$PW_ROOT" timeout 40 node - <<'JS'
+const { chromium } = require("playwright");
+(async () => {
+  const errors = [];
+  const browser = await chromium.launch({
+    executablePath: process.env.GATE5_BROWSER_BIN,
+    headless: true,
+    args: ["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    page.on("pageerror", e => errors.push("pageerror: " + e.message));
+    page.on("crash", () => errors.push("page crashed"));
+    const resp = await page.goto(process.env.GATE5_URL, { waitUntil: "domcontentloaded", timeout: 15000 });
+    if (!resp || resp.status() !== 200) throw new Error("HTTP " + (resp && resp.status()));
+    await page.waitForFunction(() => {
+      const c = document.querySelector("#viewport-wrap canvas:not(#fallback-canvas)");
+      const banner = document.getElementById("offline-banner");
+      const kpiGlb = document.getElementById("kpi-glb");
+      const fb = banner && getComputedStyle(banner).display === "block";
+      return fb || (c && c.width > 0 && c.height > 0 && typeof window.__applyPreset === "function" && kpiGlb && kpiGlb.textContent === "24/24");
+    }, null, { timeout: 25000 });
+    const state = await page.evaluate(() => {
+      const c = document.querySelector("#viewport-wrap canvas:not(#fallback-canvas)");
+      const banner = document.getElementById("offline-banner");
+      const kpiGlb = document.getElementById("kpi-glb");
+      return {
+        bannerDisplay: getComputedStyle(banner).display,
+        canvas: c ? [c.width, c.height] : null,
+        presetApi: typeof window.__applyPreset === "function",
+        kpiGlb: kpiGlb ? kpiGlb.textContent : null,
+      };
+    });
+    if (state.bannerDisplay !== "none") throw new Error("#offline-banner visible (WebGL init failed): " + JSON.stringify(state));
+    if (!state.canvas || !state.presetApi || state.kpiGlb !== "24/24") throw new Error("3D canvas or 24/24 GLBs did not initialise: " + JSON.stringify(state));
+    if (errors.length) throw new Error(errors.join("; "));
+    console.log("Verified headless WebGL render of /DigitalTwin3D: canvas " + state.canvas.join("x") + ", GLBs " + state.kpiGlb + ", #offline-banner hidden, 0 page errors.");
+  } finally {
+    await browser.close();
+  }
+})().catch(e => { console.error("ERROR: headless WebGL assertion failed: " + e.message); process.exit(1); });
+JS
+else
+  echo "WARNING: headless browser (chromium + global playwright) not found; skipping WebGL render assertion." >&2
+fi
 
 STATUS_POST="$(curl -sS -o /dev/null -w "%{http_code}" -X POST "${WEB_URL}/DigitalTwin3D")"
 [[ "$STATUS_POST" == "403" ]] || { echo "ERROR: POST /DigitalTwin3D returned HTTP ${STATUS_POST} (expected 403)" >&2; exit 1; }

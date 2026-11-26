@@ -1,5 +1,6 @@
 @page
 @model DigitalTwin3DModel
+@removeTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.ScriptTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     Layout = null;
 }
@@ -2559,6 +2560,7 @@ try {
 
     // Preload conveyor_segment.glb and load standalone sub-equipment GLB models so all 24 GLB assets are active
     loadGlb("conveyor_segment.glb").catch(() => {});
+    const subGlbMap = new Map();
     for (const sn of SUB_EQUIPMENT_NODES) {
         if (!sn.glb) continue;
         loadGlb(sn.glb).then(template => {
@@ -2567,6 +2569,7 @@ try {
             clone.position.set(...sn.pos);
             tagNodeHierarchy(clone, sn.id);
             scene.add(clone);
+            subGlbMap.set(sn.id, { root: clone, basePos: [...sn.pos], baseRotY: sn.rotY || 0, baseScale: clone.scale.clone(), scada: sn.scada, id: sn.id });
         }).catch(() => {});
     }
 
@@ -2739,6 +2742,34 @@ try {
         const eqMap = state.telemetry?.equipment || {};
         const loaderFlow = state.flowMap["FEL-101"];
         const lp = computeLoaderPose(t, !state.paused && (loaderFlow?.running ?? true));
+
+        // ACT-05: telemetry-driven kinematics for standalone sub-equipment GLB models
+        for (const entry of subGlbMap.values()) {
+            const r = entry.root, bp = entry.basePos;
+            const st = eqMap[entry.scada]?.status;
+            const live = !reducedMotion && !state.paused && !(st === "Stopped" || st === "Fault" || st === "Offline");
+            let ox = 0, oy = 0, oz = 0, ry = 0, sx = 1;
+            if (live) {
+                switch (entry.id) {
+                    case "OM-101": // magnetic cross-belt hum + belt oscillation
+                        oz = Math.sin(t * 3.2) * 0.04; oy = Math.sin(t * 22) * 0.008; break;
+                    case "CF-501": // high-frequency vibratory dewatering + rotational harmonic
+                        ox = Math.sin(t * 58) * 0.012; oy = Math.cos(t * 61) * 0.010; ry = Math.sin(t * 34) * 0.012; break;
+                    case "FP-501": // hydraulic plate-compression breathing along longitudinal axis
+                        sx = 1 + 0.015 * Math.sin(t * 0.9); ox = (sx - 1) * 0.5; break;
+                    case "TLS-401": // flood-loading chute / gate vibration
+                        oy = Math.sin(t * 2.4) * 0.05 + Math.sin(t * 31) * 0.006; break;
+                    case "DC-101": { // periodic pulse-jet cleaning pulse
+                        const ph = (t % 4) / 4;
+                        oy = ph < 0.06 ? Math.sin(ph / 0.06 * Math.PI) * 0.03 : 0;
+                        sx = 1 + (ph < 0.06 ? 0.006 * Math.sin(ph / 0.06 * Math.PI) : 0); break;
+                    }
+                }
+            }
+            r.position.set(bp[0] + ox, bp[1] + oy, bp[2] + oz);
+            r.rotation.y = entry.baseRotY + ry;
+            r.scale.set(entry.baseScale.x * sx, entry.baseScale.y, entry.baseScale.z);
+        }
 
         // Update 18 machines + 18 instanced status beacons
         MACHINE_NODES.forEach((m, mIdx) => {

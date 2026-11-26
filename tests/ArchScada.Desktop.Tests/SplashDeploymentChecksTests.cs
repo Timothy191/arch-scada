@@ -97,7 +97,7 @@ public sealed class SplashDeploymentChecksTests
 
             var twinCheck = vm.Checks.Single(c => c.Id == "3d");
             Assert.Equal(StartupCheckState.Passed, twinCheck.State);
-            Assert.Contains("16/16 glTF 2.0 PBR models verified", twinCheck.Detail);
+            Assert.Contains("24/24 glTF 2.0 PBR models verified", twinCheck.Detail);
         }
         finally
         {

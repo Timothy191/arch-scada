@@ -1401,6 +1401,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             Matrix4x4.CreateScale(1.88f, 0.04f, 1.88f) * Matrix4x4.CreateTranslation(2.30f, 1.84f, -8.30f),
             0.078f, 0.239f, 0.349f, 1.0f, 0.14f, 0.20f));
 
+        // ACT-05: telemetry-driven kinematics for standalone sub-equipment (existing instanced buffers only)
+        AppendSubEquipmentKinematics(eqMap, fx.AnimateConveyors);
+
         // Instrumentation beacon LED lenses (VT-102, LT-201, DT-301, PT-301) with 2.4x HDR boost
         foreach (var sensorPos in new[]
         {
@@ -1750,6 +1753,85 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
                        * Matrix4x4.CreateTranslation(pos.X, pos.Y + 0.10f, pos.Z);
                 _ringInstances.Add(new InstanceItem(rm, sc.R / 255f, sc.G / 255f, sc.B / 255f, isSel ? 0.92f : 0.62f, 0f, 0.5f));
             }
+        }
+    }
+
+    private void AppendSubEquipmentKinematics(Dictionary<string, EquipmentItem> eqMap, bool animate)
+    {
+        bool IsRun(string id) => eqMap.TryGetValue(id, out var e) ? e.Status != EquipmentStatus.Stopped : true;
+        float t = animate ? (float)SimTime : 0f;
+
+        // OM-101 overband magnet (linked CV-101): cross-belt cleats sweeping laterally + extracted tramp iron piece
+        {
+            var c = new Vector3(-52.0f, 3.8f, 1.5f);
+            bool run = IsRun("CV-101");
+            for (int i = 0; i < 4; i++)
+            {
+                float ph = run ? (t * 0.9f + i * 0.25f) % 1f : i * 0.25f;
+                var m = Matrix4x4.CreateScale(0.10f, 0.05f, 0.80f) * Matrix4x4.CreateTranslation(c.X - 0.9f + ph * 1.8f, c.Y - 0.42f, c.Z);
+                _casterBoxes.Add(new InstanceItem(m, 0.20f, 0.22f, 0.26f, 1.0f, 0.82f, 0.38f));
+            }
+            if (run)
+            {
+                float ph = (t * 0.35f) % 1f;
+                var m = Matrix4x4.CreateScale(0.14f, 0.07f, 0.10f) * Matrix4x4.CreateRotationY(ph * 12f)
+                      * Matrix4x4.CreateTranslation(c.X + 0.2f, c.Y - 0.35f - 0.9f * ph * ph, c.Z + 0.9f + ph * 0.9f);
+                _unlitBoxes.Add(new InstanceItem(m, 1.0f, 0.55f, 0.12f, 1.0f, 1.0f, 0.3f));
+            }
+        }
+
+        // CF-501 screen-bowl centrifuge: spinning drive pulley + vibrating bowl ring
+        {
+            var c = new Vector3(11.0f, 4.5f, 15.0f);
+            bool run = IsRun("CF-501");
+            float vib = run ? MathF.Sin(t * 70f) * 0.02f : 0f;
+            var ring = Matrix4x4.CreateScale(1.30f, 0.10f, 1.30f) * Matrix4x4.CreateTranslation(c.X, c.Y + 0.55f + vib, c.Z);
+            _casterCylinders.Add(new InstanceItem(ring, 0.70f, 0.74f, 0.80f, 1.0f, 0.85f, 0.30f));
+            float spin = run ? t * 18f : 0f;
+            var pul = Matrix4x4.CreateScale(0.50f, 0.18f, 0.50f) * Matrix4x4.CreateTranslation(c.X + 1.1f, c.Y - 0.3f, c.Z);
+            _casterCylinders.Add(new InstanceItem(pul, 0.85f, 0.55f, 0.10f, 1.0f, 0.80f, 0.32f));
+            var spoke = Matrix4x4.CreateScale(0.80f, 0.06f, 0.08f) * Matrix4x4.CreateRotationY(spin)
+                      * Matrix4x4.CreateTranslation(c.X + 1.1f, c.Y - 0.18f, c.Z);
+            _casterBoxes.Add(new InstanceItem(spoke, 0.18f, 0.24f, 0.32f, 1.0f, 0.80f, 0.35f));
+        }
+
+        // FP-501 filter press: reciprocating hydraulic follower plate ram along X
+        {
+            var c = new Vector3(26.0f, 0.0f, 20.0f);
+            bool run = IsRun("FP-501");
+            float stroke = run ? 0.5f + 0.5f * MathF.Sin(t * 0.8f) : 0.5f;
+            var plate = Matrix4x4.CreateScale(0.18f, 1.50f, 1.40f) * Matrix4x4.CreateTranslation(c.X - 1.8f + stroke * 1.2f, c.Y + 1.40f, c.Z);
+            _casterBoxes.Add(new InstanceItem(plate, 0.30f, 0.52f, 0.78f, 1.0f, 0.75f, 0.35f));
+            var ram = Matrix4x4.CreateScale(0.14f, 0.14f, 0.14f) * Matrix4x4.CreateTranslation(c.X - 2.3f, c.Y + 1.40f, c.Z);
+            _casterCylinders.Add(new InstanceItem(ram, 0.72f, 0.76f, 0.84f, 1.0f, 0.88f, 0.24f));
+        }
+
+        // TLS-401 train loadout silo (linked LD-601): telescoping discharge chute + coal stream toward rail
+        {
+            var c = new Vector3(75.0f, 0.0f, -15.0f);
+            bool run = IsRun("LD-601");
+            float ext = run ? 0.65f + 0.35f * MathF.Sin(t * 1.2f) : 0.3f;
+            float chuteLen = 1.2f + ext * 1.6f;
+            var chute = Matrix4x4.CreateScale(0.45f, chuteLen, 0.45f) * Matrix4x4.CreateTranslation(c.X, c.Y + 6.0f - chuteLen * 0.5f, c.Z);
+            _casterCylinders.Add(new InstanceItem(chute, 0.85f, 0.55f, 0.10f, 1.0f, 0.78f, 0.34f));
+            if (run)
+            {
+                var col = Plant3DSceneData.GetMaterialColor(CoalMaterialClass.RawRom);
+                for (int i = 0; i < 6; i++)
+                {
+                    float ph = (t * 1.6f + i / 6f) % 1f;
+                    float y = c.Y + 6.0f - chuteLen - ph * (6.0f - chuteLen - 0.6f);
+                    AddStream(new Vector3(c.X, y, c.Z), 0.16f - ph * 0.04f, col, i, t * 4f);
+                }
+            }
+        }
+
+        void AddStream(Vector3 pos, float size, Color col, int seed, float rot)
+        {
+            var mat = Matrix4x4.CreateScale(size, size * 0.8f, size)
+                    * Matrix4x4.CreateRotationY(seed * 0.93f + rot)
+                    * Matrix4x4.CreateTranslation(pos);
+            _coalLumps.Add(new InstanceItem(mat, col.R / 255f * 0.9f, col.G / 255f * 0.9f, col.B / 255f * 0.9f, 1.0f, 0.1f, 0.85f));
         }
     }
 

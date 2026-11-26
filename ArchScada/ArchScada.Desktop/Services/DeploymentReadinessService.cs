@@ -385,7 +385,13 @@ public sealed class DeploymentReadinessService : IDeploymentReadinessService
 
         var requiredFiles = Plant3DSceneData.BuildNodes()
             .Select(n => n.GlbFileName)
-            .Concat(new[] { "wheel_loader_bucket.glb", "conveyor_segment.glb" })
+            .Concat(new[]
+            {
+                "wheel_loader_bucket.glb", "conveyor_segment.glb",
+                "centrifuge_dryer_cf501.glb", "dmc_cyclone_dmc301.glb", "dust_collector_dc101.glb",
+                "filter_press_fp501.glb", "mcc_substation_mcc101.glb", "overband_magnet_om101.glb",
+                "pgnaa_analyzer_an601.glb", "train_loadout_silo_tls401.glb"
+            })
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
