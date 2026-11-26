@@ -1,44 +1,299 @@
-# Plant Project - Page Specialists Registry
+# ArchSCADA Pro - Specialist Registry (schema v2.0)
+#
+# Single source of truth for `/swarm` worker boundaries. Consumed by
+# deploy/scripts/swarm_orchestrator.py (stdlib parser: block-style maps/lists,
+# quoted or plain scalars, no anchors) and, through it, by task_start.sh.
+#
+# Path conventions (repo-root relative, forward slashes):
+#   - a trailing "/" marks a directory (covers everything beneath it)
+#   - no trailing "/" marks one exact file
+#   - an owned directory may contain a narrower path owned by a peer ONLY if the
+#     broader owner lists that narrower path in its own `forbidden_paths`
+#     (explicit carve-out); every other overlap is a validation failure.
+#
+# effort_tier: light | standard | heavy  (reasoning/token budget hint for the worker)
+# memory_refs: ids from conductor/memory.md (M-01 .. M-09) injected into the brief
+# mcp_servers: keys that MUST exist in .mcp.json
+# precontext_facets: sections of `deliver_precontext.sh --json` rendered in the brief
+#                    (git | tracks | assets | openusd | mcp)
+
+schema_version: "2.0"
+updated: "2026-11-26"
+project: ArchSCADA
+
+global_forbidden_paths:
+  - .git/
+  - ArchScada/Assets/3D/node_modules/
 
 specialists:
   - name: Desktop
-    role: "Coordinates desktop client interfaces, UI/UX, and native platform integrations."
+    aliases: []
+    worker_name: desktop-specialist
+    role: "Avalonia desktop client: views, view-models, styles, services and native platform integration (excluding the 3D engine)."
+    effort_tier: standard
     responsibilities:
-      - Desktop application layout and navigation
-      - Platform-specific bindings (Windows, Linux, macOS)
-      - Keyboard shortcuts and accessibility
-    pre_context_fetch: "desktop_precontext"
+      - Desktop layout, navigation, keyboard shortcuts and accessibility
+      - View-model and service wiring against ArchScada.CoreIntegration
+      - Platform-specific behaviour (Windows, Linux, macOS)
+    owned_paths:
+      - ArchScada/ArchScada.Desktop/Views/
+      - ArchScada/ArchScada.Desktop/ViewModels/
+      - ArchScada/ArchScada.Desktop/Styles/
+      - ArchScada/ArchScada.Desktop/Converters/
+      - ArchScada/ArchScada.Desktop/Models/
+      - ArchScada/ArchScada.Desktop/Services/
+      - ArchScada/ArchScada.Desktop/Controls/
+      - ArchScada/ArchScada.Desktop/Assets/
+      - ArchScada/ArchScada.Desktop/App.axaml
+      - ArchScada/ArchScada.Desktop/App.axaml.cs
+      - ArchScada/ArchScada.Desktop/Program.cs
+      - ArchScada/ArchScada.Desktop/ViewLocator.cs
+      - ArchScada/ArchScada.Desktop/appsettings.json
+      - ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj
+    forbidden_paths:
+      - ArchScada/ArchScada.Desktop/Controls/ThreeD/
+      - ArchScada/ArchScada.Desktop/Controls/Plant3DViewportControl.cs
+      - ArchScada/ArchScada.Desktop/Services/DeploymentReadinessService.cs
+    mcp_servers:
+      - AgentsRoom-MCP
+      - AgentsRoom-Test-Runner
+    memory_refs:
+      - M-02
+      - M-05
+    precontext_facets:
+      - git
+      - tracks
+    verification_gates:
+      - id: desktop-build
+        command: "dotnet build ArchScada/ArchScada.Desktop/ArchScada.Desktop.csproj -c Release -warnaserror"
+      - id: desktop-tests
+        command: 'dotnet test tests/ArchScada.Desktop.Tests/ArchScada.Desktop.Tests.csproj -c Release --filter "FullyQualifiedName~DesktopTests"'
 
   - name: Web
-    role: "Handles web portal pages, responsive design, and client‑side interactions."
+    aliases: []
+    worker_name: web-specialist
+    role: "ScadaWeb portal: Razor pages, responsive UI, client-side interactions and static asset linking (excluding the Digital Twin 3D page)."
+    effort_tier: standard
     responsibilities:
-      - React/Blazor component development
-      - UI consistency across browsers
+      - Razor page and component development, cross-browser consistency
       - State management and API consumption
-    pre_context_fetch: "web_precontext"
+      - ScadaWeb.csproj asset linking (ExportedWeb Meshopt tier)
+    owned_paths:
+      - ScadaWeb/
+    forbidden_paths:
+      - ScadaWeb/ScadaWeb/ScadaWeb/Pages/DigitalTwin3D.cshtml
+    mcp_servers:
+      - AgentsRoom-Browser
+      - AgentsRoom-Chrome
+      - AgentsRoom-QA-Tester
+    memory_refs:
+      - M-05
+      - M-06
+      - M-09
+    precontext_facets:
+      - git
+      - tracks
+      - assets
+    verification_gates:
+      - id: web-build
+        command: "dotnet build ScadaWeb/ScadaWeb/ScadaWeb/ScadaWeb.csproj -c Release -warnaserror"
+      - id: web-3d-offline-assets
+        command: 'dotnet test tests/ArchScada.Desktop.Tests/ArchScada.Desktop.Tests.csproj -c Release --filter "FullyQualifiedName~Plant3DTests"'
 
   - name: ThreeD
-    role: "Manages 3D visualizations, overlays, and interactive diagrams."
+    aliases:
+      - 3D
+    worker_name: threed-specialist
+    role: "3D digital twin: OpenGL desktop canvas, Three.js Digital Twin page, GLB asset tiers, shaders and Blender/asset-processing MCP pipelines."
+    effort_tier: heavy
     responsibilities:
-      - 3D model integration and rendering
-      - Real‑time scene updates
-      - Visual effect scripting
-    pre_context_fetch: "3d_precontext"
+      - Plant3DOpenGlCanvas, scene data and GLB loading (SharpGLTF master tier)
+      - DigitalTwin3D.cshtml Web3D rendering (Meshopt web tier)
+      - Exported / ExportedWeb GLB pipelines, shaders and draw-call budgets
+    owned_paths:
+      - ArchScada/ArchScada.Desktop/Controls/ThreeD/
+      - ArchScada/ArchScada.Desktop/Controls/Plant3DViewportControl.cs
+      - ArchScada/ArchScada.Desktop/Services/DeploymentReadinessService.cs
+      - ScadaWeb/ScadaWeb/ScadaWeb/Pages/DigitalTwin3D.cshtml
+      - ArchScada/Assets/3D/Exported/
+      - ArchScada/Assets/3D/ExportedWeb/
+      - ArchScada/Assets/3D/Blender/
+      - ArchScada/Assets/3D/optimize_glbs.mjs
+      - deploy/scripts/optimize-web-glbs.sh
+      - deploy/scripts/shader_polyhaven_mcp.py
+      - deploy/scripts/start-blender-mcp-headless.sh
+    forbidden_paths:
+      - ArchScada/Assets/3D/ArchCoalPlant.usda
+      - deploy/scripts/generate_openusd_plant.py
+    mcp_servers:
+      - blender-mcp
+      - 3d-asset-processing-mcp
+      - shader-polyhaven-mcp
+    memory_refs:
+      - M-01
+      - M-02
+      - M-03
+      - M-04
+      - M-06
+      - M-07
+    precontext_facets:
+      - git
+      - tracks
+      - assets
+      - mcp
+    verification_gates:
+      - id: threed-shader-selftest
+        command: "python3 deploy/scripts/shader_polyhaven_mcp.py --self-test"
+      - id: threed-desktop-parity
+        command: 'dotnet test tests/ArchScada.Desktop.Tests/ArchScada.Desktop.Tests.csproj -c Release --filter "FullyQualifiedName~Plant3DTests|FullyQualifiedName~ThreeDSyncTests"'
+      - id: threed-glb-tiers
+        command: "python3 deploy/scripts/swarm_orchestrator.py --validate"
 
-  - name: Documentation
-    role: "Maintains inline help, user guides, and API references linked to pages."
+  - name: OpenUSD
+    aliases:
+      - USD
+    worker_name: openusd-specialist
+    role: "OpenUSD master assembly ArchCoalPlant.usda: generator parity with Plant3DSceneData, materials, variant sets and openusd-mcp tooling."
+    effort_tier: standard
     responsibilities:
-      - Markdown content creation and updates
-      - Cross‑linking with code annotations
-      - Versioned documentation releases
-    pre_context_fetch: "doc_precontext"
+      - Regenerate ArchCoalPlant.usda whenever Plant3DSceneData.cs changes
+      - Keep 111 interactive nodes, LOD and operatingState variant sets intact
+      - openusd-mcp scene inspection and mesh export checks
+    owned_paths:
+      - ArchScada/Assets/3D/ArchCoalPlant.usda
+      - deploy/scripts/generate_openusd_plant.py
+    forbidden_paths:
+      - ArchScada/Assets/3D/Exported/
+      - ArchScada/ArchScada.Desktop/Controls/ThreeD/Plant3DSceneData.cs
+    mcp_servers:
+      - openusd-mcp
+      - blender-mcp
+    memory_refs:
+      - M-01
+      - M-04
+      - M-08
+    precontext_facets:
+      - git
+      - assets
+      - openusd
+    verification_gates:
+      - id: openusd-stage-stats
+        command: '"${OPENUSD_MCP_PYTHON:-$HOME/.local/share/uv/tools/openusd-mcp/bin/python}" -c "from openusd_mcp.tools import scene_stats as s; r = s(''ArchScada/Assets/3D/ArchCoalPlant.usda''); assert r[''prim_count''] >= 250 and r[''material_count''] >= 10 and r[''up_axis''] == ''Y'', r; print(r)"'
+      - id: openusd-generator-parity
+        command: '"${OPENUSD_MCP_PYTHON:-$HOME/.local/share/uv/tools/openusd-mcp/bin/python}" deploy/scripts/generate_openusd_plant.py --output "$(mktemp --suffix=.usda)"'
 
   - name: Testing
-    role: "Ensures page‑level functionality via unit, integration, and UI tests."
+    aliases: []
+    worker_name: testing-specialist
+    role: "Quality gates and test suites: xUnit projects, verify-quality-gates.sh, flaky-test detection and coverage."
+    effort_tier: standard
     responsibilities:
-      - Test suite execution and reporting
-      - Flaky test detection
-      - Coverage analysis
-    pre_context_fetch: "test_precontext"
+      - Unit, integration and UI test authoring and execution
+      - 6-gate verification suite maintenance
+      - Flaky test detection and coverage analysis
+    owned_paths:
+      - tests/
+      - verify-quality-gates.sh
+      - build-all.sh
+    forbidden_paths:
+      - tests/ArchScada.ControlBoundary.Tests/
+    mcp_servers:
+      - AgentsRoom-Test-Runner
+      - AgentsRoom-QA-Tester
+      - AgentsRoom-Browser
+    memory_refs:
+      - M-03
+      - M-06
+      - M-07
+      - M-09
+    precontext_facets:
+      - git
+      - tracks
+      - assets
+    verification_gates:
+      - id: testing-3d-sync
+        command: 'dotnet test tests/ArchScada.Desktop.Tests/ArchScada.Desktop.Tests.csproj -c Release --filter "FullyQualifiedName~ThreeDSyncTests"'
+      - id: testing-quality-gates
+        command: "./verify-quality-gates.sh --skip-gui"
+
+  - name: Documentation
+    aliases:
+      - Docs
+    worker_name: documentation-specialist
+    role: "Docs, Conductor ledger (memory, tracks) and swarm tooling: registry, orchestrator, task_start and pre-context scripts."
+    effort_tier: light
+    responsibilities:
+      - Dated memory entries and action ledger in conductor/memory.md
+      - Conductor track specs, plans and registry
+      - Swarm tooling consistency (registry, orchestrator, briefs)
+    owned_paths:
+      - docs/
+      - ScadaDoc/
+      - conductor/
+      - README.md
+      - CLAUDE.md
+      - specialists_registry.yaml
+      - task_start.sh
+      - deliver_precontext.sh
+      - deploy/scripts/swarm_orchestrator.py
+    forbidden_paths: []
+    mcp_servers:
+      - AgentsRoom-MCP
+    memory_refs:
+      - M-01
+      - M-02
+      - M-03
+      - M-04
+      - M-05
+      - M-06
+      - M-07
+      - M-08
+      - M-09
+    precontext_facets:
+      - git
+      - tracks
+      - assets
+      - openusd
+      - mcp
+    verification_gates:
+      - id: docs-swarm-selftest
+        command: "python3 deploy/scripts/swarm_orchestrator.py --self-test"
+      - id: docs-script-syntax
+        command: "bash -n task_start.sh && bash -n deliver_precontext.sh"
+
+  - name: Security
+    aliases:
+      - Sec
+    worker_name: security-specialist
+    role: "Control boundary, audit logging, secrets hygiene in MCP configuration, backup/restore and systemd hardening."
+    effort_tier: standard
+    responsibilities:
+      - ControlBoundary engine, adapters and audit logger review
+      - Secrets and token hygiene (.mcp.json uses env placeholders only)
+      - Backup scripts, Postgres provisioning and systemd unit hardening
+    owned_paths:
+      - ArchScada/ArchScada.ControlBoundary/
+      - tests/ArchScada.ControlBoundary.Tests/
+      - .mcp.json
+      - deploy/systemd/
+      - deploy/systemd-user/
+      - deploy/scripts/create-backup.sh
+      - deploy/scripts/verify-backup.sh
+      - deploy/scripts/provision-postgres.sh
+    forbidden_paths: []
+    mcp_servers:
+      - AgentsRoom-MCP
+    memory_refs:
+      - M-01
+      - M-04
+      - M-05
+    precontext_facets:
+      - git
+      - mcp
+    verification_gates:
+      - id: security-control-boundary-tests
+        command: "dotnet test tests/ArchScada.ControlBoundary.Tests/ArchScada.ControlBoundary.Tests.csproj -c Release"
+      - id: security-no-literal-bearer-tokens
+        command: "! grep -E 'Bearer [A-Za-z0-9._-]{16,}' .mcp.json"
 
 # End of registry

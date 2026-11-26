@@ -181,6 +181,98 @@
             color: var(--accent);
         }
 
+        /* WCAG 2.1 AA focus rings (2.4.7 Focus Visible) */
+        .btn-hud:focus-visible,
+        .preset-btn:focus-visible,
+        .node-pill:focus-visible,
+        .dir-btn:focus-visible,
+        a.btn-hud:focus-visible,
+        select.btn-hud:focus-visible,
+        button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .btn-hud[aria-pressed="true"] { font-weight: 700; }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* 3D Scale & Compass HUD */
+        #compass-hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 21;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px 5px 6px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            backdrop-filter: blur(8px);
+            color: var(--text-secondary);
+            font-size: 10.5px;
+            line-height: 1.35;
+            font-variant-numeric: tabular-nums;
+            pointer-events: none;
+        }
+        #compass-hud[hidden] { display: none; }
+        #compass-dial { width: 44px; height: 44px; flex: none; }
+        #compass-dial .ring { fill: none; stroke: var(--border-strong); stroke-width: 1.2; }
+        #compass-dial .mark { fill: var(--accent); }
+        #compass-dial .cardinal { fill: var(--text-secondary); font-size: 7.5px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+        #compass-dial .cardinal.north { fill: var(--red); }
+        #compass-dial .needle-n { fill: var(--red); }
+        #compass-dial .needle-s { fill: var(--text-muted); }
+        #compass-heading { color: var(--text-primary); font-weight: 800; font-size: 11px; display: block; }
+        #compass-detail, #compass-scale { display: block; }
+
+        /* Keyboard shortcut help dialog */
+        #shortcuts-panel {
+            position: absolute;
+            top: 58px;
+            right: 12px;
+            z-index: 30;
+            width: 300px;
+            max-height: calc(100% - 140px);
+            overflow-y: auto;
+            padding: 10px 12px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-strong);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+            color: var(--text-primary);
+        }
+        #shortcuts-panel[hidden] { display: none; }
+        #shortcuts-panel h2 { margin: 0 0 6px; font-size: 12.5px; color: var(--accent); }
+        #shortcuts-panel dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 11px; }
+        #shortcuts-panel dt { white-space: nowrap; }
+        #shortcuts-panel dd { margin: 0; color: var(--text-secondary); }
+        #shortcuts-panel kbd {
+            display: inline-block;
+            min-width: 20px;
+            padding: 1px 6px;
+            text-align: center;
+            font: 700 10.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            color: var(--text-primary);
+            background: var(--bg-chip);
+            border: 1px solid var(--border-strong);
+            border-radius: 4px;
+        }
+        #shortcuts-panel .panel-close { margin-top: 8px; }
+
         /* 3D Viewport */
         #viewport-wrap {
             position: relative;
@@ -544,16 +636,20 @@
             <div class="kpi-chip"><span class="k">Ash</span><span class="v" id="kpi-ash">9.40%</span></div>
             <div class="kpi-chip"><span class="k">GLB</span><span class="v" id="kpi-glb">0/24</span></div>
             <div class="kpi-chip"><span class="k">FPS</span><span class="v" id="kpi-fps">--</span></div>
+            <div class="kpi-chip" id="chip-draws" title="Real-time WebGL draw calls per frame (renderer.info.render.calls)"><span class="k">Draws</span><span class="v" id="kpi-draws">--</span></div>
+            <div class="kpi-chip" id="chip-meshopt" title="24/24 web-tier GLBs served with EXT_meshopt_compression"><span class="k">Meshopt</span><span class="v" id="kpi-meshopt">--</span></div>
         </div>
 
         <div class="toolbar-actions">
-            <button type="button" class="btn-hud" id="btn-circuits">Circuits &amp; Historian</button>
-            <button type="button" class="btn-hud active" id="btn-labels">Labels</button>
-            <button type="button" class="btn-hud active" id="btn-arrows">Flow Chevrons</button>
-            <button type="button" class="btn-hud active" id="btn-postfx">Post FX</button>
-            <button type="button" class="btn-hud" id="btn-thermal">Thermal Heatmap</button>
-            <button type="button" class="btn-hud" id="btn-pause">Pause</button>
-            <button type="button" class="btn-hud" id="btn-theme">Light HUD</button>
+            <button type="button" class="btn-hud" id="btn-circuits" aria-label="Toggle 2D process circuits and historian drawer" aria-pressed="false" aria-controls="circuits-drawer">Circuits &amp; Historian</button>
+            <button type="button" class="btn-hud active" id="btn-labels" aria-label="Toggle equipment labels (L)" aria-pressed="true" aria-keyshortcuts="L">Labels</button>
+            <button type="button" class="btn-hud active" id="btn-arrows" aria-label="Toggle process flow chevrons (F)" aria-pressed="true" aria-keyshortcuts="F">Flow Chevrons</button>
+            <button type="button" class="btn-hud active" id="btn-postfx" aria-label="Toggle post-processing effects" aria-pressed="true">Post FX</button>
+            <button type="button" class="btn-hud" id="btn-thermal" aria-label="Toggle thermal heatmap (H)" aria-pressed="false" aria-keyshortcuts="H">Thermal Heatmap</button>
+            <button type="button" class="btn-hud" id="btn-pause" aria-label="Pause animation (P)" aria-pressed="false" aria-keyshortcuts="P Space">Pause</button>
+            <button type="button" class="btn-hud" id="btn-theme" aria-label="Toggle light HUD theme (T)" aria-pressed="false" aria-keyshortcuts="T">Light HUD</button>
+            <button type="button" class="btn-hud" id="btn-lighting" aria-label="Lighting mode: Industrial Daylight. Activate to switch to Night Shift. (E)" aria-keyshortcuts="E">Lighting: Industrial Daylight</button>
+            <button type="button" class="btn-hud" id="btn-shortcuts" aria-label="Show keyboard shortcuts (?)" aria-haspopup="dialog" aria-expanded="false" aria-controls="shortcuts-panel" aria-keyshortcuts="Shift+/">Shortcuts ?</button>
             <a class="btn-hud" href="~/About" title="ScadaWeb About">ScadaWeb</a>
         </div>
     </header>
@@ -564,6 +660,34 @@
         <canvas id="fallback-canvas" style="display:none;"></canvas>
         <div id="labels-overlay"></div>
         <div id="hover-tooltip" role="status" aria-live="polite"></div>
+        <div id="sr-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+        <!-- 3D Scale & Compass HUD (North = -Z, East = +X; live with camera azimuth) -->
+        <div id="compass-hud" role="group" aria-label="Plant orientation compass">
+            <svg id="compass-dial" viewBox="0 0 44 44" aria-hidden="true" focusable="false">
+                <polygon class="mark" points="22,0.5 19.5,4.5 24.5,4.5"></polygon>
+                <circle class="ring" cx="22" cy="22" r="20"></circle>
+                <g id="compass-rose">
+                    <polygon class="needle-n" points="22,13 19.5,22 24.5,22"></polygon>
+                    <polygon class="needle-s" points="22,31 19.5,22 24.5,22"></polygon>
+                    <text class="cardinal north" x="22" y="8">N</text>
+                    <text class="cardinal" x="36" y="22">E</text>
+                    <text class="cardinal" x="22" y="37">S</text>
+                    <text class="cardinal" x="8" y="22">W</text>
+                </g>
+            </svg>
+            <div>
+                <span id="compass-heading">Facing N · 000°</span>
+                <span id="compass-detail">Elev -- · Range --</span>
+                <span id="compass-scale">1 grid cell = 2 m</span>
+            </div>
+        </div>
+
+        <div id="shortcuts-panel" role="dialog" aria-modal="false" aria-labelledby="shortcuts-title" tabindex="-1" hidden>
+            <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
+            <dl id="shortcuts-list"></dl>
+            <button type="button" class="btn-hud panel-close" id="btn-close-shortcuts" aria-label="Close keyboard shortcuts">Close ✕</button>
+        </div>
 
         <!-- Collapsible 2D Plant Circuits & Multi-Trace Historian Drawer (Web <-> Desktop Parity) -->
         <section id="circuits-drawer" aria-label="2D Plant Circuits and Multi-Trace Historian" style="display:none; position:absolute; top:12px; left:12px; right:12px; bottom:58px; z-index:26; background:var(--bg-panel); border:1px solid var(--border-strong); border-radius:10px; box-shadow:var(--shadow); backdrop-filter:blur(12px); padding:12px 14px; overflow-y:auto;">
@@ -597,15 +721,15 @@
             <strong>2D GA Schematic Fallback Active:</strong> WebGL 3D context could not be initialized in this browser session. Displaying interactive 2D GA schematic twin (read-only telemetry &amp; 111-item flow simulation remain active).
         </div>
 
-        <div id="status-pill">PBR · N8AO · HDR Bloom · ACES · BVH · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click</div>
+        <div id="status-pill">PBR · N8AO · HDR Bloom · ACES · BVH · 2048² PCF Shadows · Orbit: Drag | Pan: Right-Drag | Zoom: Wheel | Select: Click | Press ? for shortcuts</div>
 
-        <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets">
-        <button class="preset-btn active" data-preset="overview" title="Overview View">Overview</button>
-        <button class="preset-btn" data-preset="crusher" title="Jaw Crusher View">Crusher</button>
-        <button class="preset-btn" data-preset="screen" title="Sizing Screen View">Screen</button>
-        <button class="preset-btn" data-preset="wash" title="Wash Plant View">Wash Plant</button>
-        <button class="preset-btn active" data-toggles="bloom" title="Bloom Effect">Bloom</button>
-        <button class="preset-btn" data-toggles="n8ao" title="Ambient Occlusion">AO</button>
+        <div id="camera-bar" role="toolbar" aria-label="GA Camera Presets (keys 1-9)">
+        <button type="button" class="preset-btn active" data-preset="overview" aria-pressed="true" title="Overview View">Overview</button>
+        <button type="button" class="preset-btn" data-preset="crusher" aria-pressed="false" title="Jaw Crusher View">Crusher</button>
+        <button type="button" class="preset-btn" data-preset="screen" aria-pressed="false" title="Sizing Screen View">Screen</button>
+        <button type="button" class="preset-btn" data-preset="wash" aria-pressed="false" title="Wash Plant View">Wash Plant</button>
+        <button type="button" class="preset-btn active" data-toggles="bloom" aria-pressed="true" title="Bloom Effect">Bloom</button>
+        <button type="button" class="preset-btn" data-toggles="n8ao" aria-pressed="false" title="Ambient Occlusion">AO</button>
     </div>
     </main>
 
@@ -851,6 +975,42 @@ const FOUNDATION_PADS = [
     { name: "MEDIUM & THICKENER", center: [-1.6, -0.06, -13.9], size: [11.6, 0.12, 7.6], accent: "#14B8A6" }
 ];
 
+// =============================================================================
+// UI / Visual Constants
+// =============================================================================
+// Web-tier Meshopt GLB payload (ArchScada/Assets/3D/ExportedWeb) vs. uncompressed master set
+const WEB_TIER_GLB_BYTES = 1201948;
+const MASTER_GLB_BYTES = 5633432;
+const BYTES_PER_MIB = 1024 * 1024;
+const GLB_TOTAL_COUNT = 24;
+
+// Compass: world North = -Z, East = +X (Front View (South) camera sits on +Z looking North)
+const COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const COMPASS_POINT_SPAN_DEG = 45;
+const COMPASS_UPDATE_INTERVAL_S = 0.1;
+const GRID_CELL_METERS = 2;
+
+const LIGHTING_TRANSITION_SECONDS = 1.2;
+const LIGHTING_MODES = [
+    { label: "Industrial Daylight", sun: 2.35, sunColor: 0xfff4e0, hemi: 0.72, skyColor: 0xbcd8ff, groundColor: 0x1a2436, rim: 0.55, rimColor: 0x38bdf8, exposure: 1.08, bloom: 0.22, fog: 0.011, bgDark: 0x070d1a, bgLight: 0xdbe5f0 },
+    { label: "Night Shift", sun: 0.55, sunColor: 0x9db4ff, hemi: 0.28, skyColor: 0x4a63a8, groundColor: 0x070a12, rim: 0.95, rimColor: 0x38bdf8, exposure: 0.92, bloom: 0.55, fog: 0.018, bgDark: 0x02050c, bgLight: 0x1b2438 },
+    { label: "High-Contrast Inspection", sun: 3.0, sunColor: 0xffffff, hemi: 1.15, skyColor: 0xffffff, groundColor: 0x3a4658, rim: 1.1, rimColor: 0xffffff, exposure: 1.22, bloom: 0.04, fog: 0.004, bgDark: 0x10141c, bgLight: 0xf1f5f9 }
+];
+
+const SHORTCUT_HELP = [
+    ["1 – 9", "Camera presets"],
+    ["R", "Reset to Plant Overview"],
+    ["G", "Focus selected equipment"],
+    ["L", "Toggle labels"],
+    ["F", "Toggle flow chevrons"],
+    ["P / Space", "Pause / resume"],
+    ["T", "Toggle light / dark HUD"],
+    ["H", "Toggle thermal heatmap"],
+    ["E", "Cycle lighting mode"],
+    ["?", "Show / hide this help"],
+    ["Esc", "Close dialog / drawer, else clear selection"]
+];
+
 // 9 GA Camera Presets matching Desktop & Unity
 const CAMERA_PRESETS = [
     { name: "Plant Overview", yaw: -0.58, pitch: 0.56, zoom: 0.52, tx: -1.8, tz: -1.2 },
@@ -879,7 +1039,9 @@ const state = {
     simTime: 0,
     telemetry: null,
     flowMap: {},
-    loadedGlbSet: new Set()
+    loadedGlbSet: new Set(),
+    lastSelectedId: "JC-101",
+    lightingIndex: 0
 };
 
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -997,6 +1159,9 @@ function buildUiChrome() {
         btn.className = "preset-btn" + (p.name === state.activePreset ? " active" : "");
         btn.textContent = `${idx + 1}. ${p.name}`;
         btn.dataset.preset = p.name;
+        btn.setAttribute("aria-label", `Camera preset ${idx + 1}: ${p.name}`);
+        btn.setAttribute("aria-pressed", String(p.name === state.activePreset));
+        if (idx < 9) btn.setAttribute("aria-keyshortcuts", String(idx + 1));
         btn.addEventListener("click", () => applyCameraPreset(p.name));
         camBar.appendChild(btn);
     });
@@ -1009,60 +1174,185 @@ function buildUiChrome() {
         b.textContent = n.id;
         b.dataset.nodeId = n.id;
         b.title = `${n.id} — ${n.ga}`;
+        b.setAttribute("aria-label", `Select ${n.id}, ${n.ga}`);
+        b.setAttribute("aria-pressed", String(n.id === state.selectedId));
         b.addEventListener("click", () => selectNode(n.id, true));
         dir.appendChild(b);
     });
 
-    document.getElementById("btn-labels").addEventListener("click", e => {
+    const byId = id => document.getElementById(id);
+    const labelsBtn = byId("btn-labels");
+    labelsBtn.addEventListener("click", e => {
         state.showLabels = !state.showLabels;
-        e.currentTarget.classList.toggle("active", state.showLabels);
-        document.getElementById("labels-overlay").style.display = state.showLabels ? "block" : "none";
+        setPressed(e.currentTarget, state.showLabels);
+        byId("labels-overlay").style.display = state.showLabels ? "block" : "none";
+        announce(`Labels ${state.showLabels ? "shown" : "hidden"}`);
     });
-    document.getElementById("btn-arrows").addEventListener("click", e => {
+    byId("btn-arrows").addEventListener("click", e => {
         state.showArrows = !state.showArrows;
-        e.currentTarget.classList.toggle("active", state.showArrows);
+        setPressed(e.currentTarget, state.showArrows);
+        announce(`Flow chevrons ${state.showArrows ? "shown" : "hidden"}`);
     });
-    document.getElementById("btn-postfx").addEventListener("click", e => {
+    byId("btn-postfx").addEventListener("click", e => {
         state.postFx = !state.postFx;
-        e.currentTarget.classList.toggle("active", state.postFx);
+        setPressed(e.currentTarget, state.postFx);
     });
-    document.getElementById("btn-thermal").addEventListener("click", e => {
+    byId("btn-thermal").addEventListener("click", e => {
         state.thermalHeatmap = !state.thermalHeatmap;
-        e.currentTarget.classList.toggle("active", state.thermalHeatmap);
+        setPressed(e.currentTarget, state.thermalHeatmap);
+        announce(`Thermal heatmap ${state.thermalHeatmap ? "on" : "off"}`);
     });
-    document.getElementById("btn-pause").addEventListener("click", e => {
+    byId("btn-pause").addEventListener("click", e => {
         state.paused = !state.paused;
         e.currentTarget.textContent = state.paused ? "Resume" : "Pause";
-        e.currentTarget.classList.toggle("active", state.paused);
+        setPressed(e.currentTarget, state.paused);
+        announce(state.paused ? "Animation paused" : "Animation resumed");
     });
-    document.getElementById("btn-theme").addEventListener("click", e => {
+    byId("btn-theme").addEventListener("click", e => {
         const root = document.documentElement;
         const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
         root.setAttribute("data-theme", next);
         e.currentTarget.textContent = next === "dark" ? "Light HUD" : "Dark HUD";
+        setPressed(e.currentTarget, next === "light");
         if (window.__updateThreeTheme) window.__updateThreeTheme(next);
+        announce(`${next === "light" ? "Light" : "Dark"} HUD theme`);
     });
+    byId("btn-lighting").addEventListener("click", () => {
+        state.lightingIndex = (state.lightingIndex + 1) % LIGHTING_MODES.length;
+        applyLightingModeUi();
+    });
+    applyLightingModeUi(true);
+
+    // Keyboard shortcut help dialog
+    const list = byId("shortcuts-list");
+    SHORTCUT_HELP.forEach(([keys, desc]) => {
+        const dt = document.createElement("dt");
+        keys.split(" / ").forEach((k, i) => {
+            if (i > 0) dt.appendChild(document.createTextNode(" "));
+            const kbd = document.createElement("kbd");
+            kbd.textContent = k;
+            dt.appendChild(kbd);
+        });
+        const dd = document.createElement("dd");
+        dd.textContent = desc;
+        list.append(dt, dd);
+    });
+    byId("btn-shortcuts").addEventListener("click", () => setShortcutsOpen(byId("shortcuts-panel").hidden));
+    byId("btn-close-shortcuts").addEventListener("click", () => setShortcutsOpen(false));
+
+    const KEY_ACTIONS = {
+        r: () => applyCameraPreset("Plant Overview"),
+        g: () => focusNode(state.selectedId || state.lastSelectedId),
+        l: () => byId("btn-labels").click(),
+        f: () => byId("btn-arrows").click(),
+        p: () => byId("btn-pause").click(),
+        t: () => byId("btn-theme").click(),
+        h: () => byId("btn-thermal").click(),
+        e: () => byId("btn-lighting").click(),
+        "?": () => byId("btn-shortcuts").click()
+    };
 
     window.addEventListener("keydown", ev => {
-        if (ev.target && ["INPUT", "TEXTAREA", "SELECT"].includes(ev.target.tagName)) return;
-        if (ev.key >= "1" && ev.key <= "9") {
-            const p = CAMERA_PRESETS[Number(ev.key) - 1];
-            if (p) applyCameraPreset(p.name);
-        } else if (ev.key === "r" || ev.key === "R") {
-            applyCameraPreset("Plant Overview");
-        } else if (ev.key === "f" || ev.key === "F") {
-            focusNode(state.selectedId);
-        } else if (ev.key === " ") {
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const target = ev.target;
+        const tag = target && target.tagName;
+        if (tag && ["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+        if (target && target.isContentEditable) return;
+        const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+        if (key === "Escape") { handleEscape(); return; }
+        if (key === " ") {
+            // Keep native Space activation on focused buttons / links (WCAG 2.1.1)
+            if (tag === "BUTTON" || tag === "A") return;
             ev.preventDefault();
-            document.getElementById("btn-pause").click();
+            KEY_ACTIONS.p();
+            return;
         }
+        if (key >= "1" && key <= "9") {
+            const p = CAMERA_PRESETS[Number(key) - 1];
+            if (p) applyCameraPreset(p.name);
+            return;
+        }
+        const action = KEY_ACTIONS[key];
+        if (action) action();
     });
+}
+
+function setPressed(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", String(on));
+}
+
+function announce(message) {
+    const el = document.getElementById("sr-announcer");
+    if (el) el.textContent = message;
+}
+
+function setShortcutsOpen(open) {
+    const panel = document.getElementById("shortcuts-panel");
+    const btn = document.getElementById("btn-shortcuts");
+    if (!panel || !btn) return;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) panel.focus();
+    else if (panel.contains(document.activeElement)) btn.focus();
+}
+
+function handleEscape() {
+    const panel = document.getElementById("shortcuts-panel");
+    if (panel && !panel.hidden) { setShortcutsOpen(false); return; }
+    const drawer = document.getElementById("circuits-drawer");
+    if (drawer && drawer.style.display !== "none") {
+        document.getElementById("btn-close-circuits")?.click();
+        document.getElementById("btn-circuits")?.focus();
+        return;
+    }
+    clearSelection();
+}
+
+function clearSelection() {
+    if (!state.selectedId) return;
+    state.selectedId = null;
+    document.querySelectorAll(".dir-btn").forEach(b => { b.classList.remove("active"); b.setAttribute("aria-pressed", "false"); });
+    announce("Selection cleared");
+}
+
+function applyLightingModeUi(initial = false) {
+    const mode = LIGHTING_MODES[state.lightingIndex];
+    const next = LIGHTING_MODES[(state.lightingIndex + 1) % LIGHTING_MODES.length];
+    const btn = document.getElementById("btn-lighting");
+    if (!mode || !btn) return;
+    btn.textContent = `Lighting: ${mode.label}`;
+    btn.setAttribute("aria-label", `Lighting mode: ${mode.label}. Activate to switch to ${next.label}. (E)`);
+    if (window.__setLightingMode) window.__setLightingMode(state.lightingIndex, initial);
+    if (!initial) announce(`Lighting mode ${mode.label}`);
+}
+
+function updateMeshoptBadge(decoderActive) {
+    const chip = document.getElementById("chip-meshopt");
+    const val = document.getElementById("kpi-meshopt");
+    if (!chip || !val) return;
+    const webMiB = WEB_TIER_GLB_BYTES / BYTES_PER_MIB;
+    const masterMiB = MASTER_GLB_BYTES / BYTES_PER_MIB;
+    const savedPct = Math.floor((1 - WEB_TIER_GLB_BYTES / MASTER_GLB_BYTES) * 1000) / 10;
+    val.textContent = decoderActive ? `${webMiB.toFixed(2)} MiB · -${savedPct.toFixed(1)}%` : "decoder unavailable";
+    const detail = decoderActive
+        ? `${GLB_TOTAL_COUNT}/${GLB_TOTAL_COUNT} web-tier GLBs use EXT_meshopt_compression: ${webMiB.toFixed(2)} MiB vs ${masterMiB.toFixed(2)} MiB master (-${savedPct.toFixed(1)}%)`
+        : "Meshopt decoder failed to load; compressed web-tier GLBs cannot be decoded";
+    chip.title = detail;
+    chip.setAttribute("aria-label", detail);
+    chip.setAttribute("role", "group");
 }
 
 function selectNode(id, shouldFocus = false) {
     if (!NODE_BY_ID[id]) return;
     state.selectedId = id;
-    document.querySelectorAll(".dir-btn").forEach(b => b.classList.toggle("active", b.dataset.nodeId === id));
+    state.lastSelectedId = id;
+    document.querySelectorAll(".dir-btn").forEach(b => {
+        const on = b.dataset.nodeId === id;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", String(on));
+    });
     updateInspector();
     if (shouldFocus) focusNode(id);
 }
@@ -1076,7 +1366,11 @@ function focusNode(id) {
 
 function applyCameraPreset(name, immediate = false) {
     state.activePreset = name;
-    document.querySelectorAll(".preset-btn").forEach(b => b.classList.toggle("active", b.dataset.preset === name));
+    document.querySelectorAll(".preset-btn[data-preset]").forEach(b => {
+        const on = b.dataset.preset === name;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", String(on));
+    });
     const p = CAMERA_PRESETS.find(x => x.name === name) || CAMERA_PRESETS[0];
     if (window.__applyPreset) window.__applyPreset(p, immediate);
 }
@@ -1304,11 +1598,11 @@ function renderWebCircuitsAndHistorian() {
                 <div style="font-size:12px;font-weight:700;margin-bottom:6px;">${card.title}</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-secondary);">
                     <span>Load: <strong style="color:var(--text-primary);">${load}%</strong> · ${kw}</span>
-                    <button type="button" class="node-pill" data-focus-node="${card.nodeId}">Locate in 3D ↗</button>
+                    <button type="button" class="node-pill" data-focus-node="${card.nodeId}" aria-label="Locate ${card.nodeId} in 3D view">Locate in 3D ↗</button>
                 </div>`;
             div.querySelector("button").addEventListener("click", () => {
                 drawer.style.display = "none";
-                document.getElementById("btn-circuits")?.classList.remove("active");
+                setPressed(document.getElementById("btn-circuits"), false);
                 selectNode(card.nodeId, true);
             });
             grid.appendChild(div);
@@ -1327,12 +1621,12 @@ function wireWebCircuitsDrawer() {
     btn.addEventListener("click", () => {
         const open = drawer.style.display === "none";
         drawer.style.display = open ? "block" : "none";
-        btn.classList.toggle("active", open);
+        setPressed(btn, open);
         if (open) renderWebCircuitsAndHistorian();
     });
     closeBtn?.addEventListener("click", () => {
         drawer.style.display = "none";
-        btn.classList.remove("active");
+        setPressed(btn, false);
     });
     presetSel?.addEventListener("change", renderWebCircuitsAndHistorian);
     exportBtn?.addEventListener("click", () => {
@@ -1359,7 +1653,7 @@ function wireWebCircuitsDrawer() {
 wireWebCircuitsDrawer();
 
 function updateInspector() {
-    const n = NODE_BY_ID[state.selectedId] || ALL_NODES[0];
+    const n = NODE_BY_ID[state.selectedId] || NODE_BY_ID[state.lastSelectedId] || ALL_NODES[0];
     const eq = state.telemetry?.equipment?.[n.scada];
     const directFlow = state.flowMap[n.id];
     const flow = directFlow || state.flowMap[n.scada] || (n.parentId && state.flowMap[n.parentId]) || state.flowMap["WP-301"];
@@ -1397,6 +1691,8 @@ function updateInspector() {
         if (targetId) el.type = "button";
         el.className = "node-pill" + (isCurrent ? " current" : "");
         el.textContent = label;
+        if (targetId) el.setAttribute("aria-label", isCurrent ? `${label} (currently selected)` : `Select ${label}`);
+        if (isCurrent && targetId) el.setAttribute("aria-current", "true");
         if (targetId && !isCurrent) {
             el.addEventListener("click", () => selectNode(targetId, true));
         }
@@ -1451,6 +1747,7 @@ setInterval(pollTelemetry, 1000);
 function startOfflineFallback(reason) {
     console.warn("[DigitalTwin3D] Falling back to offline 2D GA canvas:", reason);
     document.getElementById("offline-banner").style.display = "block";
+    document.getElementById("compass-hud")?.setAttribute("hidden", "");
     document.getElementById("status-pill").textContent = "Offline GA Twin Fallback · Read-Only";
     const canvas = document.getElementById("fallback-canvas");
     canvas.style.display = "block";
@@ -1553,6 +1850,7 @@ try {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
+    renderer.info.autoReset = false; // accumulate draw calls across all composer passes; reset once per frame
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -2463,6 +2761,7 @@ try {
     // Load all 24 .glb models from /models3d/{fileName}
     const gltfLoader = new GLTFLoader();
     if (MeshoptDecoder) gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+    updateMeshoptBadge(Boolean(MeshoptDecoder));
     const glbCache = new Map();
     const loadGlb = (fileName) => {
         if (glbCache.has(fileName)) return glbCache.get(fileName);
@@ -2474,7 +2773,7 @@ try {
                     }
                 });
                 state.loadedGlbSet.add(fileName);
-                document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/24`;
+                document.getElementById("kpi-glb").textContent = `${state.loadedGlbSet.size}/${GLB_TOTAL_COUNT}`;
                 resolve(gltf.scene);
             }, undefined, reject);
         });
@@ -2603,9 +2902,97 @@ try {
     };
     window.__updateThreeTheme = (theme) => {
         const dark = theme === "dark";
-        scene.background.setHex(dark ? 0x070d1a : 0xdbe5f0);
-        scene.fog.color.setHex(dark ? 0x070d1a : 0xdbe5f0);
         groundMat.color.setHex(dark ? 0x0b1324 : 0xcbd5e1);
+        window.__setLightingMode(state.lightingIndex, true); // re-resolve background/fog for the new HUD theme
+    };
+
+    // Live Lighting / Environment Modes: smooth lerp of sun, hemi, rim, exposure, background, fog, bloom
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const lightingCurrent = {
+        sun: sun.intensity, hemi: hemi.intensity, rim: rimLight.intensity,
+        exposure: renderer.toneMappingExposure, bloom: bloomPass ? bloomPass.strength : 0, fog: scene.fog.density,
+        sunColor: sun.color.clone(), skyColor: hemi.color.clone(), groundColor: hemi.groundColor.clone(),
+        rimColor: rimLight.color.clone(), bg: scene.background.clone()
+    };
+    const LIGHTING_SCALAR_KEYS = ["sun", "hemi", "rim", "exposure", "bloom", "fog"];
+    const LIGHTING_COLOR_KEYS = ["sunColor", "skyColor", "groundColor", "rimColor", "bg"];
+    let lightingTarget = null;
+    let lightingTimeLeft = 0;
+
+    const applyLightingCurrent = () => {
+        sun.intensity = lightingCurrent.sun;
+        sun.color.copy(lightingCurrent.sunColor);
+        hemi.intensity = lightingCurrent.hemi;
+        hemi.color.copy(lightingCurrent.skyColor);
+        hemi.groundColor.copy(lightingCurrent.groundColor);
+        rimLight.intensity = lightingCurrent.rim;
+        rimLight.color.copy(lightingCurrent.rimColor);
+        renderer.toneMappingExposure = lightingCurrent.exposure;
+        if (bloomPass) bloomPass.strength = lightingCurrent.bloom;
+        scene.fog.density = lightingCurrent.fog;
+        scene.fog.color.copy(lightingCurrent.bg);
+        scene.background.copy(lightingCurrent.bg);
+    };
+
+    const stepLighting = (dt) => {
+        if (!lightingTarget || lightingTimeLeft <= 0) return;
+        lightingTimeLeft -= dt;
+        if (lightingTimeLeft <= 0) {
+            LIGHTING_SCALAR_KEYS.forEach(k => { lightingCurrent[k] = lightingTarget[k]; });
+            LIGHTING_COLOR_KEYS.forEach(k => lightingCurrent[k].copy(lightingTarget[k]));
+        } else {
+            const alpha = 1 - Math.exp(-5.0 * dt);
+            LIGHTING_SCALAR_KEYS.forEach(k => { lightingCurrent[k] += (lightingTarget[k] - lightingCurrent[k]) * alpha; });
+            LIGHTING_COLOR_KEYS.forEach(k => lightingCurrent[k].lerp(lightingTarget[k], alpha));
+        }
+        applyLightingCurrent();
+    };
+
+    window.__setLightingMode = (index, immediate = false) => {
+        const mode = LIGHTING_MODES[index];
+        if (!mode) {
+            console.warn("[DigitalTwin3D] Unknown lighting mode index:", index);
+            return;
+        }
+        const dark = document.documentElement.getAttribute("data-theme") !== "light";
+        lightingTarget = {
+            sun: mode.sun, hemi: mode.hemi, rim: mode.rim, exposure: mode.exposure, bloom: mode.bloom, fog: mode.fog,
+            sunColor: new THREE.Color(mode.sunColor), skyColor: new THREE.Color(mode.skyColor),
+            groundColor: new THREE.Color(mode.groundColor), rimColor: new THREE.Color(mode.rimColor),
+            bg: new THREE.Color(dark ? mode.bgDark : mode.bgLight)
+        };
+        lightingTimeLeft = (immediate || reducedMotionQuery.matches) ? Number.EPSILON : LIGHTING_TRANSITION_SECONDS;
+        if (immediate || reducedMotionQuery.matches) stepLighting(1);
+    };
+    window.__setLightingMode(state.lightingIndex, true);
+
+    // 3D Scale & Compass HUD (North = -Z, East = +X)
+    const compassEls = {
+        rose: document.getElementById("compass-rose"),
+        heading: document.getElementById("compass-heading"),
+        detail: document.getElementById("compass-detail"),
+        scale: document.getElementById("compass-scale")
+    };
+    if (compassEls.scale) compassEls.scale.textContent = `1 grid cell = ${GRID_CELL_METERS} m`;
+    const compassDir = new THREE.Vector3();
+    let compassTimer = 0;
+    let compassKey = "";
+    const updateCompass = () => {
+        if (!compassEls.rose || !compassEls.heading || !compassEls.detail) return;
+        compassDir.subVectors(controls.target, camera.position);
+        const range = compassDir.length();
+        if (range < 1e-6) return;
+        const horizontal = Math.hypot(compassDir.x, compassDir.z);
+        const headingDeg = Math.round(((Math.atan2(compassDir.x, -compassDir.z) * 180 / Math.PI) + 360) % 360) % 360;
+        const elevDeg = Math.round(Math.atan2(-compassDir.y, horizontal) * 180 / Math.PI);
+        const rangeM = Math.round(range);
+        const point = COMPASS_POINTS[Math.round(headingDeg / COMPASS_POINT_SPAN_DEG) % COMPASS_POINTS.length];
+        const key = `${headingDeg}|${elevDeg}|${rangeM}|${state.activePreset}`;
+        if (key === compassKey) return;
+        compassKey = key;
+        compassEls.rose.setAttribute("transform", `rotate(${-headingDeg} 22 22)`);
+        compassEls.heading.textContent = `Facing ${point} · ${String(headingDeg).padStart(3, "0")}°`;
+        compassEls.detail.textContent = `Elev ${elevDeg}° · Range ${rangeM} m · ${state.activePreset}`;
     };
     applyCameraPreset("Plant Overview", true);
 
@@ -2705,6 +3092,8 @@ try {
     const projVec = new THREE.Vector3();
     const labelWorldPos = new THREE.Vector3();
     let lastTime = performance.now(), fpsFrames = 0, fpsTimer = 0;
+    let lastDrawCalls = 0;
+    const drawsEl = document.getElementById("kpi-draws");
 
     function animate(now) {
         requestAnimationFrame(animate);
@@ -2719,6 +3108,7 @@ try {
         if (fpsTimer >= 0.5) {
             const fpsAvg = Math.round(fpsFrames / fpsTimer);
             document.getElementById("kpi-fps").textContent = fpsAvg.toString();
+            if (drawsEl) drawsEl.textContent = lastDrawCalls.toString();
             // Log frame time for debugging (optional)
             // console.log(`FPS: ${fpsAvg}, Frame time: ${(fpsTimer / fpsFrames).toFixed(2)}s`);
             fpsFrames = 0; fpsTimer = 0;
@@ -2733,6 +3123,13 @@ try {
                 controls.target.copy(camAnim.targetLook);
                 camAnim = null;
             }
+        }
+
+        stepLighting(dt);
+        compassTimer += dt;
+        if (compassTimer >= COMPASS_UPDATE_INTERVAL_S) {
+            compassTimer = 0;
+            updateCompass();
         }
 
         if (!state.paused) state.simTime += dt;
@@ -3094,11 +3491,13 @@ try {
         }
 
         controls.update();
+        renderer.info.reset();
         if (state.postFx && composer) {
             composer.render();
         } else {
             renderer.render(scene, camera);
         }
+        lastDrawCalls = renderer.info.render.calls;
     }
 
     requestAnimationFrame(animate);
@@ -3113,6 +3512,7 @@ if (ppBars.length > 0) {
         btn.addEventListener('click', () => {
             const toggle = btn.dataset.toggles;
             const isActive = btn.classList.toggle('active');
+            btn.setAttribute('aria-pressed', String(isActive));
             
             if (toggle === 'bloom' && composer && bloomPass) {
                 bloomPass.enabled = isActive;

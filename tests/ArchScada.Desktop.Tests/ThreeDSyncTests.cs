@@ -149,6 +149,49 @@ public sealed class ThreeDSyncTests
     }
 
     [Fact]
+    public void ExportedWebGlbModels_MustMatchMasterCountAndStayUnderWebBudget()
+    {
+        var masterDir = ResolveRepoPath("ArchScada", "Assets", "3D", "Exported");
+        var webDir = ResolveRepoPath("ArchScada", "Assets", "3D", "ExportedWeb");
+        Assert.True(Directory.Exists(webDir), $"ExportedWeb directory not found at {webDir}");
+
+        var masterNames = Directory.GetFiles(masterDir, "*.glb").Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        var webFiles = Directory.GetFiles(webDir, "*.glb").OrderBy(n => n, StringComparer.Ordinal).ToList();
+        Assert.Equal(24, webFiles.Count);
+        Assert.Equal(masterNames, webFiles.Select(Path.GetFileName).ToList());
+
+        long total = 0;
+        foreach (var file in webFiles)
+        {
+            var bytes = File.ReadAllBytes(file);
+            Assert.True(bytes.Length >= 12, $"{file} has a truncated GLB header.");
+            Assert.Equal(0x46546C67u, BitConverter.ToUInt32(bytes, 0));
+            Assert.Equal(2u, BitConverter.ToUInt32(bytes, 4));
+            Assert.Equal((uint)bytes.Length, BitConverter.ToUInt32(bytes, 8));
+            total += bytes.Length;
+        }
+
+        Assert.True(total < 3L * 1024 * 1024, $"ExportedWeb total {total} bytes must be < 3 MiB.");
+    }
+
+    [Fact]
+    public void MasterOpenUsdAssembly_MustExistAndReferenceAll111Nodes()
+    {
+        var usdPath = ResolveRepoPath("ArchScada", "Assets", "3D", "ArchCoalPlant.usda");
+        Assert.True(File.Exists(usdPath), $"OpenUSD master assembly not found at {usdPath}");
+
+        var text = File.ReadAllText(usdPath);
+        var nodes = Plant3DSceneData.InteractiveNodes;
+        Assert.Equal(111, nodes.Count);
+
+        var missing = nodes
+            .Select(n => n.Id)
+            .Where(id => !text.Contains($"archscada:nodeId = \"{id}\"", StringComparison.Ordinal))
+            .ToList();
+        Assert.True(missing.Count == 0, $"ArchCoalPlant.usda is missing archscada:nodeId entries for: {string.Join(", ", missing)}");
+    }
+
+    [Fact]
     public void ExportedGlbModels_MustAllLoadViaSharpGltfWithValidGeometry()
     {
         var meshes = Plant3DSceneData.LoadAllGlbMeshes();

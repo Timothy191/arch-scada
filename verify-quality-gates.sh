@@ -159,6 +159,37 @@ if [[ -f "./deploy/scripts/shader_polyhaven_mcp.py" ]]; then
   [[ -x "$MCP_PY" ]] || MCP_PY="python3"
   "$MCP_PY" ./deploy/scripts/shader_polyhaven_mcp.py --self-test
 fi
+USD_STAGE="ArchScada/Assets/3D/ArchCoalPlant.usda"
+if [[ ! -f "$USD_STAGE" ]]; then
+  echo "ERROR: OpenUSD master stage $USD_STAGE is missing" >&2
+  exit 1
+fi
+USD_SIZE="$(stat -c %s "$USD_STAGE")"
+if (( USD_SIZE <= 102400 )); then
+  echo "ERROR: $USD_STAGE is ${USD_SIZE} bytes (expected > 100 KB)" >&2
+  exit 1
+fi
+USD_PY="${OPENUSD_MCP_PYTHON:-$HOME/.local/share/uv/tools/openusd-mcp/bin/python}"
+if [[ -x "$USD_PY" ]]; then
+  USD_STAGE="$USD_STAGE" "$USD_PY" - <<'PY'
+import os
+import sys
+
+from openusd_mcp.tools import scene_stats
+
+stage = os.environ["USD_STAGE"]
+stats = scene_stats(stage)
+prims = stats.get("prim_count", 0)
+materials = stats.get("material_count", 0)
+up_axis = stats.get("up_axis", stats.get("upAxis"))
+if prims < 250 or materials < 10 or up_axis != "Y":
+    print(f"ERROR: {stage} stage stats failed (prim_count={prims} >= 250, material_count={materials} >= 10, upAxis={up_axis} == Y): {stats}", file=sys.stderr)
+    sys.exit(1)
+print(f"Verified OpenUSD stage {stage}: prim_count={prims}, material_count={materials}, upAxis={up_axis}.")
+PY
+else
+  echo "OpenUSD MCP python not found at $USD_PY; verified $USD_STAGE size only (${USD_SIZE} bytes)."
+fi
 echo "[GATE 3/6] 3D GLB Binary Header & Topology Gate PASS"
 
 # ==============================================================================
@@ -175,6 +206,10 @@ fi
 if [[ -x "./ArchScada/ArchScada.Desktop/bin/Release/net10.0/ArchScada.Desktop" ]]; then
   echo "Running ArchScada.Desktop --verify-deployment..."
   ./ArchScada/ArchScada.Desktop/bin/Release/net10.0/ArchScada.Desktop --verify-deployment
+fi
+if [[ -f "./deploy/scripts/swarm_orchestrator.py" ]]; then
+  echo "Running swarm_orchestrator.py --self-test..."
+  python3 ./deploy/scripts/swarm_orchestrator.py --self-test
 fi
 echo "[GATE 4/6] Backup & Tamper-Evident Audit Self-Test Gate PASS"
 
