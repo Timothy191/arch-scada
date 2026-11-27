@@ -25,13 +25,27 @@ public sealed class GlbMeshData
     public int VertexCount => Vertices.Length / FloatsPerVertex;
     public int TriangleCount => Indices.Length / 3;
 
+    // §5 LOD tier tracking per mesh.
+    public string LODTier { get; }
+    public int LODVertexLimit { get; }
+    public bool UseDracoCompression { get; }
+
     public GlbMeshData(string name, float[] vertices, uint[] indices, Vector3 boundsMin, Vector3 boundsMax)
+        : this(name, vertices, indices, boundsMin, boundsMax, "LOD3", 2500, false)
+    {
+    }
+
+    public GlbMeshData(string name, float[] vertices, uint[] indices, Vector3 boundsMin, Vector3 boundsMax,
+        string lodTier, int lodVertexLimit, bool useDraco)
     {
         Name = name;
         Vertices = vertices;
         Indices = indices;
         BoundsMin = boundsMin;
         BoundsMax = boundsMax;
+        LODTier = lodTier;
+        LODVertexLimit = lodVertexLimit;
+        UseDracoCompression = useDraco;
     }
 }
 
@@ -42,6 +56,67 @@ public sealed class GlbMeshData
 public static class GlbMeshLoader
 {
     private const uint GlbMagic = 0x46546C67; // "glTF"
+
+    // Maps a GLB file name to its equipment category for §5 vertex-budget enforcement.
+    private static readonly Dictionary<string, string> MeshCategoryMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wheel_loader_chassis.glb"] = "WheelLoader",
+        ["vibro_feeder_vf101.glb"] = "VibratingGrizzlyFeeder",
+        ["jaw_crusher_jc101.glb"] = "JawCrusher",
+        ["double_roll_crusher_drc101.glb"] = "DoubleRollCrusher",
+        ["central_sizing_screen_ss101.glb"] = "SizingScreen",
+        ["surge_bin_bn201.glb"] = "SurgeBin",
+        ["feeder_bin_bn101.glb"] = "ReceivingHopper",
+        ["wash_plant_module_wp301.glb"] = "WashPlantModule",
+        ["magnetite_tank_tk301.glb"] = "MediumTank",
+        ["thickener_tk201.glb"] = "Thickener",
+        ["centrifugal_pump.glb"] = "CentrifugalPump",
+        ["stockpile_cone.glb"] = "Stockpile",
+    };
+
+    /// <summary>§5 Gets the vertex budget for a mesh based on its equipment category.</summary>
+    public static LodVertexBudgets GetMeshBudget(string glbFileName)
+    {
+        return MeshCategoryMap.TryGetValue(glbFileName, out var category)
+            ? PlantMeshQuality.GetEquipmentBudget(category)
+            : PlantMeshQuality.VertexBudgets;
+    }
+
+    /// <summary>
+    /// §5 Creates a coarser LOD by decimating the index buffer toward the category vertex budget.
+    /// Vertices are retained in full; only whole triangles are dropped. If the source is already
+    /// within budget, the geometry is passed through unchanged.
+    /// </summary>
+    public static GlbMeshData CreateLODLevel(GlbMeshData source, string lodTier)
+    {
+        var budget = GetMeshBudget(source.Name);
+        int targetVertices = lodTier switch
+        {
+            "LOD1" => budget.LOD1Hero,
+            "LOD2" => budget.LOD2Standard,
+            _ => budget.LOD3Background
+        };
+
+        if (source.VertexCount <= targetVertices)
+        {
+            return new GlbMeshData($"{source.Name}_{lodTier}", source.Vertices, source.Indices,
+                source.BoundsMin, source.BoundsMax, lodTier, targetVertices, source.UseDracoCompression);
+        }
+
+        int stride = Math.Max(1, (int)Math.Ceiling((double)source.TriangleCount / targetVertices));
+        var optimizedIndices = new List<uint>();
+        for (int t = 0; t < source.TriangleCount; t += stride)
+        {
+            int baseIdx = t * 3;
+            if (baseIdx + 2 >= source.Indices.Length) break;
+            optimizedIndices.Add(source.Indices[baseIdx]);
+            optimizedIndices.Add(source.Indices[baseIdx + 1]);
+            optimizedIndices.Add(source.Indices[baseIdx + 2]);
+        }
+
+        return new GlbMeshData($"{source.Name}_{lodTier}", source.Vertices, optimizedIndices.ToArray(),
+            source.BoundsMin, source.BoundsMax, lodTier, targetVertices, source.UseDracoCompression);
+    }
 
     public static GlbMeshData? Load(string filePath)
     {
