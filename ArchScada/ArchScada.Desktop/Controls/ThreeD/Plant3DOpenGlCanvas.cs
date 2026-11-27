@@ -288,10 +288,17 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private int _uShadowMap = -1;
     private int _uShadowsEnabled = -1;
     private int _uEncodeHdr = -1;
+    private int _uMaterialIndex = -1;
+    private int _uBaseColor = -1;
+    private int _uMetallic = -1;
+    private int _uRoughness = -1;
     private int _uApplyToneMap = -1;
     private int _uEnableClearcoat = -1;
     private int _uSimTime = -1;
     private int _uBrdfLut = -1;
+    private int _uWaterRipple = -1;  // §6: water ripple animation uniform
+    private int _uBeltUOffset = -1;  // §6: conveyor belt texture scrolling
+    private int _uBeltVOffset = -1;
     private uint _brdfLutTex;
 
     private uint _msaaFbo;
@@ -477,6 +484,9 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
             _uNearLightViewProj = GetUniformLoc(_program, "uNearLightViewProj");
             _uEncodeHdr = GetUniformLoc(_program, "uEncodeHdr");
             _uApplyToneMap = GetUniformLoc(_program, "uApplyToneMap");
+            _uWaterRipple = GetUniformLoc(_program, "uWaterRipple");  // §6: water ripple animation
+            _uBeltUOffset = GetUniformLoc(_program, "uBeltUOffset");  // §6: conveyor belt texture scrolling
+            _uBeltVOffset = GetUniformLoc(_program, "uBeltVOffset");
             _uEnableClearcoat = GetUniformLoc(_program, "uEnableClearcoat");
             _uSimTime = GetUniformLoc(_program, "uSimTime");
             _uBrdfLut = GetUniformLoc(_program, "uBrdfLut");
