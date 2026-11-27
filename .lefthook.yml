@@ -1,4 +1,6 @@
 pre-push:
   commands:
+    git-secrets:
+      run: scripts/check-git-secrets.sh
     build-and-test:
       run: dotnet build Plant.sln -c Release -warnaserror && dotnet test Plant.sln -c Release --no-build
