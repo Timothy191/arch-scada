@@ -8,6 +8,7 @@
              x:DataType="vm:SplashViewModel">
 
     <Grid Background="Transparent" Margin="10">
+        <!-- Main splash card -->
         <Border Classes="splash-card"
                 MaxWidth="672"
                 Padding="26,20"
@@ -160,28 +161,28 @@
                                                 Width="64"
                                                 VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Category}"
-                                                       FontSize="9"
-                                                       FontWeight="Bold"
-                                                       Foreground="#FBBF24"
-                                                       HorizontalAlignment="Center" />
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FBBF24"
+                                                   HorizontalAlignment="Center" />
                                         </Border>
 
                                         <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}"
-                                                       FontSize="12"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#FAFAFA" />
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FAFAFA" />
                                             <TextBlock Text="{Binding Detail}"
-                                                       FontSize="11"
-                                                       Foreground="#A1A1AA"
-                                                       TextTrimming="CharacterEllipsis" />
+                                                   FontSize="11"
+                                                   Foreground="#A1A1AA"
+                                                   TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
 
                                         <TextBlock Grid.Column="3"
-                                                   Text="{Binding DurationText}"
-                                                   FontSize="10"
-                                                   Foreground="#71717A"
-                                                   VerticalAlignment="Center" />
+                                               Text="{Binding DurationText}"
+                                               FontSize="10"
+                                               Foreground="#71717A"
+                                               VerticalAlignment="Center" />
 
                                         <Border Grid.Column="4"
                                                 Background="#0D0D0F"
@@ -192,10 +193,10 @@
                                                 MinWidth="66"
                                                 VerticalAlignment="Center">
                                             <TextBlock Text="{Binding StateLabel}"
-                                                       FontSize="10"
-                                                       FontWeight="Bold"
-                                                       Foreground="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}"
-                                                       HorizontalAlignment="Center" />
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="{Binding State, Converter={x:Static conv:StatusToBrushConverter.Instance}}"
+                                                   HorizontalAlignment="Center" />
                                         </Border>
                                     </Grid>
                                 </Border>
@@ -232,9 +233,9 @@
                 </Grid>
 
                 <TextBlock Text="ESC to skip · R to re-run checks · Read-Only Safety Boundary Enforced"
-                           FontSize="10"
-                           Foreground="#71717A"
-                           HorizontalAlignment="Center" />
+                       FontSize="10"
+                       Foreground="#71717A"
+                       HorizontalAlignment="Center" />
 
             </StackPanel>
         </Border>
