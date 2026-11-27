@@ -57,38 +57,67 @@ public static class GlbMeshLoader
 {
     private const uint GlbMagic = 0x46546C67; // "glTF"
 
-    // Maps a GLB file name to its equipment category for §5 vertex-budget enforcement.
+    // Maps a GLB base name (no extension) to its equipment category for §5 vertex-budget enforcement.
     private static readonly Dictionary<string, string> MeshCategoryMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["wheel_loader_chassis.glb"] = "WheelLoader",
-        ["vibro_feeder_vf101.glb"] = "VibratingGrizzlyFeeder",
-        ["jaw_crusher_jc101.glb"] = "JawCrusher",
-        ["double_roll_crusher_drc101.glb"] = "DoubleRollCrusher",
-        ["central_sizing_screen_ss101.glb"] = "SizingScreen",
-        ["surge_bin_bn201.glb"] = "SurgeBin",
-        ["feeder_bin_bn101.glb"] = "ReceivingHopper",
-        ["wash_plant_module_wp301.glb"] = "WashPlantModule",
-        ["magnetite_tank_tk301.glb"] = "MediumTank",
-        ["thickener_tk201.glb"] = "Thickener",
-        ["centrifugal_pump.glb"] = "CentrifugalPump",
-        ["stockpile_cone.glb"] = "Stockpile",
+        ["wheel_loader_chassis"] = "WheelLoader",
+        ["vibro_feeder_vf101"] = "VibratingGrizzlyFeeder",
+        ["jaw_crusher_jc101"] = "JawCrusher",
+        ["double_roll_crusher_drc101"] = "DoubleRollCrusher",
+        ["central_sizing_screen_ss101"] = "SizingScreen",
+        ["surge_bin_bn201"] = "SurgeBin",
+        ["feeder_bin_bn101"] = "ReceivingHopper",
+        ["wash_plant_module_wp301"] = "WashPlantModule",
+        ["magnetite_tank_tk301"] = "MediumTank",
+        ["thickener_tk201"] = "Thickener",
+        ["centrifugal_pump"] = "CentrifugalPump",
+        ["stockpile_cone"] = "Stockpile",
     };
 
     /// <summary>§5 Gets the vertex budget for a mesh based on its equipment category.</summary>
     public static LodVertexBudgets GetMeshBudget(string glbFileName)
     {
-        return MeshCategoryMap.TryGetValue(glbFileName, out var category)
+        return MeshCategoryMap.TryGetValue(NormalizeMeshKey(glbFileName), out var category)
             ? PlantMeshQuality.GetEquipmentBudget(category)
             : PlantMeshQuality.VertexBudgets;
     }
 
     /// <summary>
-    /// §5 Creates a coarser LOD by decimating the index buffer toward the category vertex budget.
-    /// Vertices are retained in full; only whole triangles are dropped. If the source is already
-    /// within budget, the geometry is passed through unchanged.
+    /// Normalizes a mesh identifier to its category key. <see cref="GlbMeshData.Name"/> is set from
+    /// <see cref="Path.GetFileNameWithoutExtension(string)"/> on the load path, while callers often
+    /// pass the full file name; LOD chains also append a tier suffix.
+    /// </summary>
+    private static string NormalizeMeshKey(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+            return string.Empty;
+
+        var key = name;
+        if (key.EndsWith(".glb", StringComparison.OrdinalIgnoreCase))
+            key = key[..^4];
+
+        foreach (var suffix in new[] { "_LOD1", "_LOD2", "_LOD3" })
+        {
+            if (key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                key = key[..^suffix.Length];
+                break;
+            }
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// §5 Creates a coarser LOD that actually satisfies the category vertex budget: whole triangles
+    /// are sampled by stride, then the retained geometry is compacted so only referenced vertices
+    /// survive. Bounds are recomputed from the surviving vertices. Sources already within budget are
+    /// passed through unchanged.
     /// </summary>
     public static GlbMeshData CreateLODLevel(GlbMeshData source, string lodTier)
     {
+        ArgumentNullException.ThrowIfNull(source);
+
         var budget = GetMeshBudget(source.Name);
         int targetVertices = lodTier switch
         {
@@ -97,25 +126,86 @@ public static class GlbMeshLoader
             _ => budget.LOD3Background
         };
 
-        if (source.VertexCount <= targetVertices)
+        if (source.VertexCount <= targetVertices || source.TriangleCount == 0)
         {
             return new GlbMeshData($"{source.Name}_{lodTier}", source.Vertices, source.Indices,
                 source.BoundsMin, source.BoundsMax, lodTier, targetVertices, source.UseDracoCompression);
         }
 
-        int stride = Math.Max(1, (int)Math.Ceiling((double)source.TriangleCount / targetVertices));
-        var optimizedIndices = new List<uint>();
-        for (int t = 0; t < source.TriangleCount; t += stride)
+        int triangleCount = source.TriangleCount;
+        // Closed manifold meshes have roughly two triangles per vertex, so this is a good first guess.
+        int stride = Math.Max(1, (int)Math.Ceiling(triangleCount / (2.0 * targetVertices)));
+
+        DecimationResult result;
+        while (true)
         {
-            int baseIdx = t * 3;
-            if (baseIdx + 2 >= source.Indices.Length) break;
-            optimizedIndices.Add(source.Indices[baseIdx]);
-            optimizedIndices.Add(source.Indices[baseIdx + 1]);
-            optimizedIndices.Add(source.Indices[baseIdx + 2]);
+            result = DecimateAndCompact(source, stride);
+            if (result.VertexCount <= targetVertices || stride >= triangleCount)
+                break;
+            stride = Math.Min(triangleCount, Math.Max(stride + 1, (int)Math.Ceiling(stride * 1.5)));
         }
 
-        return new GlbMeshData($"{source.Name}_{lodTier}", source.Vertices, optimizedIndices.ToArray(),
-            source.BoundsMin, source.BoundsMax, lodTier, targetVertices, source.UseDracoCompression);
+        return new GlbMeshData($"{source.Name}_{lodTier}", result.Vertices, result.Indices,
+            result.BoundsMin, result.BoundsMax, lodTier, targetVertices, source.UseDracoCompression);
+    }
+
+    private readonly record struct DecimationResult(
+        float[] Vertices, uint[] Indices, Vector3 BoundsMin, Vector3 BoundsMax)
+    {
+        public int VertexCount => Vertices.Length / GlbMeshData.FloatsPerVertex;
+    }
+
+    /// <summary>Keeps every <paramref name="stride"/>-th triangle and remaps its vertices into a packed buffer.</summary>
+    private static DecimationResult DecimateAndCompact(GlbMeshData source, int stride)
+    {
+        const int floatsPerVertex = GlbMeshData.FloatsPerVertex;
+        int sourceVertexCount = source.VertexCount;
+        var remap = new int[sourceVertexCount];
+        Array.Fill(remap, -1);
+
+        var vertices = new List<float>(1024 * floatsPerVertex);
+        var indices = new List<uint>(source.Indices.Length / Math.Max(1, stride));
+        var boundsMin = new Vector3(float.PositiveInfinity);
+        var boundsMax = new Vector3(float.NegativeInfinity);
+
+        for (int triangle = 0; triangle < source.TriangleCount; triangle += stride)
+        {
+            int baseIndex = triangle * 3;
+            if (baseIndex + 2 >= source.Indices.Length)
+                break;
+
+            for (int corner = 0; corner < 3; corner++)
+            {
+                uint oldIndex = source.Indices[baseIndex + corner];
+                if (oldIndex >= sourceVertexCount)
+                    continue;
+
+                int mapped = remap[oldIndex];
+                if (mapped < 0)
+                {
+                    mapped = vertices.Count / floatsPerVertex;
+                    remap[oldIndex] = mapped;
+
+                    int sourceOffset = (int)oldIndex * floatsPerVertex;
+                    for (int i = 0; i < floatsPerVertex; i++)
+                        vertices.Add(source.Vertices[sourceOffset + i]);
+
+                    var position = new Vector3(
+                        source.Vertices[sourceOffset],
+                        source.Vertices[sourceOffset + 1],
+                        source.Vertices[sourceOffset + 2]);
+                    boundsMin = Vector3.Min(boundsMin, position);
+                    boundsMax = Vector3.Max(boundsMax, position);
+                }
+
+                indices.Add((uint)mapped);
+            }
+        }
+
+        if (vertices.Count == 0)
+            return new DecimationResult(source.Vertices, source.Indices, source.BoundsMin, source.BoundsMax);
+
+        return new DecimationResult(vertices.ToArray(), indices.ToArray(), boundsMin, boundsMax);
     }
 
     public static GlbMeshData? Load(string filePath)
