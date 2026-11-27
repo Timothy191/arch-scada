@@ -9,142 +9,145 @@ using Avalonia.Styling;
 using ArchScada.Desktop.Services;
 using ArchScada.Desktop.ViewModels;
 
-namespace ArchScada.Desktop.Views;
-
-public partial class SplashWindow : Window
+namespace ArchScada.Desktop.Views
 {
-    private readonly SplashViewModel _viewModel;
-
-    public SplashViewModel ViewModel => _viewModel;
-
-    public SplashWindow()
-        : this(new SplashViewModel(new UnityBridgeService()), autoStart: true)
+    public partial class SplashWindow : Window
     {
-    }
+        private readonly SplashViewModel _viewModel;
 
-    public SplashWindow(SplashViewModel viewModel, bool autoStart = true)
-    {
-        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        InitializeComponent();
-        DataContext = _viewModel;
+        public SplashViewModel ViewModel => _viewModel;
 
-        // Honor accessibility preferences: when the platform reports a reduced-motion
-        // or high-contrast setting, add a class that disables looping decorative
-        // animations (see MacOSLightStyles.axaml "splash-reduced-motion" selectors).
-        if (IsReducedMotionRequested())
+        public SplashWindow()
+            : this(new SplashViewModel(new UnityBridgeService()), autoStart: true)
         {
-            Classes.Add("splash-reduced-motion");
         }
 
-        _viewModel.Completed += OnViewModelCompleted;
-        KeyDown += OnSplashKeyDown;
-
-        PlayFadeIn();
-
-        if (autoStart)
+        public SplashWindow(SplashViewModel viewModel, bool autoStart = true)
         {
-            _ = _viewModel.RunStartupSequenceAsync();
+            _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            InitializeComponent();
+            DataContext = _viewModel;
+
+            // Honor accessibility preferences: when the platform reports a reduced-motion
+            // or high-contrast setting, add a class that disables looping decorative
+            // animations (see MacOSLightStyles.axaml "splash-reduced-motion" selectors).
+            if (IsReducedMotionRequested())
+            {
+                Classes.Add("splash-reduced-motion");
+            }
+
+            _viewModel.Completed += OnViewModelCompleted;
+            KeyDown += OnSplashKeyDown;
+
+            PlayFadeIn();
+
+            if (autoStart)
+            {
+                _ = _viewModel.RunStartupSequenceAsync();
+            }
         }
-    }
 
-    private static bool IsReducedMotionRequested()
-    {
-        try
+        private static bool IsReducedMotionRequested()
         {
-            var settings = Application.Current?.PlatformSettings;
-            if (settings is null)
+            try
+            {
+                var settings = Application.Current?.PlatformSettings;
+                if (settings is null)
+                {
+                    return false;
+                }
+
+                // High-contrast themes are a strong signal the user wants minimal motion.
+                return settings.GetColorValues().ContrastPreference
+                    != Avalonia.Platform.ColorContrastPreference.NoPreference;
+            }
+            catch
             {
                 return false;
             }
-
-            // High-contrast themes are a strong signal the user wants minimal motion.
-            return settings.GetColorValues().ContrastPreference
-                != Avalonia.Platform.ColorContrastPreference.NoPreference;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private void PlayFadeIn()
-    {
-        // The automated capture path renders a single deterministic frame, so it
-        // must not depend on a running animation clock. Skip the fade there.
-        if (IsAutomatedCaptureMode || Classes.Contains("splash-reduced-motion"))
-        {
-            return;
         }
 
-        Opacity = 0;
-        var fadeIn = new Animation
+        private void PlayFadeIn()
         {
-            Duration = TimeSpan.FromMilliseconds(420),
-            FillMode = FillMode.Forward,
-            Easing = new CubicEaseOut(),
-            Children =
+            // The automated capture path renders a single deterministic frame, so it
+            // must not depend on a running animation clock. Skip the fade there.
+            if (IsAutomatedCaptureMode || Classes.Contains("splash-reduced-motion"))
             {
-                new KeyFrame
-                {
-                    Cue = new Cue(0.0),
-                    Setters = { new Setter(Visual.OpacityProperty, 0.0) }
-                },
-                new KeyFrame
-                {
-                    Cue = new Cue(1.0),
-                    Setters = { new Setter(Visual.OpacityProperty, 1.0) }
-                }
+                // Jump immediately to final frame for deterministic capture
+                Opacity = 1.0;
+                return;
             }
-        };
 
-        _ = fadeIn.RunAsync(this);
-    }
+            Opacity = 0;
+            var fadeIn = new Animation
+            {
+                Duration = TimeSpan.FromMilliseconds(420),
+                FillMode = FillMode.Forward,
+                Easing = new CubicEaseOut(),
+                Children =
+                {
+                    new KeyFrame
+                    {
+                        Cue = new Cue(0.0),
+                        Setters = { new Setter(Visual.OpacityProperty, 0.0) }
+                    },
+                    new KeyFrame
+                    {
+                        Cue = new Cue(1.0),
+                        Setters = { new Setter(Visual.OpacityProperty, 1.0) }
+                    }
+                }
+            };
 
-    /// <summary>
-    /// Set by <see cref="App"/> when the splash is being driven by the
-    /// <c>--capture-splash</c> automation hook, so decorative motion is suppressed
-    /// for deterministic screenshot output.
-    /// </summary>
-    public bool IsAutomatedCaptureMode { get; set; }
-
-    private void OnViewModelCompleted(object? sender, bool e)
-    {
-        Close();
-    }
-
-    private void OnSplashKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape)
-        {
-            _viewModel.SkipSplashCommand.Execute(null);
-            e.Handled = true;
+            _ = fadeIn.RunAsync(this);
         }
-        else if (e.Key == Key.Enter && _viewModel.IsComplete)
+
+        /// <summary>
+        /// Set by <see cref="App"/> when the splash is being driven by the
+        /// <c>--capture-splash</c> automation hook, so decorative motion is suppressed
+        /// for deterministic screenshot output.
+        /// </summary>
+        public bool IsAutomatedCaptureMode { get; set; }
+
+        private void OnViewModelCompleted(object? sender, bool e)
         {
-            _viewModel.ContinueToAppCommand.Execute(null);
-            e.Handled = true;
+            Close();
         }
-        else if (e.Key == Key.R && _viewModel.IsComplete)
+
+        private void OnSplashKeyDown(object? sender, KeyEventArgs e)
         {
-            _viewModel.RerunChecksCommand.Execute(null);
-            e.Handled = true;
+            if (e.Key == Key.Escape)
+            {
+                _viewModel.SkipSplashCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter && _viewModel.IsComplete)
+            {
+                _viewModel.ContinueToAppCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.R && _viewModel.IsComplete)
+            {
+                _viewModel.RerunChecksCommand.Execute(null);
+                e.Handled = true;
+            }
         }
-    }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        _viewModel.Completed -= OnViewModelCompleted;
-        KeyDown -= OnSplashKeyDown;
-        base.OnClosed(e);
-
-        if (Application.Current is App app)
+        private void InitializeComponent()
         {
-            app.OnSplashCompleted();
+            AvaloniaXamlLoader.Load(this);
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _viewModel.Completed -= OnViewModelCompleted;
+            KeyDown -= OnSplashKeyDown;
+            base.OnClosed(e);
+
+            if (Application.Current is App app)
+            {
+                app.OnSplashCompleted();
+            }
         }
     }
 }
