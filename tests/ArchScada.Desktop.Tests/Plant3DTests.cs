@@ -577,13 +577,13 @@ public class Plant3DTests
             return Plant3DSceneData.PickEquipment(ray, meshes);
         }
 
-        // Elevated sweeping cyclone feed pipe around West/North side -> picks PIPE-304 individually
-        Assert.Equal("PIPE-304", PickTopDown(new Vector3(-5.05f, 4.90f, -9.30f)));
+        // Straight-up-and-over cyclone feed pipe -> picks PIPE-304 individually from above
+        Assert.Equal("PIPE-304", PickTopDown(new Vector3(2.30f, 4.90f, -7.05f)));
         // Full-length wide diamond cyclone, picked from above (instead of WP-301 frame)
         Assert.Equal("DMC-301", PickTopDown(new Vector3(-1.95f, 4.60f, -7.60f)));
         // East vortex finder, East discard spigot, and West inlet PT-301 picked individually
+        Assert.Equal("APEX-301", PickTopDown(new Vector3(0.46f, 4.10f, -8.50f)));
         Assert.Equal("VF-301", PickTopDown(new Vector3(0.46f, 4.20f, -6.92f)));
-        Assert.Equal("APEX-301", PickTopDown(new Vector3(0.46f, 4.10f, -8.28f)));
         Assert.Equal("PT-301", PickTopDown(new Vector3(-4.60f, 5.18f, -8.05f)));
         // Mixing box picked from the East side (not WP-301)
         Assert.Equal("MX-301", PickSide(new Vector3(2.30f, 0.7f, -8.30f), -Vector3.UnitX));
