@@ -288,10 +288,6 @@ public sealed unsafe class Plant3DOpenGlCanvas : OpenGlControlBase
     private int _uShadowMap = -1;
     private int _uShadowsEnabled = -1;
     private int _uEncodeHdr = -1;
-    private int _uMaterialIndex = -1;
-    private int _uBaseColor = -1;
-    private int _uMetallic = -1;
-    private int _uRoughness = -1;
     private int _uApplyToneMap = -1;
     private int _uEnableClearcoat = -1;
     private int _uSimTime = -1;
