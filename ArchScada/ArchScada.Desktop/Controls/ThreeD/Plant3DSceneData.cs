@@ -69,6 +69,64 @@ public sealed record Plant3DNode(
     public string ProvisionalConfigNote => Plant3DSceneData.FormatProvisionalConfigNote(this, ChppEngineeringConfig.Current);
 }
 
+/// <summary>
+/// §5 Enhanced machine node with LOD vertex budgets and PBR material assignment.
+/// Includes shadow casting/receiving flags and silhouette weight for intro animation.
+/// </summary>
+public sealed record EnhancedMachineNode(
+    string Id,
+    string GaLabel,
+    string StageLabel,
+    string EquipmentType,
+    string GlbFileName,
+    Vector3 Position,
+    float YawDegrees,
+    Vector3 Scale,
+    Vector3 HalfExtents,
+    float LabelHeight,
+    Color DefaultColor,
+    string DimensionsSpec,
+    string MechanicalPrinciple,
+    string ComponentDescription,
+    string[] UpstreamIds,
+    string[] DownstreamIds,
+    string LinkedScadaId,
+    bool HasFillLevel = false,
+    float FillRadius = 0f,
+    float FillBaseY = 0f,
+    float FillMaxHeight = 0f,
+    bool Vibrates = false,
+    bool HasRotatingTop = false,
+    float RotatingTopY = 0f,
+    float RotatingTopLength = 0f,
+    bool IsConveyor = false,
+    bool IsSubComponent = false,
+    bool IsPipe = false,
+    int LODVertexCount = 0,
+    string LODTier = "LOD2",
+    PbrMaterial? AssignedMaterial = null,
+    bool CastShadows = true,
+    bool ReceiveShadows = true,
+    float SilhouetteWeight = 1.0f);
+
+/// <summary>
+/// §5 SubEquipmentNode with detail specs for plant equipment sub-components.
+/// Used for detailed viewport rendering and silhouette enhancement.
+/// </summary>
+public sealed record SubEquipmentNode(
+    string Id,
+    string ParentEquipmentId,
+    string GaLabel,
+    string EquipmentSubType,
+    Vector3 Position,
+    Vector3 HalfExtents,
+    string GlbFileName = "",
+    PbrMaterial? AssignedMaterial = null,
+    bool CastShadows = true,
+    bool ReceiveShadows = true,
+    float SilhouetteWeight = 1.0f,
+    float DetailLevel = 1.0f);
+
 public sealed record ConveyorSpec(
     string Id,
     string GaLabel,
@@ -85,7 +143,12 @@ public sealed record ConveyorSpec(
     string MechanicalPrinciple,
     string ComponentDescription,
     Vector3[]? FeedChuteWaypoints = null,
-    Vector3? HeadDischargeOffset = null)
+    Vector3? HeadDischargeOffset = null,
+    // §6 Belt texture animation: scrolling UV offsets and rate; HasFlangeDetails renders end flanges.
+    float BeltUOffset = 0f,
+    float BeltVOffset = 0f,
+    float BeltSpeed = 1.0f,
+    bool HasFlangeDetails = false)
 {
     public Vector3[] GetBeltWaypoints() => new[] { TailPos, HeadPos };
 
@@ -126,6 +189,28 @@ public sealed record PipeRoute(
     string ComponentDescription = "",
     string[]? UpstreamIds = null,
     string[]? DownstreamIds = null);
+
+/// <summary>
+/// §5 Enhanced pipe route with beveled joint geometry and flange details at connections.
+/// </summary>
+public sealed record EnhancedPipeRoute(
+    string SourceEquipmentId,
+    FlowMedium Medium,
+    float Radius,
+    Vector3[] Waypoints,
+    string Id = "",
+    string GaLabel = "",
+    string StageLabel = "",
+    string DimensionsSpec = "",
+    string MechanicalPrinciple = "",
+    string ComponentDescription = "",
+    string[]? UpstreamIds = null,
+    string[]? DownstreamIds = null,
+    // LOD and geometry enhancements per §5
+    int LODVertexCount = 0,
+    bool HasBeveledJoints = false,
+    bool HasFlangeDetails = false,
+    string PipeMaterial = "Steel");
 
 public readonly record struct Ray3D(Vector3 Origin, Vector3 Direction);
 
@@ -178,6 +263,85 @@ public sealed record Plant3DPerformanceMetrics(
 /// across Stages 1–6 and the Wash Plant / Medium Recovery circuit.
 /// Coordinate convention: X = West(-) to East(+), Y = Up >= 0, Z = North(-) to South(+).
 /// </summary>
+/// <summary>§5 Mesh quality targets: LOD vertex budgets per equipment category.</summary>
+public sealed record LodVertexBudgets(
+    int LOD1Hero,
+    int LOD2Standard,
+    int LOD3Background);
+
+/// <summary>§6 PBR material definition (linear sRGB base color; roughness/metallic are non-color).</summary>
+public sealed record PbrMaterial(
+    string Name,
+    Color BaseColor,
+    float Roughness,
+    float Metallic,
+    string? NormalMapOverride = null);
+
+/// <summary>
+/// §5/§6 Mesh-quality targets and PBR material library shared by the 3D pipeline.
+/// </summary>
+public static class PlantMeshQuality
+{
+    public static readonly LodVertexBudgets VertexBudgets = new(15000, 8000, 2500);
+    public static readonly LodVertexBudgets VesselBudgets = new(12000, 6000, 2000);
+    public static readonly LodVertexBudgets PumpPipingBudgets = new(8000, 4000, 1500);
+    public static readonly LodVertexBudgets ValveFittingBudgets = new(4000, 2000, 800);
+
+    public static readonly Dictionary<string, LodVertexBudgets> EquipmentCategoryBudgets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Stockpile"] = VesselBudgets,
+        ["WheelLoader"] = PumpPipingBudgets,
+        ["ReceivingHopper"] = VesselBudgets,
+        ["VibratingGrizzlyFeeder"] = PumpPipingBudgets,
+        ["JawCrusher"] = ValveFittingBudgets,
+        ["DoubleRollCrusher"] = ValveFittingBudgets,
+        ["SizingScreen"] = ValveFittingBudgets,
+        ["SurgeBin"] = VesselBudgets,
+        ["DeslimingScreen"] = ValveFittingBudgets,
+        ["WashPlantModule"] = ValveFittingBudgets,
+        ["MagneticSeparator"] = ValveFittingBudgets,
+        ["MediumTank"] = VesselBudgets,
+        ["Thickener"] = VesselBudgets,
+        ["CentrifugalPump"] = PumpPipingBudgets,
+        ["ProductStockpile"] = VesselBudgets,
+        ["DiscardStockpile"] = VesselBudgets,
+    };
+
+    public static LodVertexBudgets GetEquipmentBudget(string equipmentType) =>
+        EquipmentCategoryBudgets.TryGetValue(equipmentType, out var budget) ? budget : VertexBudgets;
+
+    public static string CalculateLODTier(int vertexCount, string equipmentType)
+    {
+        var budget = GetEquipmentBudget(equipmentType);
+        if (vertexCount <= budget.LOD3Background) return "LOD3";
+        if (vertexCount <= budget.LOD2Standard) return "LOD2";
+        return "LOD1";
+    }
+
+    // §6 PBR material library (linear sRGB authoring).
+    public static readonly PbrMaterial Steel = new("Steel", Color.Parse("#71717A"), 0.35f, 0.85f);
+    public static readonly PbrMaterial CeramicLined = new("Ceramic-Lined", Color.Parse("#E5E7E8"), 0.45f, 0.20f);
+    public static readonly PbrMaterial RubberLined = new("Rubber-Lined", Color.Parse("#F2D9CE"), 0.60f, 0.10f);
+    public static readonly PbrMaterial Coal = new("Coal", Color.Parse("#2D2D2D"), 0.90f, 0.05f);
+    public static readonly PbrMaterial Magnetite = new("Magnetite", Color.Parse("#1E1E1E"), 0.40f, 0.95f);
+    public static readonly PbrMaterial Water = new("Water", Color.Parse("#A0E7FF"), 0.10f, 0.05f);
+    public static readonly PbrMaterial Plastic = new("Plastic", Color.Parse("#FBBF24"), 0.55f, 0.30f);
+    public static readonly PbrMaterial Glass = new("Glass", Color.Parse("#F8FAFF"), 0.20f, 1.00f);
+
+    public static PbrMaterial GetPbrMaterial(string materialName) => materialName switch
+    {
+        "Steel" => Steel,
+        "Ceramic-Lined" => CeramicLined,
+        "Rubber-Lined" => RubberLined,
+        "Coal" => Coal,
+        "Magnetite" => Magnetite,
+        "Water" => Water,
+        "Plastic" => Plastic,
+        "Glass" => Glass,
+        _ => Steel
+    };
+}
+
 public static class Plant3DSceneData
 {
     public static readonly IReadOnlyList<Plant3DNode> MachineNodes = new Plant3DNode[]
@@ -882,12 +1046,8 @@ public static class Plant3DSceneData
         new("DM-301", FlowMedium.Coal, 0.095f, new Vector3[]
         {
             new(2.30f, 0.55f, -7.05f),
-            new(2.30f, 1.35f, -7.05f),
-            new(2.30f, 1.35f, -10.35f),
-            new(-5.05f, 1.35f, -10.35f),
-            new(-5.05f, 4.90f, -10.35f),
-            new(-5.05f, 4.90f, -8.05f),
-            new(-4.00f, 4.90f, -8.05f),
+            new(2.30f, 5.50f, -7.05f),
+            new(-1.00f, 5.50f, -9.00f),
             new(-4.00f, 4.68f, -8.05f)
         },
             Id: "PIPE-304",
@@ -995,6 +1155,34 @@ public static class Plant3DSceneData
             ComponentDescription: "Standby thickener underflow pump manifold for PP-202.",
             UpstreamIds: new[] { "TK-201", "PP-202" },
             DownstreamIds: new[] { "PIPE-306", "TK-301" })
+    };
+
+    /// <summary>
+    /// §5 Enhanced pipe routes with beveled joint geometry and flange details at connections.
+    /// </summary>
+    public static readonly IReadOnlyList<EnhancedPipeRoute> EnhancedPipeRoutes = new EnhancedPipeRoute[]
+    {
+        new(
+            SourceEquipmentId: "PP-301",
+            Medium: FlowMedium.Coal,
+            Radius: 0.095f,
+            Waypoints: new[]
+            {
+                new Vector3(2.30f, 0.55f, -7.05f),
+                new Vector3(2.30f, 5.50f, -7.05f),
+                new Vector3(-1.00f, 5.50f, -9.00f),
+                new Vector3(-4.00f, 4.68f, -8.05f)
+            },
+            Id: "PIPE-304",
+            GaLabel: "Mixing Box to West Cyclone Inlet Sweeping Feed Pipe (Coal-Magnetite Mix)",
+            StageLabel: "Wash Plant & Medium Recovery",
+            DimensionsSpec: "DN250 ceramic-lined manifold · 14.2 m sweeping run · 4.35 m lift",
+            MechanicalPrinciple: "PP-301 pumps coal-magnetite slurry from MX-301, sweeping North/West around the conveyors and entering the West side of DMC-301 past PT-301.",
+            ComponentDescription: "Sweeping cyclone feed pipe from the mixing box around the conveyor side into the West DMC-301 inlet.",
+            LODVertexCount: 6500,
+            HasBeveledJoints: true,
+            HasFlangeDetails: true,
+            PipeMaterial: "Ceramic-Lined")
     };
 
     /// <summary>
